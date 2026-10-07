@@ -277,22 +277,35 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
 
+    def _get_user_id(self, body=None):
+        uid = self.headers.get('X-User-Id')
+        if uid and uid.strip():
+            return uid.strip()
+        if body and isinstance(body, dict) and body.get('user_id'):
+            return str(body['user_id']).strip()
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        if 'user_id' in query and query['user_id'][0].strip():
+            return query['user_id'][0].strip()
+        return 'default_user'
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+        uid = self._get_user_id()
 
         # List conversations
         if path == '/api/conversations':
             archived = query.get('archived', ['false'])[0].lower() == 'true'
-            convs = database.list_conversations(include_archived=archived)
+            convs = database.list_conversations(user_id=uid, include_archived=archived)
             self._send_json(convs)
             return
 
         # Get specific conversation
         if path.startswith('/api/conversations/'):
             conv_id = path.split('/api/conversations/')[1].strip()
-            conv = database.get_conversation(conv_id)
+            conv = database.get_conversation(conv_id, user_id=uid)
             if conv:
                 self._send_json(conv)
             else:
@@ -301,13 +314,13 @@ class AppHandler(SimpleHTTPRequestHandler):
 
         # Get Student Profile
         if path == '/api/profile':
-            profile = database.get_student_profile()
+            profile = database.get_student_profile(user_id=uid)
             self._send_json(profile or {})
             return
 
         # Get Settings
         if path == '/api/settings':
-            settings = database.get_all_settings()
+            settings = database.get_all_settings(user_id=uid)
             self._send_json(settings)
             return
 
@@ -366,37 +379,39 @@ class AppHandler(SimpleHTTPRequestHandler):
         except Exception:
             body = {}
 
+        uid = self._get_user_id(body)
+
         # Create conversation
         if path == '/api/conversations':
             title = body.get('title', 'محادثة جديدة')
             model = body.get('model', 'leo-4o-mini')
-            conv = database.create_conversation(title=title, model=model)
+            conv = database.create_conversation(title=title, model=model, user_id=uid)
             self._send_json(conv, 201)
             return
 
         # Clear all conversations (Memory wipe)
         if path == '/api/conversations/clear':
-            database.clear_all_conversations()
+            database.clear_all_conversations(user_id=uid)
             self._send_json({"status": "cleared"})
             return
 
         # Save student profile
         if path == '/api/profile':
-            saved = database.save_student_profile(body)
+            saved = database.save_student_profile(user_id=uid, profile_data=body)
             self._send_json(saved, 200)
             return
 
         # Save settings
         if path == '/api/settings':
             for k, v in body.items():
-                database.save_setting(k, v)
+                database.save_setting(uid, k, v)
             self._send_json({"status": "saved"})
             return
 
         # Save feedback / bug report
         if path == '/api/feedback':
             text = body.get('content', '')
-            fb_id = database.add_feedback(text)
+            fb_id = database.add_feedback(uid, text)
             self._send_json({"status": "recorded", "id": fb_id}, 201)
             return
 
@@ -411,18 +426,18 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             if not conv_id:
                 auto_t = database.generate_smart_title(user_text)
-                conv = database.create_conversation(title=auto_t, model=model)
+                conv = database.create_conversation(title=auto_t, model=model, user_id=uid)
                 conv_id = conv['id']
 
             # Save user message to database
-            database.add_message(conv_id, 'user', user_text, attachments=attachments)
+            database.add_message(conv_id, 'user', user_text, attachments=attachments, user_id=uid)
 
             # Build history from conversation
-            conv_data = database.get_conversation(conv_id)
+            conv_data = database.get_conversation(conv_id, user_id=uid)
             db_messages = conv_data.get('messages', []) if conv_data else []
 
             # Retrieve student profile for teacher personalization
-            student_profile = database.get_student_profile()
+            student_profile = database.get_student_profile(user_id=uid)
             sys_prompt = build_teacher_system_prompt(student_profile, study_mode)
             formatted_messages = [{'role': 'system', 'content': sys_prompt}]
 
@@ -486,6 +501,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def do_PUT(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        uid = self._get_user_id()
         if path.startswith('/api/conversations/'):
             conv_id = path.split('/api/conversations/')[1].strip()
             content_length = int(self.headers.get('Content-Length', 0))
@@ -500,7 +516,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                 title=body.get('title'), 
                 model=body.get('model'),
                 pinned=body.get('pinned'),
-                archived=body.get('archived')
+                archived=body.get('archived'),
+                user_id=uid
             )
             self._send_json(conv)
             return
@@ -510,10 +527,11 @@ class AppHandler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        uid = self._get_user_id()
 
         if path.startswith('/api/conversations/'):
             conv_id = path.split('/api/conversations/')[1].strip()
-            database.delete_conversation(conv_id)
+            database.delete_conversation(conv_id, user_id=uid)
             self._send_json({"status": "deleted"})
             return
 

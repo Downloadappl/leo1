@@ -110,10 +110,47 @@
       <!-- Main Messages Content Area -->
       <section class="chat-content-area" id="chatContentArea">
         
-        <!-- Screen 1: Empty State Hero ("هل أنت مستعد؟") -->
+        <!-- Screen 1: Empty State Hero ("هل أنت مستعد؟") with Typewriter & Dynamic Suggestions -->
         <div class="empty-state-container" id="emptyStateContainer">
-          <h1 class="empty-state-title">هل أنت مستعد؟</h1>
-          <div class="empty-state-subtitle" id="emptyStudentGreeting">الأستاذ ليو جاهز لمساعدتك في دروسك ومسائلك</div>
+          <div class="empty-state-hero">
+            <div class="empty-hero-pill">🎓 الأستاذ ليو — الموجه الأكاديمي</div>
+            <h1 class="empty-state-title" id="emptyStateTitle">
+              <span id="typewriterText">هل أنت مستعد؟</span><span class="typewriter-cursor">|</span>
+            </h1>
+            <div class="empty-state-subtitle" id="emptyStudentGreeting">الأستاذ ليو جاهز لمساعدتك في دروسك ومسائلك خطوة بخطوة.</div>
+          </div>
+
+          <!-- Quick Interactive Study Suggestions (ChatGPT & DeepSeek Style) -->
+          <div class="study-suggestions-grid" id="studySuggestionsGrid">
+            <button class="suggestion-card" type="button" data-prompt="اشرح لي مسألة فيزياء أو كيمياء مع ذكر القوانين وخطوات التعويض والناتج النموذجي">
+              <div class="suggestion-card-icon">📐</div>
+              <div class="suggestion-card-info">
+                <div class="suggestion-card-title">حل مسألة علمية نموذجية</div>
+                <div class="suggestion-card-desc">مع القوانين والتعويض والوحدات بالتفصيل</div>
+              </div>
+            </button>
+            <button class="suggestion-card" type="button" data-prompt="اشرح لي قاعدة في اللغة العربية مع أمثلة إعرابية تطبيقية من المنهج العراقي">
+              <div class="suggestion-card-icon">📖</div>
+              <div class="suggestion-card-info">
+                <div class="suggestion-card-title">شرح قواعد وإعراب</div>
+                <div class="suggestion-card-desc">أمثلة تطبيقية وشواهد وزارية معربة</div>
+              </div>
+            </button>
+            <button class="suggestion-card" type="button" data-prompt="ما هي أهم الأسئلة والتمارين الوزارية المكررة لهذا الموضوع وكيفية الإجابة عنها؟">
+              <div class="suggestion-card-icon">📝</div>
+              <div class="suggestion-card-info">
+                <div class="suggestion-card-title">أسئلة وزارية مكررة</div>
+                <div class="suggestion-card-desc">أجوبة نموذجية تطابق مركز الفحص</div>
+              </div>
+            </button>
+            <button class="suggestion-card" type="button" data-prompt="لخص لي هذا الفصل الدراسي في نقاط مكثفة وجداول مقارنة للمراجعة السريعة">
+              <div class="suggestion-card-icon">💡</div>
+              <div class="suggestion-card-info">
+                <div class="suggestion-card-title">تلخيص ذكي للاختبار</div>
+                <div class="suggestion-card-desc">مفاهيم جوهرية وجداول مقارنة سريعة</div>
+              </div>
+            </button>
+          </div>
         </div>
 
         <!-- Screen 2: Dynamic Messages Stream List -->
@@ -141,7 +178,7 @@
         </div>
       </div>
 
-      <!-- Bottom Floating Glow Input Bar (Strict LTR: Plus on Left, Textarea in Middle, Mic & Pill on Right) -->
+      <!-- Bottom Floating Glow Input Bar & Attachment Action Panel -->
       <footer class="input-section-container">
         <div class="glowing-input-box" id="glowingInputBox">
           
@@ -153,6 +190,8 @@
             </svg>
           </button>
           <input type="file" id="fileInput" accept="image/*" style="display: none;">
+          <input type="file" id="docFileInput" accept="application/pdf,image/*,.doc,.docx,.txt" style="display: none;">
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
 
           <!-- Middle: Prompt Composer Textarea (RTL text) -->
           <div class="input-field-wrapper">
@@ -207,6 +246,62 @@
 
           </div>
 
+        </div>
+
+        <!-- Attachment Action Sheet (Matches user screenshot: Thumbnails Row + 3 Action Buttons) -->
+        <div class="attachment-action-panel" id="attachmentActionPanel" style="display: none;">
+          <!-- Row 1: Horizontal scroll of sample gallery thumbnails with round checkmarks -->
+          <div class="gallery-thumbs-row" id="galleryThumbsRow">
+            <div class="gallery-thumb-card" data-title="مسألة فيزياء - دوائر التيار المتناوب">
+              <div class="thumb-check-dot"></div>
+              <div class="thumb-placeholder-art art-1">⚡ فيزياء</div>
+            </div>
+            <div class="gallery-thumb-card" data-title="مخطط الكيمياء - الاتزان الأيوني">
+              <div class="thumb-check-dot"></div>
+              <div class="thumb-placeholder-art art-2">🧪 كيمياء</div>
+            </div>
+            <div class="gallery-thumb-card" data-title="تمارين الرياضيات - مبرهنة رول والقيمة المتوسطة">
+              <div class="thumb-check-dot"></div>
+              <div class="thumb-placeholder-art art-3">📐 رياضيات</div>
+            </div>
+            <div class="gallery-thumb-card" data-title="قواعد اللغة العربية - أسلوب الاستفهام">
+              <div class="thumb-check-dot"></div>
+              <div class="thumb-placeholder-art art-4">📖 قواعد</div>
+            </div>
+            <div class="gallery-thumb-card" data-title="أسئلة وزارية مكررة في الأحياء">
+              <div class="thumb-check-dot"></div>
+              <div class="thumb-placeholder-art art-5">📝 وزاريات</div>
+            </div>
+            <div class="gallery-thumb-card" data-title="قواعد اللغة الإنكليزية - قطعه الاستيعاب">
+              <div class="thumb-check-dot"></div>
+              <div class="thumb-placeholder-art art-6">🌐 إنكليزي</div>
+            </div>
+          </div>
+
+          <!-- Row 2: 3 large action buttons (ملف, الألبوم, كاميرا) exactly like screenshot -->
+          <div class="attachment-actions-trio">
+            <button class="sheet-action-tile" id="sheetFileBtn" type="button">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              </svg>
+              <span>ملف</span>
+            </button>
+            <button class="sheet-action-tile" id="sheetAlbumBtn" type="button">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>الألبوم</span>
+            </button>
+            <button class="sheet-action-tile" id="sheetCameraBtn" type="button">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <span>كاميرا</span>
+            </button>
+          </div>
         </div>
       </footer>
 

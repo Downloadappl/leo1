@@ -17,6 +17,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const attachmentPreviewDrawer = document.getElementById('attachmentPreviewDrawer');
   const micBtn = document.getElementById('micBtn');
 
+  // --- Device & User Isolation (Every device has its own isolated conversations and profile) ---
+  let deviceUserId = localStorage.getItem('leo_device_user_id');
+  if (!deviceUserId) {
+    deviceUserId = 'dev_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    localStorage.setItem('leo_device_user_id', deviceUserId);
+  }
+
+  // Intercept all fetch requests to automatically pass X-User-Id header
+  const _originalFetch = window.fetch;
+  window.fetch = function(url, options = {}) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (typeof options.headers.append === 'function') {
+      options.headers.append('X-User-Id', deviceUserId);
+    } else {
+      options.headers['X-User-Id'] = deviceUserId;
+    }
+    return _originalFetch(url, options);
+  };
+
+  // Attachment Action Sheet Elements (Matches User Screenshot)
+  const glowingInputBox = document.getElementById('glowingInputBox');
+  const attachmentActionPanel = document.getElementById('attachmentActionPanel');
+  const sheetFileBtn = document.getElementById('sheetFileBtn');
+  const sheetAlbumBtn = document.getElementById('sheetAlbumBtn');
+  const sheetCameraBtn = document.getElementById('sheetCameraBtn');
+  const docFileInput = document.getElementById('docFileInput');
+  const cameraInput = document.getElementById('cameraInput');
+  const galleryThumbsRow = document.getElementById('galleryThumbsRow');
+  const typewriterText = document.getElementById('typewriterText');
+  const studySuggestionsGrid = document.getElementById('studySuggestionsGrid');
+
   // ChatGPT Audio Bar Elements
   const chatgptAudioBar = document.getElementById('chatgptAudioBar');
   const audioBarStatusText = document.getElementById('audioBarStatusText');
@@ -262,34 +294,114 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Attachments & Vision ---
-  attachBtn.addEventListener('click', () => fileInput.click());
+  // --- Attachments & Screenshot-Style Action Panel ---
+  if (attachBtn) {
+    attachBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = attachmentActionPanel && attachmentActionPanel.style.display === 'flex';
+      if (isVisible) {
+        attachmentActionPanel.style.display = 'none';
+        glowingInputBox.classList.remove('elevated');
+      } else if (attachmentActionPanel) {
+        attachmentActionPanel.style.display = 'flex';
+        glowingInputBox.classList.add('elevated');
+      }
+    });
+  }
 
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      showToast('يرجى اختيار ملف صورة صالح (JPG, PNG, WebP)');
-      fileInput.value = '';
-      return;
+  // Close attachment panel when clicking outside
+  document.addEventListener('click', (e) => {
+    if (attachmentActionPanel && !attachmentActionPanel.contains(e.target) && !attachBtn.contains(e.target)) {
+      attachmentActionPanel.style.display = 'none';
+      if (glowingInputBox) glowingInputBox.classList.remove('elevated');
     }
+  });
 
+  // Action Panel Trio Buttons
+  if (sheetAlbumBtn) {
+    sheetAlbumBtn.addEventListener('click', () => {
+      if (fileInput) fileInput.click();
+    });
+  }
+  if (sheetFileBtn) {
+    sheetFileBtn.addEventListener('click', () => {
+      if (docFileInput) docFileInput.click();
+    });
+  }
+  if (sheetCameraBtn) {
+    sheetCameraBtn.addEventListener('click', () => {
+      if (cameraInput) cameraInput.click();
+    });
+  }
+
+  // Gallery Thumbnails Selection
+  if (galleryThumbsRow) {
+    galleryThumbsRow.querySelectorAll('.gallery-thumb-card').forEach(thumb => {
+      thumb.addEventListener('click', () => {
+        const title = thumb.dataset.title || 'مسألة دراسية';
+        thumb.classList.toggle('selected');
+        chatTextInput.value = `أستاذ ليو، أرجو توضيح وشرح الحل النموذجي لهذه الجزئية بالتفصيل: ${title}`;
+        autoResizeTextarea();
+        actionPillBtn.classList.add('send-mode');
+        if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
+        if (glowingInputBox) glowingInputBox.classList.remove('elevated');
+        showToast(`تم اختيار موضوع: ${title}`);
+      });
+    });
+  }
+
+  // Study Suggestions Grid Click Handlers (ChatGPT / DeepSeek Style)
+  if (studySuggestionsGrid) {
+    studySuggestionsGrid.querySelectorAll('.suggestion-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const prompt = card.dataset.prompt;
+        if (prompt) {
+          chatTextInput.value = prompt;
+          autoResizeTextarea();
+          actionPillBtn.classList.add('send-mode');
+          handleSendPrompt();
+        }
+      });
+    });
+  }
+
+  function handleFileSelected(file) {
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
       pendingAttachments.push({
         name: file.name,
-        type: file.type,
+        type: file.type || 'image/jpeg',
         size: file.size,
         data: evt.target.result
       });
       renderAttachmentChips();
       actionPillBtn.classList.add('send-mode');
-      showToast('تم إرفاق الصورة؛ سيقوم الأستاذ ليو بتحليلها');
+      if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
+      if (glowingInputBox) glowingInputBox.classList.remove('elevated');
+      showToast('تم إرفاق الملف؛ سيقوم الأستاذ ليو بفحصه بدقة');
     };
     reader.readAsDataURL(file);
-    fileInput.value = '';
-  });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      handleFileSelected(e.target.files[0]);
+      fileInput.value = '';
+    });
+  }
+  if (docFileInput) {
+    docFileInput.addEventListener('change', (e) => {
+      handleFileSelected(e.target.files[0]);
+      docFileInput.value = '';
+    });
+  }
+  if (cameraInput) {
+    cameraInput.addEventListener('change', (e) => {
+      handleFileSelected(e.target.files[0]);
+      cameraInput.value = '';
+    });
+  }
 
   function renderAttachmentChips() {
     attachmentPreviewDrawer.innerHTML = '';
@@ -653,9 +765,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  let typewriterInterval = null;
+  function runTypewriterEffect(targetString) {
+    if (!typewriterText) return;
+    if (typewriterInterval) clearInterval(typewriterInterval);
+    typewriterText.textContent = '';
+    let idx = 0;
+    typewriterInterval = setInterval(() => {
+      if (idx < targetString.length) {
+        typewriterText.textContent += targetString.charAt(idx);
+        idx++;
+      } else {
+        clearInterval(typewriterInterval);
+        typewriterInterval = null;
+      }
+    }, 45);
+  }
+
   function showEmptyState() {
     messagesStreamList.innerHTML = '';
     emptyStateContainer.style.display = 'flex';
+    const name = (studentProfile && studentProfile.name) ? studentProfile.name.trim() : '';
+    const genderTerm = (studentProfile && studentProfile.gender === 'female') ? 'يا ابنتي' : 'يا بني';
+    const phrase = name ? `هل أنت مستعد، ${genderTerm} ${name}؟` : 'هل أنت مستعد؟';
+    runTypewriterEffect(phrase);
   }
 
   // --- Send Message & Progressive Streaming (ChatGPT Style) ---
@@ -1076,15 +1209,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeProfileModal() {
+    if (!studentProfile || !studentProfile.name) {
+      showToast('يرجى حفظ بياناتك الدراسية للبدء مع الأستاذ ليو');
+      return;
+    }
     profileModalOverlay.classList.remove('active');
   }
 
   profileModalCloseBtn.addEventListener('click', closeProfileModal);
+  profileModalOverlay.addEventListener('click', (e) => {
+    if (e.target === profileModalOverlay) closeProfileModal();
+  });
 
   saveProfileBtn.addEventListener('click', async () => {
     const name = profNameInput.value.trim();
     if (!name) {
-      alert('يرجى كتابة اسمك');
+      alert('يرجى كتابة اسمك للمتابعة والدراسة مع الأستاذ ليو');
       return;
     }
 
@@ -1104,9 +1244,11 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify(studentProfile)
     });
 
+    profileModalCloseBtn.style.display = 'flex';
     updateProfileUI();
-    closeProfileModal();
-    showToast('تم حفظ وتحديث الملف الدراسي بنجاح');
+    profileModalOverlay.classList.remove('active');
+    showToast(`أهلاً بك يا ${name}! تم ضبط ملفك بنجاح.`);
+    showEmptyState();
   });
 
   function updateProfileUI() {
@@ -1301,9 +1443,14 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(studentProfile)
           });
         } else {
-          // First time student onboarding modal!
-          setTimeout(openProfileModal, 600);
+          // Mandatory first-time registration for this new device/user!
+          profileModalCloseBtn.style.display = 'none';
+          setTimeout(openProfileModal, 300);
         }
+      } else if (!studentProfile || !studentProfile.name) {
+        // If server profile failed or empty, force modal!
+        profileModalCloseBtn.style.display = 'none';
+        setTimeout(openProfileModal, 300);
       }
 
       // 2. Fetch Settings
