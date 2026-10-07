@@ -173,14 +173,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let isAudioPaused = false;
   let viewingArchived = false;
 
-  // Student Profile State
-  let studentProfile = {
-    name: 'الطالب',
-    gender: 'male',
-    stage: 'preparatory',
-    grade_sub: 'sixth_scientific',
-    specialization: ''
-  };
+  // Active Smooth Streaming Controller
+  let activeStreamer = null;
+
+  // Student Profile State (Strictly null until authenticated/filled — no dummy data!)
+  let studentProfile = null;
 
   // Settings State
   let settingsState = {
@@ -277,6 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Action pill click (Waveform / Send / Stop)
   actionPillBtn.addEventListener('click', () => {
     if (isGenerating) {
+      if (activeStreamer) {
+        activeStreamer.cancel();
+        activeStreamer = null;
+      }
       if (activeAbortController) {
         activeAbortController.abort();
         activeAbortController = null;
@@ -791,10 +792,128 @@ document.addEventListener('DOMContentLoaded', () => {
     runTypewriterEffect(phrase);
   }
 
+  // --- Silky-Smooth Progressive Streaming Engine (ChatGPT & Claude Style) ---
+  class SmoothTextStreamer {
+    constructor({ textElem, cursorElem, onDone }) {
+      this.textElem = textElem;
+      this.cursorElem = cursorElem;
+      this.onDone = onDone;
+      this.buffer = '';
+      this.revealed = '';
+      this.isNetworkDone = false;
+      this.isAborted = false;
+      this.rafId = null;
+    }
+
+    append(textChunk) {
+      if (this.isAborted) return;
+      this.buffer += textChunk;
+      if (!this.rafId) {
+        this.run();
+      }
+    }
+
+    finish() {
+      this.isNetworkDone = true;
+      if (!this.rafId && this.revealed.length >= this.buffer.length) {
+        this.finalize();
+      }
+    }
+
+    cancel() {
+      this.isAborted = true;
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+      this.finalize();
+    }
+
+    run() {
+      const step = () => {
+        if (this.isAborted) return;
+
+        const remaining = this.buffer.length - this.revealed.length;
+
+        if (remaining > 0) {
+          // Dynamic adaptive cadence:
+          // Gives fluid word-by-word/char-by-char progressive typing flow
+          let stepSize = 1;
+          if (remaining > 220) {
+            stepSize = Math.ceil(remaining / 7);
+          } else if (remaining > 100) {
+            stepSize = 4;
+          } else if (remaining > 45) {
+            stepSize = 3;
+          } else if (remaining > 16) {
+            stepSize = 2;
+          } else {
+            stepSize = 1;
+          }
+
+          this.revealed = this.buffer.slice(0, this.revealed.length + stepSize);
+
+          // Render progressive Markdown
+          if (window.marked) {
+            this.textElem.innerHTML = marked.parse(this.revealed);
+          } else {
+            this.textElem.textContent = this.revealed;
+          }
+
+          // Keep glowing typing cursor affixed at the active typing tip
+          if (this.cursorElem) {
+            this.textElem.appendChild(this.cursorElem);
+          }
+
+          bindCopyCodeButtons(this.textElem);
+          scrollToBottom(true);
+        }
+
+        // When all incoming characters have been smoothly revealed and stream is finished
+        if (this.isNetworkDone && this.revealed.length >= this.buffer.length) {
+          this.finalize();
+          return;
+        }
+
+        this.rafId = requestAnimationFrame(step);
+      };
+
+      this.rafId = requestAnimationFrame(step);
+    }
+
+    finalize() {
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+      if (this.cursorElem && this.cursorElem.parentNode) {
+        this.cursorElem.remove();
+      }
+      const finalText = this.buffer || this.revealed;
+      if (window.marked) {
+        this.textElem.innerHTML = marked.parse(finalText);
+      } else {
+        this.textElem.textContent = finalText;
+      }
+      bindCopyCodeButtons(this.textElem);
+      scrollToBottom(true);
+      if (this.onDone) {
+        this.onDone(finalText);
+      }
+    }
+  }
+
   // --- Send Message & Progressive Streaming (ChatGPT Style) ---
   async function handleSendPrompt() {
     const text = chatTextInput.value.trim();
     if ((!text && pendingAttachments.length === 0) || isGenerating) return;
+
+    // Strict Authentication & Profile Gate (No dummy data allowed)
+    if (!studentProfile || !studentProfile.name || !studentProfile.name.trim() || studentProfile.name.trim() === 'الطالب') {
+      openProfileModal(true);
+      showToast('يرجى تسجيل الدخول وإدخال بياناتك الدراسية أولاً للمتابعة!');
+      return;
+    }
 
     chatTextInput.value = '';
     autoResizeTextarea();
@@ -816,7 +935,21 @@ document.addEventListener('DOMContentLoaded', () => {
     actionPillBtn.classList.add('generating-mode');
     activeAbortController = new AbortController();
 
-    let accumulatedText = '';
+    // Instantiate Smooth Progressive Streamer
+    activeStreamer = new SmoothTextStreamer({
+      textElem,
+      cursorElem,
+      onDone: (finalContent) => {
+        actionsElem.style.display = 'flex';
+        setupMessageToolbar(actionsElem, finalContent, messageRow);
+        loadConversationHistory();
+        isGenerating = false;
+        activeAbortController = null;
+        activeStreamer = null;
+        actionPillBtn.classList.remove('generating-mode');
+        scrollToBottom();
+      }
+    });
 
     try {
       const payload = {
@@ -863,37 +996,27 @@ document.addEventListener('DOMContentLoaded', () => {
               localStorage.setItem('leo_active_conv_id', currentConversationId);
             }
             if (parsed.content) {
-              accumulatedText += parsed.content;
-              // Smooth real-time Markdown stream with blinking cursor
-              renderMarkdownStream(textElem, accumulatedText, cursorElem);
-              scrollToBottom();
+              // Pipe into the smooth progressive cadence streamer
+              activeStreamer.append(parsed.content);
             }
           } catch (e) {}
         }
       }
 
-      // Finish Generation
-      if (cursorElem && cursorElem.parentNode) cursorElem.remove();
-      renderMarkdownFinal(textElem, accumulatedText);
-      actionsElem.style.display = 'flex';
-      setupMessageToolbar(actionsElem, accumulatedText, messageRow);
-
-      // Reload conversation list to show new auto-title
-      loadConversationHistory();
+      // Notify streamer that network transmission ended
+      activeStreamer.finish();
 
     } catch (err) {
-      if (cursorElem && cursorElem.parentNode) cursorElem.remove();
-      if (!accumulatedText) {
-        accumulatedText = 'أهلاً ومرحباً بك يا بني في منصة LeoGPT. أنا الأستاذ ليو، موجهك ومعلمك الدراسي. يسعدني مرافقتك في فهم المنهج الدراسي وحل التمارين والمسائل وتلخيص المواد خطوة بخطوة.';
+      if (err.name === 'AbortError') {
+        // Generation cancelled by user
+        return;
       }
-      renderMarkdownFinal(textElem, accumulatedText);
-      actionsElem.style.display = 'flex';
-      setupMessageToolbar(actionsElem, accumulatedText, messageRow);
-    } finally {
-      isGenerating = false;
-      activeAbortController = null;
-      actionPillBtn.classList.remove('generating-mode');
-      scrollToBottom();
+      if (!activeStreamer.buffer) {
+        const nameGreeting = studentProfile ? studentProfile.name : 'بني';
+        const fallbackMsg = `أهلاً ومرحباً بك يا ${nameGreeting} في منصة LeoGPT. أنا الأستاذ ليو، موجهك ومعلمك الدراسي. يسعدني مرافقتك في فهم المنهج الدراسي وحل التمارين والمسائل وتلخيص المواد خطوة بخطوة.`;
+        activeStreamer.append(fallbackMsg);
+      }
+      activeStreamer.finish();
     }
   }
 
@@ -1196,21 +1319,49 @@ document.addEventListener('DOMContentLoaded', () => {
     populateGradeSelect(profStageSelect.value);
   });
 
-  function openProfileModal() {
-    profNameInput.value = studentProfile.name || '';
-    const genderRadios = document.querySelectorAll('input[name="profGender"]');
-    genderRadios.forEach(r => r.checked = (r.value === studentProfile.gender));
+  function openProfileModal(isMandatory = false) {
+    const profNameError = document.getElementById('profNameError');
+    if (profNameError) profNameError.style.display = 'none';
+    profNameInput.classList.remove('input-error');
+
+    const isUnregistered = (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب');
     
-    profStageSelect.value = studentProfile.stage || 'preparatory';
-    populateGradeSelect(profStageSelect.value, studentProfile.grade_sub);
-    profSpecializationInput.value = studentProfile.specialization || '';
+    if (isMandatory || isUnregistered) {
+      profileModalCloseBtn.style.display = 'none';
+    } else {
+      profileModalCloseBtn.style.display = 'flex';
+    }
+
+    if (studentProfile && studentProfile.name && studentProfile.name.trim() !== 'الطالب') {
+      profNameInput.value = studentProfile.name;
+      const genderRadios = document.querySelectorAll('input[name="profGender"]');
+      genderRadios.forEach(r => r.checked = (r.value === studentProfile.gender));
+      
+      profStageSelect.value = studentProfile.stage || 'preparatory';
+      populateGradeSelect(profStageSelect.value, studentProfile.grade_sub);
+      profSpecializationInput.value = studentProfile.specialization || '';
+    } else {
+      profNameInput.value = '';
+      const defaultMaleRadio = document.querySelector('input[name="profGender"][value="male"]');
+      if (defaultMaleRadio) defaultMaleRadio.checked = true;
+      profStageSelect.value = 'preparatory';
+      populateGradeSelect('preparatory', 'sixth_scientific');
+      profSpecializationInput.value = '';
+    }
 
     profileModalOverlay.classList.add('active');
+    setTimeout(() => {
+      profNameInput.focus();
+    }, 150);
   }
 
   function closeProfileModal() {
-    if (!studentProfile || !studentProfile.name) {
-      showToast('يرجى حفظ بياناتك الدراسية للبدء مع الأستاذ ليو');
+    if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
+      const profNameError = document.getElementById('profNameError');
+      if (profNameError) profNameError.style.display = 'block';
+      profNameInput.classList.add('input-error');
+      profNameInput.focus();
+      showToast('يرجى تسجيل الدخول وإدخال بياناتك الدراسية للبدء مع الأستاذ ليو');
       return;
     }
     profileModalOverlay.classList.remove('active');
@@ -1223,12 +1374,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   saveProfileBtn.addEventListener('click', async () => {
     const name = profNameInput.value.trim();
-    if (!name) {
-      alert('يرجى كتابة اسمك للمتابعة والدراسة مع الأستاذ ليو');
+    const profNameError = document.getElementById('profNameError');
+
+    if (!name || name === 'الطالب') {
+      if (profNameError) profNameError.style.display = 'block';
+      profNameInput.classList.add('input-error');
+      profNameInput.focus();
+      showToast('يرجى كتابة اسمك الحقيقي لتخصيص الشرح الدراسي بدقة');
       return;
     }
 
-    const gender = document.querySelector('input[name="profGender"]:checked').value;
+    if (profNameError) profNameError.style.display = 'none';
+    profNameInput.classList.remove('input-error');
+
+    const genderRadio = document.querySelector('input[name="profGender"]:checked');
+    const gender = genderRadio ? genderRadio.value : 'male';
     const stage = profStageSelect.value;
     const grade_sub = profGradeSubSelect.value;
     const specialization = profSpecializationInput.value.trim();
@@ -1247,15 +1407,27 @@ document.addEventListener('DOMContentLoaded', () => {
     profileModalCloseBtn.style.display = 'flex';
     updateProfileUI();
     profileModalOverlay.classList.remove('active');
-    showToast(`أهلاً بك يا ${name}! تم ضبط ملفك بنجاح.`);
+    showToast(`أهلاً بك يا ${name}! تم تسجيل دخولك بنجاح 🎓`);
     showEmptyState();
   });
 
   function updateProfileUI() {
-    settingsUsernameText.textContent = studentProfile.name || 'الطالب';
-    drawerProfileName.textContent = studentProfile.name || 'الطالب';
+    if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
+      settingsUsernameText.textContent = 'تسجيل الدخول';
+      drawerProfileName.textContent = 'تسجيل الدخول';
+      drawerAvatarLetter.textContent = '؟';
+      settingsAvatarLetterLarge.textContent = '؟';
+      drawerProfileStageBadge.textContent = 'اضغط للبدء';
+      settingsStudentStagePill.textContent = 'غير مسجل';
+      emptyStudentGreeting.textContent = 'أهلاً بك في LeoGPT! يرجى تسجيل الدخول للبدء مع الأستاذ والمساعد الدراسي الذكي.';
+      return;
+    }
+
+    const name = studentProfile.name.trim();
+    settingsUsernameText.textContent = name;
+    drawerProfileName.textContent = name;
     
-    const letter = (studentProfile.name || 'ط').charAt(0);
+    const letter = name.charAt(0);
     drawerAvatarLetter.textContent = letter;
     settingsAvatarLetterLarge.textContent = letter;
 
@@ -1265,19 +1437,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     drawerProfileStageBadge.textContent = grd ? grd.label : stg.name;
     settingsStudentStagePill.textContent = stageLabel;
-    emptyStudentGreeting.textContent = `مرحباً ${studentProfile.gender === 'female' ? 'يا ابنتي' : 'يا بني'} ${studentProfile.name}! الأستاذ ليو مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
+
+    const genderWord = studentProfile.gender === 'female' ? 'يا ابنتي' : 'يا بني';
+    emptyStudentGreeting.textContent = `مرحباً ${genderWord} ${name}! الأستاذ ليو مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
   }
 
   // Profile click handlers
   drawerProfileCard.onclick = () => {
     closeSidebar();
-    settingsScreen.classList.add('active');
+    if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
+      openProfileModal(true);
+    } else {
+      settingsScreen.classList.add('active');
+    }
   };
 
   settingsBackBtn.onclick = () => settingsScreen.classList.remove('active');
-  studentProfileRow.onclick = openProfileModal;
-  settingsNamePill.onclick = openProfileModal;
-  avatarEditBadgeBtn.onclick = openProfileModal;
+  studentProfileRow.onclick = () => openProfileModal(false);
+  settingsNamePill.onclick = () => openProfileModal(false);
+  avatarEditBadgeBtn.onclick = () => openProfileModal(false);
 
   // Customization Row Modal
   customizationRow.onclick = () => {
@@ -1387,11 +1565,15 @@ document.addEventListener('DOMContentLoaded', () => {
     openModal();
   };
 
-  // Logout / Reset Row
+  // Logout / Switch Student Account
   logoutRow.onclick = () => {
-    if (confirm('هل ترغب بإعادة تعيين الجلسة الحالية؟')) {
-      localStorage.clear();
-      location.reload();
+    if (confirm('هل ترغب بتسجيل الخروج وتبديل الحساب الدراسي؟')) {
+      localStorage.removeItem('leo_student_profile');
+      studentProfile = null;
+      updateProfileUI();
+      settingsScreen.classList.remove('active');
+      openProfileModal(true);
+      showToast('تم تسجيل الخروج، يرجى ملء بيانات الطالب الجديد');
     }
   };
 
@@ -1415,42 +1597,44 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initial Startup & Profile Check ---
   async function startup() {
     try {
-      // 0. Immediate localStorage cache restore
+      // 0. Immediate localStorage cache restore (strictly purge any placeholder 'الطالب')
       const localCachedProf = localStorage.getItem('leo_student_profile');
       if (localCachedProf) {
         try {
           const parsedLocal = JSON.parse(localCachedProf);
-          if (parsedLocal && parsedLocal.name) {
+          if (parsedLocal && parsedLocal.name && parsedLocal.name.trim() && parsedLocal.name.trim() !== 'الطالب') {
             studentProfile = parsedLocal;
             updateProfileUI();
+          } else {
+            localStorage.removeItem('leo_student_profile');
           }
-        } catch (e) {}
+        } catch (e) {
+          localStorage.removeItem('leo_student_profile');
+        }
       }
 
-      // 1. Fetch Profile from server
+      // 1. Fetch Profile from server for this device/user
       const profRes = await fetch('/api/profile');
       if (profRes.ok) {
         const p = await profRes.json();
-        if (p && p.name) {
+        if (p && p.name && p.name.trim() && p.name.trim() !== 'الطالب') {
           studentProfile = p;
           localStorage.setItem('leo_student_profile', JSON.stringify(p));
           updateProfileUI();
-        } else if (studentProfile && studentProfile.name) {
-          // If server restarted (e.g. Vercel serverless cold start), sync our local profile to server
+        } else if (studentProfile && studentProfile.name && studentProfile.name.trim() !== 'الطالب') {
+          // If server restarted, sync our verified local profile to server
           fetch('/api/profile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(studentProfile)
           });
-        } else {
-          // Mandatory first-time registration for this new device/user!
-          profileModalCloseBtn.style.display = 'none';
-          setTimeout(openProfileModal, 300);
         }
-      } else if (!studentProfile || !studentProfile.name) {
-        // If server profile failed or empty, force modal!
-        profileModalCloseBtn.style.display = 'none';
-        setTimeout(openProfileModal, 300);
+      }
+
+      // 2. Strict Authentication Check: If no real user data exists, mandate login modal!
+      if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
+        updateProfileUI();
+        setTimeout(() => openProfileModal(true), 250);
       }
 
       // 2. Fetch Settings

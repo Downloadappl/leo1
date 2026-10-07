@@ -101,6 +101,12 @@ def init_db():
         );
         """)
         
+        # Clean up any legacy dummy placeholder profiles
+        try:
+            cursor.execute("DELETE FROM student_profiles WHERE name = 'الطالب' OR name = '' OR name IS NULL;")
+        except:
+            pass
+        
         conn.commit()
 
 # --- Smart Title Generator ---
@@ -306,7 +312,10 @@ def get_student_profile(user_id="default_user"):
         cursor.execute("SELECT * FROM student_profiles WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
         if row:
-            return dict(row)
+            res = dict(row)
+            name = res.get('name', '').strip()
+            if name and name != 'الطالب':
+                return res
         return None
 
 def save_student_profile(user_id, profile_data):

@@ -566,47 +566,54 @@
     </div>
 
     <!-- ==========================================
-         STUDENT ONBOARDING & PROFILE MODAL
+         STUDENT AUTHENTICATION / ONBOARDING MODAL
          ========================================== -->
     <div class="custom-modal-overlay" id="profileModalOverlay">
-      <div class="custom-modal-content">
-        <div class="modal-header">
-          <h3 class="modal-title">ملف الطالب — المنهج الدراسي العراقي</h3>
-          <button class="modal-close-btn" id="profileModalCloseBtn">✕</button>
+      <div class="custom-modal-content login-modal-card">
+        <div class="modal-header login-modal-header">
+          <div class="login-modal-title-row">
+            <span class="login-badge-icon">🎓</span>
+            <div>
+              <h3 class="modal-title" id="profileModalTitle">تسجيل الدخول — المنصة الدراسية LeoGPT</h3>
+              <p class="login-modal-subtitle">يرجى إدخال اسمك وبياناتك الدراسية للبدء، لكي يقدم لك الأستاذ ليو إجابات وشروحات مخصصة لمنهجك الدراسي بدقة وبدون بيانات عشوائية.</p>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="profileModalCloseBtn" style="display: none;" title="إغلاق">✕</button>
         </div>
         <div class="modal-body">
           <div class="modal-field">
-            <label>اسمك الكامل أو اللقب:</label>
-            <input type="text" id="profNameInput" placeholder="اكتب اسمك هنا..." dir="rtl" required>
+            <label for="profNameInput">الاسم الكامل للطالب أو الطالبة <span class="required-star">*</span>:</label>
+            <input type="text" id="profNameInput" placeholder="اكتب اسمك الحقيقي هنا (مثال: أحمد علي / فاطمة الزهراء)..." dir="rtl" autocomplete="name" required>
+            <span class="field-error-hint" id="profNameError" style="display: none;">يرجى كتابة اسمك لتتمكن من المتابعة والدراسة</span>
           </div>
 
           <div class="modal-field">
-            <label>الجنس (لتوجيه صيغة المخاطبة النحوية المناسبة):</label>
+            <label>الصفة الدراسية (لضبط أفعال التخاطب النحوية بدقة):</label>
             <div class="gender-radio-group">
               <label class="gender-radio-label">
                 <input type="radio" name="profGender" value="male" checked>
-                <span>طالب (مذكر)</span>
+                <span>👨‍🎓 طالب (مذكر)</span>
               </label>
               <label class="gender-radio-label">
                 <input type="radio" name="profGender" value="female">
-                <span>طالبة (مؤنث)</span>
+                <span>👩‍🎓 طالبة (مؤنث)</span>
               </label>
             </div>
           </div>
 
           <div class="modal-field">
-            <label>المرحلة الدراسية:</label>
+            <label for="profStageSelect">المرحلة الدراسية في المنهج العراقي:</label>
             <select id="profStageSelect" dir="rtl">
               <option value="primary">المرحلة الابتدائية</option>
               <option value="middle">المرحلة المتوسطة</option>
               <option value="preparatory" selected>المرحلة الإعدادية</option>
-              <option value="university">المرحلة الجامعية</option>
+              <option value="university">المرحلة الجامعية والدراسات</option>
             </select>
           </div>
 
           <!-- Dynamic Sub-Grade Select based on Iraqi Curriculum -->
           <div class="modal-field" id="gradeSubFieldWrapper">
-            <label id="gradeSubLabel">الصف / الفرع الدراسي:</label>
+            <label id="gradeSubLabel" for="profGradeSubSelect">الصف والفرع الدراسي:</label>
             <select id="profGradeSubSelect" dir="rtl">
               <!-- Dynamically populated -->
             </select>
@@ -614,11 +621,18 @@
 
           <!-- Specialization input (Shown for University or Vocational) -->
           <div class="modal-field" id="profSpecializationWrapper" style="display: none;">
-            <label>الكلية والقسم / التخصص الدراسي:</label>
-            <input type="text" id="profSpecializationInput" placeholder="مثال: هندسة برمجيات، طب عام، صيدلة، قانون..." dir="rtl">
+            <label for="profSpecializationInput">الكلية أو القسم / التخصص الدراسي:</label>
+            <input type="text" id="profSpecializationInput" placeholder="مثال: هندسة معلومات، طب عام، صيدلة، قانون، إدارة..." dir="rtl">
           </div>
 
-          <button class="modal-primary-btn" id="saveProfileBtn">حفظ وتأكيد الملف الدراسي</button>
+          <button class="modal-primary-btn login-submit-btn" id="saveProfileBtn">
+            <span>تسجيل الدخول والبدء مع الأستاذ ليو</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <div class="login-privacy-note">🔒 بياناتك الدراسية تُحفظ على جهازك وحسابك فقط لتخصيص الشرح بدقة.</div>
         </div>
       </div>
     </div>
