@@ -9,7 +9,13 @@ if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
     DB_DIR = "/tmp/data"
 else:
     DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-os.makedirs(DB_DIR, exist_ok=True)
+
+try:
+    os.makedirs(DB_DIR, exist_ok=True)
+except Exception:
+    DB_DIR = "/tmp/data"
+    os.makedirs(DB_DIR, exist_ok=True)
+
 DB_PATH = os.path.join(DB_DIR, "leo.db")
 
 def get_connection():

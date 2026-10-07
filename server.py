@@ -9,15 +9,33 @@ import time
 import re
 import hashlib
 import asyncio
-import edge_tts
+try:
+    import edge_tts
+except Exception as e:
+    edge_tts = None
+    print(f"[EDGE-TTS IMPORT WARNING] {e}")
+
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import database
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-TTS_CACHE_DIR = os.path.join(BASE_DIR, "data", "tts_cache")
-os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    TTS_CACHE_DIR = "/tmp/tts_cache"
+else:
+    TTS_CACHE_DIR = os.path.join(BASE_DIR, "data", "tts_cache")
+
+try:
+    os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+except Exception:
+    TTS_CACHE_DIR = "/tmp/tts_cache"
+    try:
+        os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+    except Exception:
+        pass
+
 
 def clean_text_for_speech(text: str) -> str:
     """Prepares text for natural Edge-TTS speech without underscores or markdown symbols, pronouncing C++ as سي بلس بلس."""
@@ -73,6 +91,9 @@ def generate_edge_tts_audio(text: str) -> bytes:
                     return cached_bytes
         except Exception:
             pass
+
+    if not edge_tts:
+        return b""
 
     async def _run():
         communicate = edge_tts.Communicate(
