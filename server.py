@@ -644,35 +644,35 @@ class AppHandler(SimpleHTTPRequestHandler):
             models_list = [
                 {
                     "id": "leo-4o-mini",
-                    "name": "ChatGPT 4o mini",
+                    "name": "Leo 3.5 Turbo",
                     "desc": "استجابة فورية وشرح مباشر للأسئلة المنهجية والاستفسارات اليومية",
                     "badge": "سريع",
                     "vision": False
                 },
                 {
                     "id": "leo-4o-pro",
-                    "name": "ChatGPT 4o",
+                    "name": "Leo Pro 4.0",
                     "desc": "تحليل معمق للأفكار المعقدة والمسائل الشاملة مع دعم الصور والمستندات",
                     "badge": "متقدم",
                     "vision": True
                 },
                 {
                     "id": "leo-o1",
-                    "name": "ChatGPT o1",
+                    "name": "Leo الوزاري 1.0",
                     "desc": "تفكير متسلسل وبرهاني للمسائل الرياضية والفيزيائية والوزارية الصعبة",
                     "badge": "استدلال منطقي",
                     "vision": False
                 },
                 {
                     "id": "leo-vision",
-                    "name": "ChatGPT 4o Vision",
+                    "name": "Leo Vision Pro",
                     "desc": "تحليل دقيق لصور الملازم، المسائل المكتوبة، والرسوم البيانية والواجبات",
                     "badge": "تحليل بصري",
                     "vision": True
                 },
                 {
                     "id": "leo-academic",
-                    "name": "ChatGPT Academic",
+                    "name": "Leo Academic Max",
                     "desc": "أكاديمي متخصص في التلخيص المنهجي والمقارنات العلمية والأبحاث الموسعة",
                     "badge": "أكاديمي",
                     "vision": True

@@ -1699,24 +1699,59 @@ html, body {
   color: #ef4444;
 }
 
-/* Bottom Profile Section (Student Profile) */
+/* Bottom Profile & Logout Section */
+.drawer-bottom-bar {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  direction: ltr;
+}
+
+.drawer-quick-logout-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-quick-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #ffffff;
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: scale(1.05);
+}
+
+.drawer-quick-logout-btn:active {
+  transform: scale(0.94);
+}
+
 .drawer-bottom-profile {
   direction: ltr;
-  margin-top: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 14px;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  padding-left: 4px;
-  padding-right: 4px;
+  padding: 6px 10px;
   border-radius: 12px;
   transition: background 0.15s ease;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .drawer-bottom-profile:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .profile-meta-text {

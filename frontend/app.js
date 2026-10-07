@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentBubbleThemeLabel = document.getElementById('currentBubbleThemeLabel');
   const reportBugRow = document.getElementById('reportBugRow');
   const logoutRow = document.getElementById('logoutRow');
+  const drawerQuickLogoutBtn = document.getElementById('drawerQuickLogoutBtn');
 
   // Long-Term Memory & History UI
   const longTermMemoryRow = document.getElementById('longTermMemoryRow');
@@ -2479,7 +2480,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Logout / Switch Student Account
-  logoutRow.onclick = () => {
+  const triggerLogout = () => {
     showCustomConfirm({
       title: 'تسجيل الخروج',
       message: 'هل ترغب بتسجيل الخروج وتبديل الحساب الدراسي؟',
@@ -2495,6 +2496,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   };
+
+  logoutRow.onclick = triggerLogout;
+  if (drawerQuickLogoutBtn) {
+    drawerQuickLogoutBtn.onclick = triggerLogout;
+  }
 
   // Modal Handlers
   function openModal() { customModalOverlay.classList.add('active'); }
