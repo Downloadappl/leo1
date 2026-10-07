@@ -644,35 +644,35 @@ class AppHandler(SimpleHTTPRequestHandler):
             models_list = [
                 {
                     "id": "leo-4o-mini",
-                    "name": "الموجه السريع (Fast Advisor)",
+                    "name": "ChatGPT 4o mini",
                     "desc": "استجابة فورية وشرح مباشر للأسئلة المنهجية والاستفسارات اليومية",
                     "badge": "سريع",
                     "vision": False
                 },
                 {
                     "id": "leo-4o-pro",
-                    "name": "المستشار المتقدم (Advanced Scholar)",
+                    "name": "ChatGPT 4o",
                     "desc": "تحليل معمق للأفكار المعقدة والمسائل الشاملة مع دعم الصور والمستندات",
                     "badge": "متقدم",
                     "vision": True
                 },
                 {
                     "id": "leo-o1",
-                    "name": "خبير الحل المنطقي (Logic & Math)",
+                    "name": "ChatGPT o1",
                     "desc": "تفكير متسلسل وبرهاني للمسائل الرياضية والفيزيائية والوزارية الصعبة",
                     "badge": "استدلال منطقي",
                     "vision": False
                 },
                 {
                     "id": "leo-vision",
-                    "name": "قارئ المخططات والصور (Visual Analyst)",
+                    "name": "ChatGPT 4o Vision",
                     "desc": "تحليل دقيق لصور الملازم، المسائل المكتوبة، والرسوم البيانية والواجبات",
                     "badge": "تحليل بصري",
                     "vision": True
                 },
                 {
                     "id": "leo-academic",
-                    "name": "الأكاديمي الشامل (Academic Researcher)",
+                    "name": "ChatGPT Academic",
                     "desc": "أكاديمي متخصص في التلخيص المنهجي والمقارنات العلمية والأبحاث الموسعة",
                     "badge": "أكاديمي",
                     "vision": True
@@ -682,7 +682,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             return
 
         # Clean URLs support (no .html in browser address bar)
-        if path == '/login':
+        if path == '/login' or path == '/login/':
             self.path = '/login.html'
         elif path == '' or path == '/':
             self.path = '/index.html'

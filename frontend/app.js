@@ -1916,12 +1916,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function openProfileModal(isMandatory = false, startAtStep = 1) {
+  function openProfileModal(isMandatory = false, startAtStep = null) {
     const profNameError = document.getElementById('profNameError');
     if (profNameError) profNameError.style.display = 'none';
     if (profNameInput) profNameInput.classList.remove('input-error');
 
     const isUnregistered = (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب');
+    const effectiveStep = (startAtStep !== null) ? startAtStep : (isUnregistered ? 1 : 2);
 
     if (isMandatory || isUnregistered) {
       if (authFullscreenCloseBtn) authFullscreenCloseBtn.style.display = 'none';
@@ -1929,7 +1930,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (authFullscreenCloseBtn) authFullscreenCloseBtn.style.display = 'flex';
     }
 
-    if (studentProfile && studentProfile.name && studentProfile.name.trim() !== 'الطالب') {
+    const stepTitle = document.querySelector('#authStep2 .auth-header-title');
+    const stepSubtitle = document.querySelector('#authStep2 .auth-header-subtitle');
+    const stepBadge = document.querySelector('#authStep2 .auth-badge-pill');
+    const stepSaveBtn = document.getElementById('saveProfileBtn');
+
+    if (!isUnregistered && effectiveStep === 2) {
+      if (stepTitle) stepTitle.textContent = 'تعديل الملف الدراسي والشخصي';
+      if (stepSubtitle) stepSubtitle.textContent = 'حدّث اسمك أو مرحلتك وصفك الدراسي ونمط الشرح في أي وقت';
+      if (stepBadge) stepBadge.textContent = 'تعديل البيانات ✏️';
+      if (stepSaveBtn) stepSaveBtn.innerHTML = '<span>حفظ التعديلات الأكاديمية 💾</span>';
+    }
+
+    if (!isUnregistered) {
       profNameInput.value = studentProfile.name;
       const genderRadios = document.querySelectorAll('input[name="profGender"]');
       genderRadios.forEach(r => r.checked = (r.value === studentProfile.gender));
@@ -1938,7 +1951,7 @@ document.addEventListener('DOMContentLoaded', () => {
       populateGradeSelect(profStageSelect.value, studentProfile.grade_sub);
       if (profSpecializationInput) profSpecializationInput.value = studentProfile.specialization || '';
       if (profStudyModeSelect && studentProfile.studyMode) profStudyModeSelect.value = studentProfile.studyMode;
-      goToAuthStep(startAtStep);
+      goToAuthStep(effectiveStep);
     } else {
       profNameInput.value = '';
       const defaultMaleRadio = document.querySelector('input[name="profGender"][value="male"]');
@@ -1946,7 +1959,7 @@ document.addEventListener('DOMContentLoaded', () => {
       profStageSelect.value = 'preparatory';
       populateGradeSelect('preparatory', 'sixth_scientific');
       if (profSpecializationInput) profSpecializationInput.value = '';
-      goToAuthStep(startAtStep);
+      goToAuthStep(effectiveStep);
     }
 
     if (authFullscreenScreen) authFullscreenScreen.classList.add('active');
@@ -2189,9 +2202,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   settingsBackBtn.onclick = () => settingsScreen.classList.remove('active');
-  studentProfileRow.onclick = () => openProfileModal(false);
-  settingsNamePill.onclick = () => openProfileModal(false);
-  avatarEditBadgeBtn.onclick = () => openProfileModal(false);
+  studentProfileRow.onclick = () => openProfileModal(false, 2);
+  settingsNamePill.onclick = () => openProfileModal(false, 2);
+  avatarEditBadgeBtn.onclick = () => openProfileModal(false, 2);
 
   // Customization Row Modal
   customizationRow.onclick = () => {

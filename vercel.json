@@ -17,11 +17,11 @@
       "dest": "/api/index.py"
     },
     {
-      "src": "/login",
-      "dest": "/frontend/login.html"
+      "src": "^/login/?$",
+      "dest": "/frontend/login/index.html"
     },
     {
-      "src": "/login.html",
+      "src": "^/login.html$",
       "dest": "/frontend/login.html"
     },
     {
