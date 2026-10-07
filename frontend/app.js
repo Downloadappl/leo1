@@ -1177,16 +1177,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const remaining = this.buffer.length - this.revealed.length;
 
         if (remaining > 0) {
-          // Dynamic adaptive cadence:
-          // Gives fluid word-by-word/char-by-char progressive typing flow
+          // Dynamic adaptive typewriter cadence:
+          // Smooth progressive typing stream (chatgpt/claude style)
           let stepSize = 1;
-          if (remaining > 220) {
-            stepSize = Math.ceil(remaining / 7);
-          } else if (remaining > 100) {
+          if (remaining > 400) {
+            stepSize = Math.ceil(remaining / 10);
+          } else if (remaining > 180) {
+            stepSize = 6;
+          } else if (remaining > 80) {
             stepSize = 4;
-          } else if (remaining > 45) {
-            stepSize = 3;
-          } else if (remaining > 16) {
+          } else if (remaining > 30) {
             stepSize = 2;
           } else {
             stepSize = 1;
