@@ -24,15 +24,28 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('leo_device_user_id', deviceUserId);
   }
 
-  // Intercept all fetch requests to automatically pass X-User-Id header
+  // Intercept only internal/local backend fetch requests to pass X-User-Id header
+  // Crucial: NEVER inject custom headers into cross-origin requests (Firebase, Google APIs) to avoid CORS preflight blocks
   const _originalFetch = window.fetch;
   window.fetch = function(url, options = {}) {
     options = options || {};
-    options.headers = options.headers || {};
-    if (typeof options.headers.append === 'function') {
-      options.headers.append('X-User-Id', deviceUserId);
-    } else {
-      options.headers['X-User-Id'] = deviceUserId;
+    try {
+      const urlStr = typeof url === 'string' ? url : (url && url.url ? url.url : '');
+      const isLocal = !urlStr.startsWith('http://') && !urlStr.startsWith('https://') 
+        || urlStr.startsWith(window.location.origin) 
+        || urlStr.startsWith('/api') 
+        || urlStr.startsWith('./api');
+
+      if (isLocal) {
+        options.headers = options.headers || {};
+        if (typeof options.headers.append === 'function') {
+          options.headers.append('X-User-Id', deviceUserId);
+        } else {
+          options.headers['X-User-Id'] = deviceUserId;
+        }
+      }
+    } catch (e) {
+      // Fallback cleanly
     }
     return _originalFetch(url, options);
   };
@@ -2465,10 +2478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         localStorage.removeItem('leo_student_profile');
         studentProfile = null;
-        updateProfileUI();
-        settingsScreen.classList.remove('active');
-        openProfileModal(true, 1);
-        showToast('تم تسجيل الخروج، يرجى ملء بيانات الطالب الجديد');
+        window.location.replace('login.html');
       }
     });
   };
@@ -2541,10 +2551,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // 3. Strict Authentication Check: If no real user data exists, mandate login modal!
+      // 3. Strict Authentication Check: If no real user data exists, redirect to login page!
       if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
-        updateProfileUI();
-        setTimeout(() => openProfileModal(true), 250);
+        window.location.replace('login.html');
+        return;
       }
 
       // 4. Fetch Settings

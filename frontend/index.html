@@ -42,6 +42,23 @@
   <!-- Local Offline-Capable Markdown & Syntax Highlight Libraries -->
   <script src="marked.min.js"></script>
   <script src="highlight.min.js"></script>
+
+  <!-- Instant Session Guard: If student has not logged in, immediately redirect to login.html -->
+  <script>
+    try {
+      const _p = localStorage.getItem('leo_student_profile');
+      if (!_p) {
+        window.location.replace('login.html');
+      } else {
+        const _parsed = JSON.parse(_p);
+        if (!_parsed || !_parsed.name || _parsed.name.trim() === 'الطالب') {
+          window.location.replace('login.html');
+        }
+      }
+    } catch (e) {
+      window.location.replace('login.html');
+    }
+  </script>
 </head>
 <body class="theme-blue-pink">
 
