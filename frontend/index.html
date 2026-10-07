@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LeoGPT — الأستاذ والمساعد الدراسي الذكي</title>
+  
+  <!-- Google Fonts: Alexandria & Cairo for exact modern Arabic typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700&family=Cairo:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Highlight.js syntax highlighting theme -->
+  <link rel="stylesheet" href="highlight-dark.min.css">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Local Offline-Capable Markdown & Syntax Highlight Libraries -->
+  <script src="marked.min.js"></script>
+  <script src="highlight.min.js"></script>
+</head>
+<body class="theme-blue-pink">
+
+  <div class="app-viewport">
+
+    <!-- ==========================================
+         SCREEN 1 & 2: MAIN CHAT VIEW
+         ========================================== -->
+    <main class="main-chat-screen" id="mainChatScreen">
+      
+      <!-- Top Navigation Bar (Explicit LTR: Compose on Left, Model in Center, Sidebar on Right) -->
+      <header class="app-header">
+        
+        <!-- Left: Compose / New Chat Button -->
+        <button class="icon-btn header-compose-btn" id="newChatBtn" title="محادثة جديدة" aria-label="محادثة جديدة">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+
+        <!-- Center-Left: Leo Model Selector Pill -->
+        <div class="model-selector-wrapper">
+          <button class="model-selector-pill" id="modelSelectorPill" aria-haspopup="true">
+            <svg class="chevron-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <span class="model-name-label" id="currentModelLabel">Leo 4o Mini</span>
+            <!-- Sparkle Icon -->
+            <svg class="sparkle-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0L14.5 9.5L24 12L14.5 14.5L12 24L9.5 14.5L0 12L9.5 9.5L12 0Z"/>
+            </svg>
+          </button>
+
+          <!-- LeoGPT Models Hierarchy Menu -->
+          <div class="model-dropdown-menu" id="modelDropdownMenu">
+            <div class="dropdown-header">نماذج LeoGPT الدراسية</div>
+            
+            <div class="dropdown-item active" data-model="leo-4o-mini">
+              <div class="item-info-col">
+                <div class="item-title">Leo 4o Mini</div>
+                <div class="item-desc">افتراضي وسريع لجميع الأسئلة والدراسة اليومية</div>
+              </div>
+              <span class="model-badge">افتراضي</span>
+            </div>
+
+            <div class="dropdown-item" data-model="leo-4o-pro">
+              <div class="item-info-col">
+                <div class="item-title">Leo 4o Pro</div>
+                <div class="item-desc">النموذج الأذكى والأعلى قدرة، يدعم الصور والمسائل المعقدة</div>
+              </div>
+              <span class="model-badge pro-badge">الأذكى</span>
+            </div>
+
+            <div class="dropdown-item" data-model="leo-o1">
+              <div class="item-info-col">
+                <div class="item-title">Leo o1 (تفكير)</div>
+                <div class="item-desc">تفكير رياضي ومنطقي عميق لحل المسائل الوزارية الصعبة</div>
+              </div>
+              <span class="model-badge reasoning-badge">تفكير</span>
+            </div>
+
+            <div class="dropdown-item" data-model="leo-vision">
+              <div class="item-info-col">
+                <div class="item-title">Leo Vision</div>
+                <div class="item-desc">خبير تحليل صور التمارين والملازم والمخططات والواجبات</div>
+              </div>
+              <span class="model-badge vision-badge">رؤية</span>
+            </div>
+
+            <div class="dropdown-item" data-model="leo-academic">
+              <div class="item-info-col">
+                <div class="item-title">Leo Academic</div>
+                <div class="item-desc">أكاديمي متخصص في التلخيص والأبحاث والمقارنات العلمية</div>
+              </div>
+              <span class="model-badge academic-badge">أكاديمي</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Sidebar Toggle Button -->
+        <button class="icon-btn header-sidebar-btn" id="sidebarToggleBtn" title="القائمة الجانبية" aria-label="القائمة الجانبية">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </button>
+
+      </header>
+
+      <!-- Main Messages Content Area -->
+      <section class="chat-content-area" id="chatContentArea">
+        
+        <!-- Screen 1: Empty State Hero ("هل أنت مستعد؟") -->
+        <div class="empty-state-container" id="emptyStateContainer">
+          <h1 class="empty-state-title">هل أنت مستعد؟</h1>
+          <div class="empty-state-subtitle" id="emptyStudentGreeting">الأستاذ ليو جاهز لمساعدتك في دروسك ومسائلك</div>
+        </div>
+
+        <!-- Screen 2: Dynamic Messages Stream List -->
+        <div class="messages-stream-list" id="messagesStreamList"></div>
+
+      </section>
+
+      <!-- Attachment Preview Drawer (Chips above input) -->
+      <div class="attachment-preview-drawer" id="attachmentPreviewDrawer"></div>
+
+      <!-- ChatGPT-style Floating Audio Activity / Listening Bar -->
+      <div class="chatgpt-audio-bar" id="chatgptAudioBar" style="display: none;">
+        <div class="audio-bar-visualizer">
+          <span class="audio-wave-bar"></span>
+          <span class="audio-wave-bar"></span>
+          <span class="audio-wave-bar"></span>
+          <span class="audio-wave-bar"></span>
+          <span class="audio-wave-bar"></span>
+        </div>
+        <div class="audio-bar-text" id="audioBarStatusText">الأستاذ ليو يستمع إليك... تحدث الآن</div>
+        <div class="audio-bar-actions">
+          <button class="audio-bar-btn audio-pause-btn" id="audioPauseBtn" title="إيقاف مؤقت">⏸</button>
+          <button class="audio-bar-btn audio-confirm-btn" id="audioConfirmBtn" title="إنهاء وإرسال">✓</button>
+          <button class="audio-bar-btn audio-cancel-btn" id="audioCancelBtn" title="إلغاء الاستماع">✕</button>
+        </div>
+      </div>
+
+      <!-- Bottom Floating Glow Input Bar (Strict LTR: Plus on Left, Textarea in Middle, Mic & Pill on Right) -->
+      <footer class="input-section-container">
+        <div class="glowing-input-box" id="glowingInputBox">
+          
+          <!-- Left: Plus Attachment Button -->
+          <button class="input-btn input-plus-btn" id="attachBtn" title="إرفاق صورة أو مستند" aria-label="إرفاق صورة">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+          <input type="file" id="fileInput" accept="image/*" style="display: none;">
+
+          <!-- Middle: Prompt Composer Textarea (RTL text) -->
+          <div class="input-field-wrapper">
+            <textarea 
+              class="chat-text-input" 
+              id="chatTextInput" 
+              placeholder="اسأل LeoGPT..." 
+              rows="1" 
+              dir="rtl"
+              autocomplete="off"
+            ></textarea>
+          </div>
+
+          <!-- Right: Audio & Action Controls -->
+          <div class="input-right-actions">
+            
+            <!-- Microphone Button -->
+            <button class="input-btn mic-btn" id="micBtn" title="استماع صوتي" aria-label="ميكروفون">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </button>
+
+            <!-- Subtle Vertical Separator -->
+            <div class="input-divider"></div>
+
+            <!-- Waveform / Send / Stop Button -->
+            <button class="waveform-pill-btn" id="actionPillBtn" title="إرسال" aria-label="إرسال">
+              <!-- Default Audio Waveform Bars (5 bars) -->
+              <span class="waveform-icon" id="waveformIcon">
+                <span class="wave-bar bar-1"></span>
+                <span class="wave-bar bar-2"></span>
+                <span class="wave-bar bar-3"></span>
+                <span class="wave-bar bar-4"></span>
+                <span class="wave-bar bar-5"></span>
+              </span>
+
+              <!-- Send Arrow Icon (When typing) -->
+              <svg class="send-icon" id="sendIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+
+              <!-- Stop Icon (When generating) -->
+              <svg class="stop-icon" id="stopIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="5" width="14" height="14" rx="2.5"></rect>
+              </svg>
+            </button>
+
+          </div>
+
+        </div>
+      </footer>
+
+    </main>
+
+
+    <!-- ==========================================
+         SCREEN 3: SIDEBAR DRAWER (Right Anchored)
+         ========================================== -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+    <aside class="sidebar-drawer" id="sidebarDrawer" aria-label="القائمة الجانبية">
+      
+      <!-- Drawer Header (Close on Left, LeoGPT Logo on Right) -->
+      <div class="drawer-header">
+        <button class="drawer-close-btn" id="drawerCloseBtn" aria-label="إغلاق">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+
+        <div class="drawer-brand">
+          <span class="brand-text">LeoGPT</span>
+          <div class="brand-butterfly-badge">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 12c-2.5-3-6-4.5-8-3-2 1.5-1.5 5 1 7 2.5 2 7 1 7-4z"></path>
+              <path d="M12 12c2.5-3 6-4.5 8-3 2 1.5 1.5 5-1 7-2.5 2-7 1-7-4z"></path>
+              <path d="M12 12c-1.5 2.5-4 4.5-5 4-1.2-.5-1-2.5 0-4 1-1.5 3.5-1.5 5 0z"></path>
+              <path d="M12 12c1.5 2.5 4 4.5 5 4 1.2-.5 1-2.5 0-4-1-1.5-3.5-1.5-5 0z"></path>
+              <line x1="12" y1="6" x2="12" y2="18"></line>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Action: New Chat Button -->
+      <div class="drawer-actions-container">
+        <button class="drawer-new-chat-btn" id="drawerNewChatBtn">
+          <span class="btn-text">محادثة جديدة</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="drawer-nav-list">
+        <button class="drawer-nav-item" id="searchChatsBtn">
+          <span class="nav-label">البحث في المحادثات</span>
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+
+        <button class="drawer-nav-item" id="archivedChatsBtn">
+          <span class="nav-label" id="archivedNavLabel">المؤرشفة</span>
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="21 8 21 21 3 21 3 8"></polyline>
+            <rect x="1" y="3" width="22" height="5"></rect>
+            <line x1="10" y1="12" x2="14" y2="12"></line>
+          </svg>
+        </button>
+      </nav>
+
+      <!-- Search Input Container -->
+      <div class="drawer-search-box" id="drawerSearchBox" style="display: none;">
+        <input type="text" id="drawerSearchInput" placeholder="اكتب للبحث في المحادثات..." dir="rtl">
+      </div>
+
+      <!-- Recent & Pinned Chats History List -->
+      <div class="drawer-section">
+        <div class="section-heading-row">
+          <h3 class="section-heading" id="chatsSectionTitle">المحادثات</h3>
+          <button class="section-filter-btn" id="toggleArchivedViewBtn" title="عرض المؤرشفة أو النشطة">عرض الكل</button>
+        </div>
+        <div class="recent-chats-list" id="recentChatsList"></div>
+      </div>
+
+      <!-- Drawer Bottom Profile Card (Student Profile info) -->
+      <div class="drawer-bottom-profile" id="drawerProfileCard" title="الملف الدراسي والإعدادات">
+        <div class="profile-meta-text">
+          <span class="profile-name-text" id="drawerProfileName">الطالب</span>
+          <span class="profile-stage-badge" id="drawerProfileStageBadge">المرحلة الإعدادية</span>
+        </div>
+        <div class="user-avatar-circle pink-avatar">
+          <span class="avatar-letter" id="drawerAvatarLetter">ط</span>
+        </div>
+      </div>
+
+    </aside>
+
+
+    <!-- ==========================================
+         SCREEN 4: SETTINGS SCREEN (Overlay View)
+         ========================================== -->
+    <div class="settings-screen" id="settingsScreen">
+      
+      <!-- Settings Header (Back on Left) -->
+      <div class="settings-header">
+        <button class="settings-back-btn" id="settingsBackBtn" aria-label="رجوع">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+        </button>
+        <span class="settings-page-title">إعدادات LeoGPT</span>
+      </div>
+
+      <div class="settings-content-scroll">
+        
+        <!-- Large Avatar Hero -->
+        <div class="settings-hero-avatar-area">
+          <div class="settings-large-avatar-wrapper">
+            <div class="settings-large-avatar pink-avatar">
+              <span class="avatar-letter-large" id="settingsAvatarLetterLarge">ط</span>
+            </div>
+            <button class="avatar-edit-badge-btn" id="avatarEditBadgeBtn" title="تعديل الملف الدراسي">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Name Pill -->
+          <div class="settings-name-pill" id="settingsNamePill" title="اضغط لتعديل البيانات الدراسية">
+            <svg class="pencil-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            <span class="settings-username-text" id="settingsUsernameText">الطالب</span>
+          </div>
+
+          <div class="settings-student-stage-pill" id="settingsStudentStagePill">
+            المرحلة: جاري التحميل...
+          </div>
+        </div>
+
+        <!-- Section 1: الملف الدراسي العراقي والتخصيص -->
+        <div class="settings-section-group">
+          <span class="settings-section-label">الملف الدراسي والتعليمي</span>
+          
+          <div class="settings-card">
+            <!-- Row 1: الملف الدراسي العراقي (Real Student Onboarding) -->
+            <div class="settings-card-row clickable-row" id="studentProfileRow">
+              <svg class="chevron-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <div class="row-text-column">
+                <span class="row-title">بيانات المرحلة الدراسية</span>
+                <span class="row-subtitle" id="profileRowSubtitle">الاسم، الجنس، والصف في المنهج العراقي</span>
+              </div>
+              <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+              </svg>
+            </div>
+
+            <div class="card-inner-divider"></div>
+
+            <!-- Row 2: تخصيص نمط التدريس -->
+            <div class="settings-card-row clickable-row" id="customizationRow">
+              <svg class="chevron-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <div class="row-text-column">
+                <span class="row-title">نمط الشرح التعليمي</span>
+                <span class="row-subtitle" id="teachingModeSubtitle">شرح عام، حل مسائل، أو وزاريات</span>
+              </div>
+              <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                <line x1="15" y1="9" x2="15.01" y2="9"></line>
+              </svg>
+            </div>
+
+            <div class="card-inner-divider"></div>
+
+            <!-- Row 3: مسح الذكريات -->
+            <div class="settings-card-row clickable-row" id="clearMemoryRow">
+              <span class="row-label">مسح الذكريات وسجل الدروس</span>
+              <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: المظهر ومظهر الفقاعة المتوهجة -->
+        <div class="settings-section-group">
+          <span class="settings-section-label">المظهر والواجهة</span>
+          
+          <div class="settings-card">
+            <!-- Row 1: المظهر -->
+            <div class="settings-card-row clickable-row" id="appearanceRow">
+              <svg class="chevron-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <div class="row-text-column">
+                <span class="row-title">النمط البصري</span>
+                <span class="row-subtitle" id="currentAppearanceLabel">داكن (افتراضي)</span>
+              </div>
+              <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+              </svg>
+            </div>
+
+            <div class="card-inner-divider"></div>
+
+            <!-- Row 2: مظهر الفقاعة المتوهجة -->
+            <div class="settings-card-row clickable-row" id="bubbleThemeRow">
+              <svg class="chevron-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <div class="row-text-column">
+                <span class="row-title">مظهر التوهج</span>
+                <span class="row-subtitle" id="currentBubbleThemeLabel">Blue · Pink</span>
+              </div>
+              <div class="glowing-orb-preview" id="glowingOrbPreview"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: المساعدة والإبلاغ -->
+        <div class="settings-section-group">
+          <div class="settings-card">
+            <div class="settings-card-row clickable-row" id="reportBugRow">
+              <span class="row-label">الإبلاغ عن مسألة أو اقتراح</span>
+              <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="8" height="14" x="8" y="6" rx="4"></rect>
+                <path d="m19 7-3 2"></path>
+                <path d="m5 7 3 2"></path>
+                <path d="M20 13h-4"></path>
+                <path d="M4 13h4"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: تسجيل الخروج -->
+        <div class="settings-section-group">
+          <div class="settings-card">
+            <div class="settings-card-row clickable-row logout-row" id="logoutRow">
+              <span class="row-label danger-text">إعادة تعيين الجلسة</span>
+              <svg class="row-icon danger-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ==========================================
+         STUDENT ONBOARDING & PROFILE MODAL
+         ========================================== -->
+    <div class="custom-modal-overlay" id="profileModalOverlay">
+      <div class="custom-modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">ملف الطالب — المنهج الدراسي العراقي</h3>
+          <button class="modal-close-btn" id="profileModalCloseBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-field">
+            <label>اسمك الكامل أو اللقب:</label>
+            <input type="text" id="profNameInput" placeholder="اكتب اسمك هنا..." dir="rtl" required>
+          </div>
+
+          <div class="modal-field">
+            <label>الجنس (لتوجيه صيغة المخاطبة النحوية المناسبة):</label>
+            <div class="gender-radio-group">
+              <label class="gender-radio-label">
+                <input type="radio" name="profGender" value="male" checked>
+                <span>طالب (مذكر)</span>
+              </label>
+              <label class="gender-radio-label">
+                <input type="radio" name="profGender" value="female">
+                <span>طالبة (مؤنث)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="modal-field">
+            <label>المرحلة الدراسية:</label>
+            <select id="profStageSelect" dir="rtl">
+              <option value="primary">المرحلة الابتدائية</option>
+              <option value="middle">المرحلة المتوسطة</option>
+              <option value="preparatory" selected>المرحلة الإعدادية</option>
+              <option value="university">المرحلة الجامعية</option>
+            </select>
+          </div>
+
+          <!-- Dynamic Sub-Grade Select based on Iraqi Curriculum -->
+          <div class="modal-field" id="gradeSubFieldWrapper">
+            <label id="gradeSubLabel">الصف / الفرع الدراسي:</label>
+            <select id="profGradeSubSelect" dir="rtl">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+
+          <!-- Specialization input (Shown for University or Vocational) -->
+          <div class="modal-field" id="profSpecializationWrapper" style="display: none;">
+            <label>الكلية والقسم / التخصص الدراسي:</label>
+            <input type="text" id="profSpecializationInput" placeholder="مثال: هندسة برمجيات، طب عام، صيدلة، قانون..." dir="rtl">
+          </div>
+
+          <button class="modal-primary-btn" id="saveProfileBtn">حفظ وتأكيد الملف الدراسي</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generic Action Modal (Rename, Customization, Feedback) -->
+    <div class="custom-modal-overlay" id="customModalOverlay">
+      <div class="custom-modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modalTitle">إجراء</h3>
+          <button class="modal-close-btn" id="modalCloseBtn">✕</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+      </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-notification" id="toastNotification">تم الحفظ بنجاح</div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

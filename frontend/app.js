@@ -1,0 +1,1344 @@
+/**
+ * LeoGPT — الأستاذ والمساعد الدراسي الذكي
+ * Iraqi Educational Curriculum Integration, ChatGPT-like Audio Bar, Pinned & Archived History
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // --- DOM Elements ---
+  const chatContentArea = document.getElementById('chatContentArea');
+  const emptyStateContainer = document.getElementById('emptyStateContainer');
+  const emptyStudentGreeting = document.getElementById('emptyStudentGreeting');
+  const messagesStreamList = document.getElementById('messagesStreamList');
+  const chatTextInput = document.getElementById('chatTextInput');
+  const actionPillBtn = document.getElementById('actionPillBtn');
+  const newChatBtn = document.getElementById('newChatBtn');
+  const attachBtn = document.getElementById('attachBtn');
+  const fileInput = document.getElementById('fileInput');
+  const attachmentPreviewDrawer = document.getElementById('attachmentPreviewDrawer');
+  const micBtn = document.getElementById('micBtn');
+
+  // ChatGPT Audio Bar Elements
+  const chatgptAudioBar = document.getElementById('chatgptAudioBar');
+  const audioBarStatusText = document.getElementById('audioBarStatusText');
+  const audioPauseBtn = document.getElementById('audioPauseBtn');
+  const audioConfirmBtn = document.getElementById('audioConfirmBtn');
+  const audioCancelBtn = document.getElementById('audioCancelBtn');
+
+  // Header & Model Selector
+  const modelSelectorPill = document.getElementById('modelSelectorPill');
+  const modelSelectorWrapper = document.querySelector('.model-selector-wrapper');
+  const currentModelLabel = document.getElementById('currentModelLabel');
+
+  // Drawer
+  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+  const sidebarDrawer = document.getElementById('sidebarDrawer');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  const drawerCloseBtn = document.getElementById('drawerCloseBtn');
+  const drawerNewChatBtn = document.getElementById('drawerNewChatBtn');
+  const recentChatsList = document.getElementById('recentChatsList');
+  const searchChatsBtn = document.getElementById('searchChatsBtn');
+  const drawerSearchBox = document.getElementById('drawerSearchBox');
+  const drawerSearchInput = document.getElementById('drawerSearchInput');
+  const archivedChatsBtn = document.getElementById('archivedChatsBtn');
+  const archivedNavLabel = document.getElementById('archivedNavLabel');
+  const chatsSectionTitle = document.getElementById('chatsSectionTitle');
+  const toggleArchivedViewBtn = document.getElementById('toggleArchivedViewBtn');
+  const drawerProfileCard = document.getElementById('drawerProfileCard');
+  const drawerProfileName = document.getElementById('drawerProfileName');
+  const drawerProfileStageBadge = document.getElementById('drawerProfileStageBadge');
+  const drawerAvatarLetter = document.getElementById('drawerAvatarLetter');
+
+  // Settings Screen
+  const settingsScreen = document.getElementById('settingsScreen');
+  const settingsBackBtn = document.getElementById('settingsBackBtn');
+  const settingsUsernameText = document.getElementById('settingsUsernameText');
+  const settingsNamePill = document.getElementById('settingsNamePill');
+  const settingsStudentStagePill = document.getElementById('settingsStudentStagePill');
+  const settingsAvatarLetterLarge = document.getElementById('settingsAvatarLetterLarge');
+  const avatarEditBadgeBtn = document.getElementById('avatarEditBadgeBtn');
+  const studentProfileRow = document.getElementById('studentProfileRow');
+  const customizationRow = document.getElementById('customizationRow');
+  const clearMemoryRow = document.getElementById('clearMemoryRow');
+  const appearanceRow = document.getElementById('appearanceRow');
+  const currentAppearanceLabel = document.getElementById('currentAppearanceLabel');
+  const bubbleThemeRow = document.getElementById('bubbleThemeRow');
+  const currentBubbleThemeLabel = document.getElementById('currentBubbleThemeLabel');
+  const reportBugRow = document.getElementById('reportBugRow');
+  const logoutRow = document.getElementById('logoutRow');
+
+  // Modals & Toast
+  const profileModalOverlay = document.getElementById('profileModalOverlay');
+  const profileModalCloseBtn = document.getElementById('profileModalCloseBtn');
+  const profNameInput = document.getElementById('profNameInput');
+  const profStageSelect = document.getElementById('profStageSelect');
+  const profGradeSubSelect = document.getElementById('profGradeSubSelect');
+  const profSpecializationWrapper = document.getElementById('profSpecializationWrapper');
+  const profSpecializationInput = document.getElementById('profSpecializationInput');
+  const saveProfileBtn = document.getElementById('saveProfileBtn');
+
+  const customModalOverlay = document.getElementById('customModalOverlay');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const toastNotification = document.getElementById('toastNotification');
+
+  // --- Iraqi Educational Stages Definition ---
+  const IRAQI_STAGES_DATA = {
+    primary: {
+      name: "المرحلة الابتدائية",
+      grades: [
+        { id: "first_primary", label: "الصف الأول الابتدائي" },
+        { id: "second_primary", label: "الصف الثاني الابتدائي" },
+        { id: "third_primary", label: "الصف الثالث الابتدائي" },
+        { id: "fourth_primary", label: "الصف الرابع الابتدائي" },
+        { id: "fifth_primary", label: "الصف الخامس الابتدائي" },
+        { id: "sixth_primary", label: "الصف السادس الابتدائي (وزاري)" }
+      ]
+    },
+    middle: {
+      name: "المرحلة المتوسطة",
+      grades: [
+        { id: "first_middle", label: "الصف الأول متوسط" },
+        { id: "second_middle", label: "الصف الثاني متوسط" },
+        { id: "third_middle", label: "الصف الثالث متوسط (وزاري)" }
+      ]
+    },
+    preparatory: {
+      name: "المرحلة الإعدادية",
+      grades: [
+        { id: "fourth_scientific", label: "الرابع الإعدادي (العلمي)" },
+        { id: "fourth_literary", label: "الرابع الإعدادي (الأدبي)" },
+        { id: "fifth_scientific", label: "الخامس الإعدادي (العلمي)" },
+        { id: "fifth_literary", label: "الخامس الإعدادي (الأدبي)" },
+        { id: "sixth_scientific", label: "السادس الإعدادي (العلمي - بكالوريا وزاري)" },
+        { id: "sixth_literary", label: "السادس الإعدادي (الأدبي - بكالوريا وزاري)" },
+        { id: "sixth_vocational", label: "السادس الإعدادي (المهني / صناعي / تجاري)" }
+      ]
+    },
+    university: {
+      name: "المرحلة الجامعية",
+      grades: [
+        { id: "uni_stage_1", label: "المرحلة الأولى" },
+        { id: "uni_stage_2", label: "المرحلة الثانية" },
+        { id: "uni_stage_3", label: "المرحلة الثالثة" },
+        { id: "uni_stage_4", label: "المرحلة الرابعة" },
+        { id: "uni_stage_5", label: "المرحلة الخامسة (طب / هندسة)" },
+        { id: "uni_stage_6", label: "المرحلة السادسة (طب بشري)" },
+        { id: "postgraduate", label: "الدراسات العليا (ماجستير / دكتوراه)" }
+      ]
+    }
+  };
+
+  // --- State Variables ---
+  let currentConversationId = localStorage.getItem('leo_active_conv_id') || null;
+  let selectedModel = localStorage.getItem('leo_selected_model') || 'leo-4o-mini';
+  let isGenerating = false;
+  let activeAbortController = null;
+  let pendingAttachments = [];
+  let isRecording = false;
+  let isTTSPlaying = false;
+  let speechRec = null;
+  let isAudioPaused = false;
+  let viewingArchived = false;
+
+  // Student Profile State
+  let studentProfile = {
+    name: 'الطالب',
+    gender: 'male',
+    stage: 'preparatory',
+    grade_sub: 'sixth_scientific',
+    specialization: ''
+  };
+
+  // Settings State
+  let settingsState = {
+    studyMode: 'standard',
+    temperature: 0.7,
+    appearance: 'default',
+    bubbleTheme: 'theme-blue-pink'
+  };
+
+  const bubbleThemes = [
+    { id: 'theme-blue-pink', name: 'Blue · Pink', preview: 'radial-gradient(circle at 40% 40%, #38bdf8 0%, #ec4899 70%, #8b5cf6 100%)' },
+    { id: 'theme-purple-violet', name: 'Purple · Violet', preview: 'radial-gradient(circle at 40% 40%, #c084fc 0%, #a855f7 70%, #6366f1 100%)' },
+    { id: 'theme-emerald-cyan', name: 'Emerald · Cyan', preview: 'radial-gradient(circle at 40% 40%, #10b981 0%, #06b6d4 70%, #3b82f6 100%)' },
+    { id: 'theme-sunset-gold', name: 'Sunset · Gold', preview: 'radial-gradient(circle at 40% 40%, #f59e0b 0%, #f43f5e 70%, #ec4899 100%)' }
+  ];
+
+  // --- Configure Marked.js ---
+  if (window.marked) {
+    const renderer = new marked.Renderer();
+    renderer.code = function(code, lang) {
+      const language = (lang || 'code').toLowerCase();
+      let highlighted = code;
+      if (window.hljs) {
+        if (lang && hljs.getLanguage(lang)) {
+          try { highlighted = hljs.highlight(code, { language: lang }).value; } catch (e) {}
+        } else {
+          try { highlighted = hljs.highlightAuto(code).value; } catch (e) {}
+        }
+      }
+
+      const escapedCode = code.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      return `
+        <div class="code-block-container">
+          <div class="code-block-header">
+            <span class="code-language-tag">${language}</span>
+            <button class="copy-code-btn" data-code="${escapedCode}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>نسخ الكود</span>
+            </button>
+          </div>
+          <pre><code class="hljs ${language}">${highlighted}</code></pre>
+        </div>
+      `;
+    };
+
+    marked.setOptions({ renderer: renderer, breaks: true, gfm: true });
+  }
+
+  // --- Toast Notification ---
+  let toastTimer = null;
+  function showToast(msg) {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastNotification.textContent = msg;
+    toastNotification.classList.add('show');
+    toastTimer = setTimeout(() => {
+      toastNotification.classList.remove('show');
+    }, 2400);
+  }
+
+  // --- Auto-Resize Textarea & Enter Key Handling ---
+  function autoResizeTextarea() {
+    chatTextInput.style.height = 'auto';
+    const newHeight = Math.min(Math.max(chatTextInput.scrollHeight, 36), 130);
+    chatTextInput.style.height = newHeight + 'px';
+  }
+
+  chatTextInput.addEventListener('input', () => {
+    autoResizeTextarea();
+    const val = chatTextInput.value.trim();
+    if (val.length > 0 || pendingAttachments.length > 0) {
+      if (!isGenerating) actionPillBtn.classList.add('send-mode');
+    } else {
+      if (!isGenerating) actionPillBtn.classList.remove('send-mode');
+    }
+  });
+
+  // Enter strictly adds newline and does NOT send
+  chatTextInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      if (e.ctrlKey || e.metaKey) {
+        // Optional convenience: Ctrl+Enter sends
+        e.preventDefault();
+        handleSendPrompt();
+      } else {
+        // Plain Enter adds a line break (مسافة سطر) and DOES NOT send
+        setTimeout(autoResizeTextarea, 0);
+      }
+    }
+  });
+
+  // Action pill click (Waveform / Send / Stop)
+  actionPillBtn.addEventListener('click', () => {
+    if (isGenerating) {
+      if (activeAbortController) {
+        activeAbortController.abort();
+        activeAbortController = null;
+      }
+      isGenerating = false;
+      actionPillBtn.classList.remove('generating-mode');
+      showToast('تم إيقاف التوليد');
+      return;
+    }
+
+    if (actionPillBtn.classList.contains('send-mode')) {
+      handleSendPrompt();
+    } else {
+      toggleVoiceRecording();
+    }
+  });
+
+  // --- Attachments & Vision ---
+  attachBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('يرجى اختيار ملف صورة صالح (JPG, PNG, WebP)');
+      fileInput.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      pendingAttachments.push({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        data: evt.target.result
+      });
+      renderAttachmentChips();
+      actionPillBtn.classList.add('send-mode');
+      showToast('تم إرفاق الصورة؛ سيقوم الأستاذ ليو بتحليلها');
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+
+  function renderAttachmentChips() {
+    attachmentPreviewDrawer.innerHTML = '';
+    pendingAttachments.forEach((att, index) => {
+      const chip = document.createElement('div');
+      chip.className = 'attachment-chip';
+      chip.innerHTML = `
+        <img class="attachment-chip-thumb" src="${att.data}" alt="${att.name}" />
+        <span>${att.name.length > 15 ? att.name.substring(0, 12) + '...' : att.name}</span>
+        <button class="attachment-remove-btn" data-index="${index}" title="إزالة">✕</button>
+      `;
+      attachmentPreviewDrawer.appendChild(chip);
+    });
+
+    attachmentPreviewDrawer.querySelectorAll('.attachment-remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index, 10);
+        pendingAttachments.splice(idx, 1);
+        renderAttachmentChips();
+        if (pendingAttachments.length === 0 && chatTextInput.value.trim().length === 0) {
+          actionPillBtn.classList.remove('send-mode');
+        }
+      });
+    });
+  }
+
+  // --- Web Audio Synthesized Chime ---
+  function playAudioTone(type = 'start') {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      if (type === 'start') {
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.14);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else {
+        osc.frequency.setValueAtTime(740, now);
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.14);
+        gain.gain.setValueAtTime(0.10, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        osc.start(now);
+        osc.stop(now + 0.22);
+      }
+    } catch (e) {}
+  }
+
+  // --- ChatGPT Audio Activity Bar Management ---
+  function showAudioBar(text, isTTS = false) {
+    chatgptAudioBar.style.display = 'flex';
+    audioBarStatusText.textContent = text;
+    audioPauseBtn.textContent = '⏸';
+    isAudioPaused = false;
+    if (isTTS) {
+      audioConfirmBtn.style.display = 'none'; // only pause and close for TTS
+    } else {
+      audioConfirmBtn.style.display = 'flex';
+    }
+  }
+
+  function hideAudioBar() {
+    chatgptAudioBar.style.display = 'none';
+  }
+
+  audioCancelBtn.addEventListener('click', () => {
+    if (isRecording && speechRec) {
+      speechRec.abort();
+      isRecording = false;
+      micBtn.classList.remove('recording');
+    }
+    if (isTTSPlaying && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      isTTSPlaying = false;
+    }
+    hideAudioBar();
+    showToast('تم إيقاف الصوت');
+  });
+
+  audioPauseBtn.addEventListener('click', () => {
+    if (isTTSPlaying && window.speechSynthesis) {
+      if (isAudioPaused) {
+        window.speechSynthesis.resume();
+        audioPauseBtn.textContent = '⏸';
+        isAudioPaused = false;
+        audioBarStatusText.textContent = 'الأستاذ ليو يواصل القراءة...';
+      } else {
+        window.speechSynthesis.pause();
+        audioPauseBtn.textContent = '▶';
+        isAudioPaused = true;
+        audioBarStatusText.textContent = 'تم إيقاف القراءة مؤقتاً';
+      }
+      return;
+    }
+
+    if (isRecording && speechRec) {
+      if (isAudioPaused) {
+        speechRec.start();
+        audioPauseBtn.textContent = '⏸';
+        isAudioPaused = false;
+        audioBarStatusText.textContent = 'الأستاذ ليو يستمع إليك...';
+      } else {
+        speechRec.stop();
+        audioPauseBtn.textContent = '▶';
+        isAudioPaused = true;
+        audioBarStatusText.textContent = 'الاستماع متوقف مؤقتاً';
+      }
+    }
+  });
+
+  audioConfirmBtn.addEventListener('click', () => {
+    if (isRecording && speechRec) {
+      speechRec.stop();
+      isRecording = false;
+      micBtn.classList.remove('recording');
+    }
+    hideAudioBar();
+    if (chatTextInput.value.trim().length > 0) {
+      handleSendPrompt();
+    }
+  });
+
+  // --- Voice Input (Microphone) ---
+  function toggleVoiceRecording() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      chatTextInput.value = 'أستاذ ليو، اشرح لي هذه المسألة بالتفصيل خطوة بخطوة';
+      autoResizeTextarea();
+      actionPillBtn.classList.add('send-mode');
+      showToast('تم إدراج سؤال تعليمي للأستاذ ليو');
+      return;
+    }
+
+    if (isRecording) {
+      if (speechRec) speechRec.stop();
+      isRecording = false;
+      playAudioTone('stop');
+      micBtn.classList.remove('recording');
+      hideAudioBar();
+      return;
+    }
+
+    try {
+      speechRec = new SpeechRecognition();
+      speechRec.lang = 'ar-SA';
+      speechRec.interimResults = true;
+
+      speechRec.onstart = () => {
+        isRecording = true;
+        playAudioTone('start');
+        micBtn.classList.add('recording');
+        showAudioBar('الأستاذ ليو يستمع إليك... تحدث الآن');
+      };
+
+      speechRec.onresult = (evt) => {
+        const transcript = Array.from(evt.results)
+          .map(r => r[0].transcript)
+          .join('');
+        chatTextInput.value = transcript;
+        autoResizeTextarea();
+        actionPillBtn.classList.add('send-mode');
+        audioBarStatusText.textContent = transcript || 'الأستاذ ليو يستمع...';
+      };
+
+      speechRec.onerror = () => {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        hideAudioBar();
+      };
+
+      speechRec.onend = () => {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+      };
+
+      speechRec.start();
+    } catch (err) {
+      console.warn('Speech error:', err);
+    }
+  }
+
+  micBtn.addEventListener('click', toggleVoiceRecording);
+
+  // --- Load Persistent Conversations ---
+  async function loadConversationHistory() {
+    try {
+      const res = await fetch(`/api/conversations?archived=${viewingArchived}`);
+      if (!res.ok) return;
+      const convs = await res.json();
+      renderRecentConversations(convs);
+
+      if (currentConversationId) {
+        const exists = convs.find(c => c.id === currentConversationId);
+        if (exists) {
+          openConversation(currentConversationId);
+        } else if (convs.length > 0) {
+          openConversation(convs[0].id);
+        } else {
+          showEmptyState();
+        }
+      } else if (convs.length > 0) {
+        openConversation(convs[0].id);
+      } else {
+        showEmptyState();
+      }
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    }
+  }
+
+  function renderRecentConversations(convs) {
+    recentChatsList.innerHTML = '';
+    if (!convs || convs.length === 0) {
+      recentChatsList.innerHTML = `<div style="color: #71717a; font-size: 13px; padding: 10px;">${viewingArchived ? 'لا توجد محادثات مؤرشفة' : 'لا توجد محادثات سابقة'}</div>`;
+      return;
+    }
+
+    convs.forEach(conv => {
+      const item = document.createElement('div');
+      item.className = 'chat-history-item' + (conv.id === currentConversationId ? ' active' : '') + (conv.pinned ? ' pinned' : '');
+      item.dataset.id = conv.id;
+
+      item.innerHTML = `
+        <div class="chat-title-group">
+          ${conv.pinned ? '<span class="chat-pin-icon" title="مثبتة">📌</span>' : ''}
+          <span class="chat-title">${conv.title || 'محادثة دراسية'}</span>
+        </div>
+        <div class="chat-actions-group">
+          <!-- Pin -->
+          <button class="chat-act-btn pin" title="${conv.pinned ? 'إلغاء التثبيت' : 'تثبيت في الأعلى'}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="${conv.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-2l-3-3V4h1V2H7v2h1v8l-3 3v2z"></path></svg>
+          </button>
+          <!-- Rename -->
+          <button class="chat-act-btn edit" title="إعادة تسمية">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <!-- Archive -->
+          <button class="chat-act-btn archive" title="${conv.archived ? 'إلغاء الأرشفة' : 'أرشفة'}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+          </button>
+          <!-- Delete -->
+          <button class="chat-act-btn del" title="حذف">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      `;
+
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.chat-actions-group')) return;
+        openConversation(conv.id);
+        closeSidebar();
+      });
+
+      // Actions Bindings
+      item.querySelector('.pin').onclick = async (e) => {
+        e.stopPropagation();
+        await fetch(`/api/conversations/${conv.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pinned: !conv.pinned })
+        });
+        showToast(conv.pinned ? 'تم إلغاء التثبيت' : 'تم تثبيت المحادثة في الأعلى 📌');
+        loadConversationHistory();
+      };
+
+      item.querySelector('.edit').onclick = (e) => {
+        e.stopPropagation();
+        const newTitle = prompt('أدخل الاسم الجديد للمحادثة:', conv.title);
+        if (newTitle && newTitle.trim()) {
+          fetch(`/api/conversations/${conv.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: newTitle.trim() })
+          }).then(() => {
+            showToast('تمت إعادة تسمية المحادثة');
+            loadConversationHistory();
+          });
+        }
+      };
+
+      item.querySelector('.archive').onclick = async (e) => {
+        e.stopPropagation();
+        await fetch(`/api/conversations/${conv.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archived: !conv.archived })
+        });
+        showToast(conv.archived ? 'تم استرجاع المحادثة من الأرشيف' : 'تمت أرشفة المحادثة');
+        loadConversationHistory();
+      };
+
+      item.querySelector('.del').onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm(`هل تريد حذف محادثة "${conv.title}" نهائياً؟`)) {
+          await fetch(`/api/conversations/${conv.id}`, { method: 'DELETE' });
+          showToast('تم حذف المحادثة');
+          if (currentConversationId === conv.id) {
+            currentConversationId = null;
+            localStorage.removeItem('leo_active_conv_id');
+          }
+          loadConversationHistory();
+        }
+      };
+
+      recentChatsList.appendChild(item);
+    });
+  }
+
+  // Toggle Archived View
+  toggleArchivedViewBtn.addEventListener('click', () => {
+    viewingArchived = !viewingArchived;
+    chatsSectionTitle.textContent = viewingArchived ? 'المحادثات المؤرشفة' : 'المحادثات';
+    toggleArchivedViewBtn.textContent = viewingArchived ? 'عرض النشطة' : 'عرض الأرشيف';
+    loadConversationHistory();
+  });
+
+  archivedChatsBtn.addEventListener('click', () => {
+    viewingArchived = true;
+    chatsSectionTitle.textContent = 'المحادثات المؤرشفة';
+    toggleArchivedViewBtn.textContent = 'عرض النشطة';
+    loadConversationHistory();
+    showToast('تم الانتقال إلى المحادثات المؤرشفة');
+  });
+
+  async function openConversation(convId) {
+    currentConversationId = convId;
+    localStorage.setItem('leo_active_conv_id', convId);
+
+    document.querySelectorAll('.chat-history-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === convId);
+    });
+
+    try {
+      const res = await fetch(`/api/conversations/${convId}`);
+      if (!res.ok) throw new Error('Not found');
+      const conv = await res.json();
+
+      messagesStreamList.innerHTML = '';
+      if (!conv.messages || conv.messages.length === 0) {
+        showEmptyState();
+      } else {
+        emptyStateContainer.style.display = 'none';
+        conv.messages.forEach(msg => {
+          if (msg.role === 'user') {
+            appendUserMessage(msg.content, msg.attachments, msg.id);
+          } else {
+            renderStoredAssistantMessage(msg.content, msg.id);
+          }
+        });
+        scrollToBottom();
+      }
+    } catch (err) {
+      showEmptyState();
+    }
+  }
+
+  function showEmptyState() {
+    messagesStreamList.innerHTML = '';
+    emptyStateContainer.style.display = 'flex';
+  }
+
+  // --- Send Message & Progressive Streaming (ChatGPT Style) ---
+  async function handleSendPrompt() {
+    const text = chatTextInput.value.trim();
+    if ((!text && pendingAttachments.length === 0) || isGenerating) return;
+
+    chatTextInput.value = '';
+    autoResizeTextarea();
+    const attachmentsToSend = [...pendingAttachments];
+    pendingAttachments = [];
+    renderAttachmentChips();
+    actionPillBtn.classList.remove('send-mode');
+    emptyStateContainer.style.display = 'none';
+
+    // Append User Message Immediately
+    appendUserMessage(text, attachmentsToSend);
+    scrollToBottom();
+
+    // Prepare Assistant Slot for Streaming
+    const { messageRow, textElem, actionsElem, cursorElem } = createAssistantSlot();
+    scrollToBottom();
+
+    isGenerating = true;
+    actionPillBtn.classList.add('generating-mode');
+    activeAbortController = new AbortController();
+
+    let accumulatedText = '';
+
+    try {
+      const payload = {
+        conversation_id: currentConversationId,
+        content: text,
+        attachments: attachmentsToSend,
+        model: selectedModel,
+        temperature: settingsState.temperature,
+        study_mode: settingsState.studyMode
+      };
+
+      const resp = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: activeAbortController.signal
+      });
+
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const dataContent = trimmed.substring(6).trim();
+
+          if (dataContent === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(dataContent);
+            if (parsed.conversation_id && !currentConversationId) {
+              currentConversationId = parsed.conversation_id;
+              localStorage.setItem('leo_active_conv_id', currentConversationId);
+            }
+            if (parsed.content) {
+              accumulatedText += parsed.content;
+              // Smooth real-time Markdown stream with blinking cursor
+              renderMarkdownStream(textElem, accumulatedText, cursorElem);
+              scrollToBottom();
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Finish Generation
+      if (cursorElem && cursorElem.parentNode) cursorElem.remove();
+      renderMarkdownFinal(textElem, accumulatedText);
+      actionsElem.style.display = 'flex';
+      setupMessageToolbar(actionsElem, accumulatedText, messageRow);
+
+      // Reload conversation list to show new auto-title
+      loadConversationHistory();
+
+    } catch (err) {
+      if (cursorElem && cursorElem.parentNode) cursorElem.remove();
+      if (!accumulatedText) {
+        accumulatedText = 'أهلاً ومرحباً بك يا بني في منصة LeoGPT. أنا الأستاذ ليو، موجهك ومعلمك الدراسي. يسعدني مرافقتك في فهم المنهج الدراسي وحل التمارين والمسائل وتلخيص المواد خطوة بخطوة.';
+      }
+      renderMarkdownFinal(textElem, accumulatedText);
+      actionsElem.style.display = 'flex';
+      setupMessageToolbar(actionsElem, accumulatedText, messageRow);
+    } finally {
+      isGenerating = false;
+      activeAbortController = null;
+      actionPillBtn.classList.remove('generating-mode');
+      scrollToBottom();
+    }
+  }
+
+  // --- Message UI Renderers ---
+  function appendUserMessage(text, attachments, msgId) {
+    const row = document.createElement('div');
+    row.className = 'user-message-row';
+    if (msgId) row.dataset.msgId = msgId;
+
+    if (attachments && attachments.length > 0) {
+      attachments.forEach(att => {
+        const img = document.createElement('img');
+        img.className = 'user-attached-image';
+        img.src = att.data || att.url;
+        img.alt = att.name || 'مرفق دراسي';
+        img.title = 'اضغط للمعاينة الكاملة';
+        img.onclick = () => window.open(img.src, '_blank');
+        row.appendChild(img);
+      });
+    }
+
+    if (text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'user-bubble';
+      bubble.textContent = text;
+      row.appendChild(bubble);
+    }
+
+    messagesStreamList.appendChild(row);
+  }
+
+  function createAssistantSlot() {
+    const messageRow = document.createElement('div');
+    messageRow.className = 'assistant-message-row';
+
+    const textElem = document.createElement('div');
+    textElem.className = 'assistant-message-text';
+
+    const cursorElem = document.createElement('span');
+    cursorElem.className = 'typing-cursor';
+    textElem.appendChild(cursorElem);
+
+    const actionsElem = document.createElement('div');
+    actionsElem.className = 'assistant-actions-toolbar';
+    actionsElem.style.display = 'none';
+    buildToolbarHtml(actionsElem);
+
+    messageRow.appendChild(textElem);
+    messageRow.appendChild(actionsElem);
+    messagesStreamList.appendChild(messageRow);
+
+    return { messageRow, textElem, actionsElem, cursorElem };
+  }
+
+  function renderStoredAssistantMessage(content, msgId) {
+    const messageRow = document.createElement('div');
+    messageRow.className = 'assistant-message-row';
+    if (msgId) messageRow.dataset.msgId = msgId;
+
+    const textElem = document.createElement('div');
+    textElem.className = 'assistant-message-text';
+    renderMarkdownFinal(textElem, content);
+
+    const actionsElem = document.createElement('div');
+    actionsElem.className = 'assistant-actions-toolbar';
+    buildToolbarHtml(actionsElem);
+    setupMessageToolbar(actionsElem, content, messageRow, msgId);
+
+    messageRow.appendChild(textElem);
+    messageRow.appendChild(actionsElem);
+    messagesStreamList.appendChild(messageRow);
+  }
+
+  function renderMarkdownStream(elem, markdownText, cursorElem) {
+    if (window.marked) {
+      elem.innerHTML = marked.parse(markdownText);
+    } else {
+      elem.textContent = markdownText;
+    }
+    elem.appendChild(cursorElem);
+    bindCopyCodeButtons(elem);
+  }
+
+  function renderMarkdownFinal(elem, markdownText) {
+    if (window.marked) {
+      elem.innerHTML = marked.parse(markdownText);
+    } else {
+      elem.textContent = markdownText;
+    }
+    bindCopyCodeButtons(elem);
+  }
+
+  function bindCopyCodeButtons(container) {
+    container.querySelectorAll('.copy-code-btn').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(btn.dataset.code);
+          const orig = btn.querySelector('span').textContent;
+          btn.querySelector('span').textContent = 'تم النسخ!';
+          setTimeout(() => btn.querySelector('span').textContent = orig, 2000);
+          showToast('تم نسخ الكود البرمجي');
+        } catch (err) {
+          showToast('تم النسخ');
+        }
+      };
+    });
+  }
+
+  function buildToolbarHtml(actionsElem) {
+    actionsElem.innerHTML = `
+      <button class="msg-action-btn action-speak" title="قراءة صوتية" aria-label="قراءة">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+      </button>
+      <button class="msg-action-btn action-dislike" title="لم يعجبني"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg></button>
+      <button class="msg-action-btn action-like" title="أعجبني"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4.33A2.31 2.31 0 0 1 2 20v-7a2.31 2.31 0 0 1 2.33-2H7"></path></svg></button>
+      <button class="msg-action-btn action-retry" title="إعادة التوليد"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></button>
+      <button class="msg-action-btn action-copy" title="نسخ الرسالة"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+      <button class="msg-action-btn action-delete-msg" title="حذف"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+    `;
+  }
+
+  function setupMessageToolbar(toolbar, content, messageRow, msgId) {
+    const speakBtn = toolbar.querySelector('.action-speak');
+    const dislikeBtn = toolbar.querySelector('.action-dislike');
+    const likeBtn = toolbar.querySelector('.action-like');
+    const retryBtn = toolbar.querySelector('.action-retry');
+    const copyBtn = toolbar.querySelector('.action-copy');
+    const delBtn = toolbar.querySelector('.action-delete-msg');
+
+    copyBtn.onclick = async () => {
+      await navigator.clipboard.writeText(content);
+      showToast('تم نسخ نص الرسالة');
+    };
+
+    speakBtn.onclick = () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        
+        let plain = content
+          .replace(/```[\s\S]*?```/g, ' كود برمجي توضيحي ')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/[#*~_>]/g, '')
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .trim();
+
+        const utt = new SpeechSynthesisUtterance(plain);
+        const voices = window.speechSynthesis.getVoices();
+        const arabicVoices = voices.filter(v => v.lang.startsWith('ar') || v.lang.includes('Arabic'));
+        const preferred = arabicVoices.find(v => 
+          v.name.includes('Maged') || v.name.includes('Naayf') || v.name.includes('Tarik') || v.name.includes('Google')
+        ) || arabicVoices[0];
+
+        if (preferred) utt.voice = preferred;
+        utt.lang = 'ar-SA';
+        utt.rate = 0.90;
+        utt.pitch = 0.95;
+
+        utt.onstart = () => {
+          isTTSPlaying = true;
+          showAudioBar('الأستاذ ليو يشرح صوتياً...', true);
+        };
+
+        utt.onend = () => {
+          isTTSPlaying = false;
+          hideAudioBar();
+        };
+
+        window.speechSynthesis.speak(utt);
+      } else {
+        showToast('القراءة الصوتية غير مدعومة');
+      }
+    };
+
+    likeBtn.onclick = () => {
+      likeBtn.classList.toggle('active-action');
+      dislikeBtn.classList.remove('active-action');
+    };
+
+    dislikeBtn.onclick = () => {
+      dislikeBtn.classList.toggle('active-action');
+      likeBtn.classList.remove('active-action');
+    };
+
+    retryBtn.onclick = () => {
+      const userBubbles = messagesStreamList.querySelectorAll('.user-bubble');
+      if (userBubbles.length > 0) {
+        chatTextInput.value = userBubbles[userBubbles.length - 1].textContent;
+        autoResizeTextarea();
+        actionPillBtn.classList.add('send-mode');
+        handleSendPrompt();
+      }
+    };
+
+    delBtn.onclick = async () => {
+      if (msgId) await fetch(`/api/messages/${msgId}`, { method: 'DELETE' });
+      messageRow.remove();
+      showToast('تم حذف الرسالة');
+    };
+  }
+
+  function scrollToBottom() {
+    chatContentArea.scrollTop = chatContentArea.scrollHeight;
+  }
+
+  // --- New Chat Handlers ---
+  function createNewChat() {
+    currentConversationId = null;
+    localStorage.removeItem('leo_active_conv_id');
+    showEmptyState();
+    closeSidebar();
+    chatTextInput.value = '';
+    autoResizeTextarea();
+    pendingAttachments = [];
+    renderAttachmentChips();
+    actionPillBtn.classList.remove('send-mode');
+    document.querySelectorAll('.chat-history-item').forEach(i => i.classList.remove('active'));
+    showToast('بدأت محادثة دراسية جديدة');
+  }
+
+  newChatBtn.addEventListener('click', createNewChat);
+  drawerNewChatBtn.addEventListener('click', createNewChat);
+
+  // --- Model Selector Dropdown ---
+  modelSelectorPill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    modelSelectorWrapper.classList.toggle('active');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!modelSelectorWrapper.contains(e.target)) {
+      modelSelectorWrapper.classList.remove('active');
+    }
+  });
+
+  document.querySelectorAll('.dropdown-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+
+      selectedModel = item.dataset.model;
+      localStorage.setItem('leo_selected_model', selectedModel);
+
+      const title = item.querySelector('.item-title').textContent;
+      currentModelLabel.textContent = title;
+      modelSelectorWrapper.classList.remove('active');
+      showToast(`تم تفعيل النموذج: ${title}`);
+    });
+  });
+
+  // --- Sidebar Controls ---
+  function openSidebar() {
+    sidebarDrawer.classList.add('active');
+    sidebarBackdrop.classList.add('active');
+  }
+
+  function closeSidebar() {
+    sidebarDrawer.classList.remove('active');
+    sidebarBackdrop.classList.remove('active');
+    drawerSearchBox.style.display = 'none';
+  }
+
+  sidebarToggleBtn.addEventListener('click', openSidebar);
+  drawerCloseBtn.addEventListener('click', closeSidebar);
+  sidebarBackdrop.addEventListener('click', closeSidebar);
+
+  searchChatsBtn.addEventListener('click', () => {
+    drawerSearchBox.style.display = drawerSearchBox.style.display === 'none' ? 'block' : 'none';
+    if (drawerSearchBox.style.display === 'block') drawerSearchInput.focus();
+  });
+
+  drawerSearchInput.addEventListener('input', () => {
+    const query = drawerSearchInput.value.trim().toLowerCase();
+    document.querySelectorAll('.chat-history-item').forEach(item => {
+      const title = item.querySelector('.chat-title').textContent.toLowerCase();
+      item.style.display = (!query || title.includes(query)) ? 'flex' : 'none';
+    });
+  });
+
+  // --- Student Profile Logic (Iraqi Educational Curriculum) ---
+  function populateGradeSelect(stageKey, selectedGrade = null) {
+    const stage = IRAQI_STAGES_DATA[stageKey] || IRAQI_STAGES_DATA.preparatory;
+    profGradeSubSelect.innerHTML = '';
+    stage.grades.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g.id;
+      opt.textContent = g.label;
+      if (selectedGrade && selectedGrade === g.id) opt.selected = true;
+      profGradeSubSelect.appendChild(opt);
+    });
+
+    if (stageKey === 'university') {
+      profSpecializationWrapper.style.display = 'flex';
+    } else {
+      profSpecializationWrapper.style.display = 'none';
+    }
+  }
+
+  profStageSelect.addEventListener('change', () => {
+    populateGradeSelect(profStageSelect.value);
+  });
+
+  function openProfileModal() {
+    profNameInput.value = studentProfile.name || '';
+    const genderRadios = document.querySelectorAll('input[name="profGender"]');
+    genderRadios.forEach(r => r.checked = (r.value === studentProfile.gender));
+    
+    profStageSelect.value = studentProfile.stage || 'preparatory';
+    populateGradeSelect(profStageSelect.value, studentProfile.grade_sub);
+    profSpecializationInput.value = studentProfile.specialization || '';
+
+    profileModalOverlay.classList.add('active');
+  }
+
+  function closeProfileModal() {
+    profileModalOverlay.classList.remove('active');
+  }
+
+  profileModalCloseBtn.addEventListener('click', closeProfileModal);
+
+  saveProfileBtn.addEventListener('click', async () => {
+    const name = profNameInput.value.trim();
+    if (!name) {
+      alert('يرجى كتابة اسمك');
+      return;
+    }
+
+    const gender = document.querySelector('input[name="profGender"]:checked').value;
+    const stage = profStageSelect.value;
+    const grade_sub = profGradeSubSelect.value;
+    const specialization = profSpecializationInput.value.trim();
+
+    studentProfile = { name, gender, stage, grade_sub, specialization };
+    try {
+      localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+    } catch (e) {}
+
+    await fetch('/api/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(studentProfile)
+    });
+
+    updateProfileUI();
+    closeProfileModal();
+    showToast('تم حفظ وتحديث الملف الدراسي بنجاح');
+  });
+
+  function updateProfileUI() {
+    settingsUsernameText.textContent = studentProfile.name || 'الطالب';
+    drawerProfileName.textContent = studentProfile.name || 'الطالب';
+    
+    const letter = (studentProfile.name || 'ط').charAt(0);
+    drawerAvatarLetter.textContent = letter;
+    settingsAvatarLetterLarge.textContent = letter;
+
+    const stg = IRAQI_STAGES_DATA[studentProfile.stage] || IRAQI_STAGES_DATA.preparatory;
+    const grd = stg.grades.find(g => g.id === studentProfile.grade_sub) || stg.grades[0];
+    const stageLabel = `${stg.name} — ${grd ? grd.label : ''}`;
+
+    drawerProfileStageBadge.textContent = grd ? grd.label : stg.name;
+    settingsStudentStagePill.textContent = stageLabel;
+    emptyStudentGreeting.textContent = `مرحباً ${studentProfile.gender === 'female' ? 'يا ابنتي' : 'يا بني'} ${studentProfile.name}! الأستاذ ليو مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
+  }
+
+  // Profile click handlers
+  drawerProfileCard.onclick = () => {
+    closeSidebar();
+    settingsScreen.classList.add('active');
+  };
+
+  settingsBackBtn.onclick = () => settingsScreen.classList.remove('active');
+  studentProfileRow.onclick = openProfileModal;
+  settingsNamePill.onclick = openProfileModal;
+  avatarEditBadgeBtn.onclick = openProfileModal;
+
+  // Customization Row Modal
+  customizationRow.onclick = () => {
+    modalTitle.textContent = 'تخصيص نمط التدريس للأستاذ ليو';
+    modalBody.innerHTML = `
+      <div class="modal-field">
+        <label>نمط الشرح المفضل:</label>
+        <select id="modalStudyMode">
+          <option value="standard" ${settingsState.studyMode === 'standard' ? 'selected' : ''}>شرح دراسي متسلسل ومنهجي خطوة بخطوة</option>
+          <option value="math" ${settingsState.studyMode === 'math' ? 'selected' : ''}>حل مسائل وتمارين مع القوانين والتعويض (علمي/رياضي)</option>
+          <option value="exam" ${settingsState.studyMode === 'exam' ? 'selected' : ''}>مراجعة امتحانية وأسئلة وزارية مع الحل النموذجي</option>
+          <option value="summary" ${settingsState.studyMode === 'summary' ? 'selected' : ''}>تلخيص ذكي وجداول مقارنة للمراجعة السريعة</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>درجة التفصيل والدقة العلمية (Temperature: <span id="tempValDisplay">${settingsState.temperature}</span>):</label>
+        <input type="range" id="modalTempRange" min="0.2" max="1.0" step="0.1" value="${settingsState.temperature}">
+      </div>
+      <button class="modal-primary-btn" id="modalSaveCustomBtn">حفظ النمط التعليمي</button>
+    `;
+
+    const tempRange = document.getElementById('modalTempRange');
+    const tempDisplay = document.getElementById('tempValDisplay');
+    tempRange.oninput = () => tempDisplay.textContent = tempRange.value;
+
+    document.getElementById('modalSaveCustomBtn').onclick = () => {
+      settingsState.studyMode = document.getElementById('modalStudyMode').value;
+      settingsState.temperature = parseFloat(tempRange.value);
+      saveSettingsToServer();
+      closeModal();
+      showToast('تم حفظ نمط الشرح التعليمي');
+    };
+
+    openModal();
+  };
+
+  // Appearance Row
+  appearanceRow.onclick = () => {
+    const modes = [
+      { id: 'default', label: 'داكن (افتراضي)', class: '' },
+      { id: 'oled', label: 'أسود نقي (OLED)', class: 'mode-oled' },
+      { id: 'contrast', label: 'عالي التباين', class: 'mode-contrast' }
+    ];
+    const currIdx = modes.findIndex(m => m.id === settingsState.appearance);
+    const nextMode = modes[(currIdx + 1) % modes.length];
+
+    document.body.classList.remove('mode-oled', 'mode-contrast');
+    if (nextMode.class) document.body.classList.add(nextMode.class);
+
+    settingsState.appearance = nextMode.id;
+    currentAppearanceLabel.textContent = nextMode.label;
+    saveSettingsToServer();
+    showToast(`تم تفعيل: ${nextMode.label}`);
+  };
+
+  // Bubble Theme Row
+  bubbleThemeRow.onclick = () => {
+    const idx = bubbleThemes.findIndex(t => t.id === settingsState.bubbleTheme);
+    const nextIdx = (idx + 1) % bubbleThemes.length;
+    const nextTheme = bubbleThemes[nextIdx];
+
+    bubbleThemes.forEach(t => document.body.classList.remove(t.id));
+    document.body.classList.add(nextTheme.id);
+
+    settingsState.bubbleTheme = nextTheme.id;
+    currentBubbleThemeLabel.textContent = nextTheme.name;
+    document.getElementById('glowingOrbPreview').style.background = nextTheme.preview;
+    saveSettingsToServer();
+    showToast(`تم تغيير مظهر التوهج: ${nextTheme.name}`);
+  };
+
+  // Clear Memories Row
+  clearMemoryRow.onclick = async () => {
+    if (confirm('هل أنت متأكد من مسح جميع الذكريات وسجل المحادثات نهائياً؟')) {
+      await fetch('/api/conversations/clear', { method: 'POST' });
+      currentConversationId = null;
+      localStorage.removeItem('leo_active_conv_id');
+      showEmptyState();
+      loadConversationHistory();
+      showToast('تم مسح جميع الدروس والمحادثات');
+    }
+  };
+
+  // Report Bug Row
+  reportBugRow.onclick = () => {
+    modalTitle.textContent = 'الإبلاغ عن مسألة أو اقتراح دراسي';
+    modalBody.innerHTML = `
+      <div class="modal-field">
+        <label>اكتب ملاحظتك للأستاذ ليو:</label>
+        <textarea id="feedbackText" placeholder="اكتب تفاصيل المسألة أو أي ميزة تحتاجها في منهجك الدراسي..."></textarea>
+      </div>
+      <button class="modal-primary-btn" id="sendFeedbackBtn">إرسال التقرير</button>
+    `;
+
+    document.getElementById('sendFeedbackBtn').onclick = async () => {
+      const text = document.getElementById('feedbackText').value.trim();
+      if (!text) return;
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text })
+      });
+      closeModal();
+      showToast('شكراً لملاحظتك! تم إرسالها إلى النظام');
+    };
+
+    openModal();
+  };
+
+  // Logout / Reset Row
+  logoutRow.onclick = () => {
+    if (confirm('هل ترغب بإعادة تعيين الجلسة الحالية؟')) {
+      localStorage.clear();
+      location.reload();
+    }
+  };
+
+  // Modal Handlers
+  function openModal() { customModalOverlay.classList.add('active'); }
+  function closeModal() { customModalOverlay.classList.remove('active'); }
+  modalCloseBtn.onclick = closeModal;
+  customModalOverlay.onclick = (e) => { if (e.target === customModalOverlay) closeModal(); };
+
+  // Settings Save to Server
+  async function saveSettingsToServer() {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsState)
+      });
+    } catch (e) {}
+  }
+
+  // --- Initial Startup & Profile Check ---
+  async function startup() {
+    try {
+      // 0. Immediate localStorage cache restore
+      const localCachedProf = localStorage.getItem('leo_student_profile');
+      if (localCachedProf) {
+        try {
+          const parsedLocal = JSON.parse(localCachedProf);
+          if (parsedLocal && parsedLocal.name) {
+            studentProfile = parsedLocal;
+            updateProfileUI();
+          }
+        } catch (e) {}
+      }
+
+      // 1. Fetch Profile from server
+      const profRes = await fetch('/api/profile');
+      if (profRes.ok) {
+        const p = await profRes.json();
+        if (p && p.name) {
+          studentProfile = p;
+          localStorage.setItem('leo_student_profile', JSON.stringify(p));
+          updateProfileUI();
+        } else if (studentProfile && studentProfile.name) {
+          // If server restarted (e.g. Vercel serverless cold start), sync our local profile to server
+          fetch('/api/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(studentProfile)
+          });
+        } else {
+          // First time student onboarding modal!
+          setTimeout(openProfileModal, 600);
+        }
+      }
+
+      // 2. Fetch Settings
+      const setRes = await fetch('/api/settings');
+      if (setRes.ok) {
+        const s = await setRes.json();
+        if (s && Object.keys(s).length > 0) {
+          settingsState = { ...settingsState, ...s };
+          if (settingsState.bubbleTheme) {
+            bubbleThemes.forEach(t => document.body.classList.remove(t.id));
+            document.body.classList.add(settingsState.bubbleTheme);
+            const tObj = bubbleThemes.find(t => t.id === settingsState.bubbleTheme);
+            if (tObj) {
+              currentBubbleThemeLabel.textContent = tObj.name;
+              document.getElementById('glowingOrbPreview').style.background = tObj.preview;
+            }
+          }
+        }
+      }
+
+      // 3. Set model label
+      const activeModelItem = document.querySelector(`.dropdown-item[data-model="${selectedModel}"]`);
+      if (activeModelItem) {
+        document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+        activeModelItem.classList.add('active');
+        currentModelLabel.textContent = activeModelItem.querySelector('.item-title').textContent;
+      }
+
+      // 4. Load Conversation History
+      loadConversationHistory();
+
+    } catch (e) {
+      console.error('Startup error:', e);
+    }
+  }
+
+  startup();
+});
