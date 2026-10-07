@@ -1,5 +1,5 @@
 /**
- * LeoGPT — الأستاذ والمساعد الدراسي الذكي
+ * الأستاذ ليو — المستشار والموجه الأكاديمي
  * Iraqi Educational Curriculum Integration, ChatGPT-like Audio Bar, Pinned & Archived History
  */
 
@@ -965,8 +965,7 @@ document.addEventListener('DOMContentLoaded', () => {
     messagesStreamList.innerHTML = '';
     emptyStateContainer.style.display = 'flex';
     const name = (studentProfile && studentProfile.name) ? studentProfile.name.trim() : '';
-    const genderTerm = (studentProfile && studentProfile.gender === 'female') ? 'يا ابنتي' : 'يا بني';
-    const phrase = name ? `هل أنت مستعد، ${genderTerm} ${name}؟` : 'هل أنت مستعد؟';
+    const phrase = name ? `هل أنت مستعد، ${name}؟` : 'هل أنت مستعد؟';
     runTypewriterEffect(phrase);
   }
 
@@ -1862,7 +1861,7 @@ document.addEventListener('DOMContentLoaded', () => {
       settingsAvatarLetterLarge.textContent = '؟';
       drawerProfileStageBadge.textContent = 'اضغط للبدء';
       settingsStudentStagePill.textContent = 'غير مسجل';
-      emptyStudentGreeting.textContent = 'أهلاً بك في LeoGPT! يرجى تسجيل الدخول للبدء مع الأستاذ والمساعد الدراسي الذكي.';
+      emptyStudentGreeting.textContent = 'أهلاً بك! يرجى تسجيل الدخول للبدء مع الأستاذ ليو المستشار الأكاديمي.';
       return;
     }
 
@@ -1881,8 +1880,8 @@ document.addEventListener('DOMContentLoaded', () => {
     drawerProfileStageBadge.textContent = grd ? grd.label : stg.name;
     settingsStudentStagePill.textContent = stageLabel;
 
-    const genderWord = studentProfile.gender === 'female' ? 'يا ابنتي' : 'يا بني';
-    emptyStudentGreeting.textContent = `مرحباً ${genderWord} ${name}! الأستاذ ليو مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
+    const genderWord = studentProfile.gender === 'female' ? '' : '';
+    emptyStudentGreeting.textContent = `مرحباً ${name}! الأستاذ ليو مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
   }
 
   // Profile click handlers
@@ -2222,7 +2221,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // 1. Fetch Profile from server for this device/user
+      // 2. Fetch Profile from server for this device/user
       const profRes = await fetch('/api/profile');
       if (profRes.ok) {
         const p = await profRes.json();
@@ -2240,13 +2239,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // 2. Strict Authentication Check: If no real user data exists, mandate login modal!
+      // 3. Strict Authentication Check: If no real user data exists, mandate login modal!
       if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
         updateProfileUI();
         setTimeout(() => openProfileModal(true), 250);
       }
 
-      // 2. Fetch Settings
+      // 4. Fetch Settings
       const setRes = await fetch('/api/settings');
       if (setRes.ok) {
         const s = await setRes.json();
@@ -2267,7 +2266,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Apply saved appearance (Dark / Light / System)
       applyAppearance(settingsState.appearance || 'dark');
 
-      // 3. Set model label
+      // 5. Set model label
       const activeModelItem = document.querySelector(`.dropdown-item[data-model="${selectedModel}"]`);
       if (activeModelItem) {
         document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
@@ -2275,12 +2274,57 @@ document.addEventListener('DOMContentLoaded', () => {
         currentModelLabel.textContent = activeModelItem.querySelector('.item-title').textContent;
       }
 
-      // 4. Load Conversation History & Memories
+      // 6. Load Conversation History & Memories
       loadConversationHistory();
       refreshMemoriesUI();
 
+      // 7. Background Sync: Push all locally cached conversations to server DB
+      //    This ensures conversations survive server restarts, Vercel cold starts, and DB resets.
+      syncLocalConversationsToServer();
+
     } catch (e) {
       console.error('Startup error:', e);
+    }
+  }
+
+  // --- Background Sync: Push localStorage conversations to server for persistence ---
+  async function syncLocalConversationsToServer() {
+    try {
+      const indexRaw = localStorage.getItem('leo_conversations_index');
+      if (!indexRaw) return;
+      const index = JSON.parse(indexRaw);
+      if (!Array.isArray(index) || index.length === 0) return;
+
+      const fullConversations = [];
+      for (const conv of index) {
+        if (!conv || !conv.id) continue;
+        const cached = getConversationFromLocalCache(conv.id);
+        if (cached && cached.messages && cached.messages.length > 0) {
+          fullConversations.push(cached);
+        } else {
+          // Even without messages, sync the conversation shell
+          fullConversations.push({
+            id: conv.id,
+            title: conv.title || 'محادثة دراسية',
+            created_at: conv.created_at,
+            updated_at: conv.updated_at,
+            model: conv.model,
+            pinned: conv.pinned,
+            archived: conv.archived,
+            messages: []
+          });
+        }
+      }
+
+      if (fullConversations.length > 0) {
+        fetch('/api/conversations/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversations: fullConversations })
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Background sync failed (non-critical):', e);
     }
   }
 

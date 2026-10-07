@@ -586,5 +586,49 @@ def extract_memory_candidates(user_text):
 
     return candidates
 
+def sync_conversations(user_id, conversations_data):
+    """
+    Accepts a list of conversation objects from client-side persistent storage
+    and ensures they exist in SQLite without overwriting existing newer data.
+    """
+    if not isinstance(conversations_data, list):
+        return
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        for c in conversations_data:
+            if not isinstance(c, dict):
+                continue
+            cid = c.get('id')
+            if not cid:
+                continue
+            title = c.get('title', 'محادثة دراسية')
+            model = c.get('model', 'leo-4o-mini')
+            created_at = c.get('created_at', time.time())
+            updated_at = c.get('updated_at', time.time())
+            pinned = 1 if c.get('pinned') else 0
+            archived = 1 if c.get('archived') else 0
+            cursor.execute("""
+            INSERT OR IGNORE INTO conversations (id, user_id, title, created_at, updated_at, model, pinned, archived)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (cid, user_id, title, created_at, updated_at, model, pinned, archived))
+
+            # Sync messages if present
+            msgs = c.get('messages', [])
+            if isinstance(msgs, list):
+                for m in msgs:
+                    if not isinstance(m, dict):
+                        continue
+                    mid = m.get('id') or f"msg_{uuid.uuid4().hex[:10]}"
+                    role = m.get('role', 'user')
+                    content = m.get('content', '')
+                    m_created_at = m.get('created_at', time.time())
+                    attachments = json.dumps(m.get('attachments', []), ensure_ascii=False)
+                    cursor.execute("""
+                    INSERT OR IGNORE INTO messages (id, conversation_id, role, content, attachments, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, (mid, cid, role, content, attachments, m_created_at))
+        conn.commit()
+
 init_db()
+
 

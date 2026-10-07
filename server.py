@@ -177,13 +177,15 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
         name = student_profile.get('name', 'الطالب')
         gender = student_profile.get('gender', 'male')
         if gender == 'female':
-            gender_rules = f"""خاطب الطالبة دائماً بالصيغة المؤنثة بدقة:
+            gender_rules = f"""خاطب الطالبة دائماً بالصيغة المؤنثة بدقة وباحترام أكاديمي:
 - نادِها باسمها: "{name}" عند الحاجة الطبيعية فقط دون تكرار في كل جملة.
-- استخدم أفعال وضمائر التأنيث المناسبة (أحسنتِ، هل فهمتِ هذه النقطة؟، لاحظي معي، ركزي في هذه الخطوة)."""
+- استخدم أفعال وضمائر التأنيث المناسبة (أحسنتِ، هل فهمتِ هذه النقطة؟، لاحظي معي، ركزي في هذه الخطوة).
+- يُمنع منعاً باتاً مناداة الطالبة بـ "يا ابنتي" أو "بنيتي" أو "بني". استخدم النداء باسمها أو بصيغة علمية راقية."""
         else:
-            gender_rules = f"""خاطب الطالب بالصيغة المذكرة بدقة:
+            gender_rules = f"""خاطب الطالب بالصيغة المذكرة بدقة وباحترام أكاديمي:
 - نادِه باسمه: "{name}" عند الحاجة الطبيعية فقط دون تكرار في كل جملة.
-- استخدم أفعال وضمائر التذكير المناسبة (أحسنتَ، هل فهمتَ هذه النقطة؟، لاحظ معي، ركز في هذه الخطوة)."""
+- استخدم أفعال وضمائر التذكير المناسبة (أحسنتَ، هل فهمتَ هذه النقطة؟، لاحظ معي، ركز في هذه الخطوة).
+- يُمنع منعاً باتاً وتاماً استخدام كلمة "بني" أو "يا بني". استخدم النداء باسمه أو بصيغة علمية راقية."""
 
         stg = student_profile.get('stage', 'preparatory')
         stg_name = IRAQI_STAGES_NAMES.get(stg, stg)
@@ -211,7 +213,7 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
 إرشادات بدء المحادثة:
 - هذه هي الرسالة الأولى في جلسة دراسية جديدة: يمكنك افتتاحها بلباقة وترحيب تربوي موجز باسم الطالب إذا كان ذلك ملائماً لسياق السؤال، ثم ادخل فوراً في صلب الموضوع."""
 
-    base_prompt = f"""أنت "الأستاذ ليو" (LeoGPT)، معلم وموجه دراسي وأكاديمي عراقي قدير ورصين وذكي للغاية.
+    base_prompt = f"""أنت "الأستاذ ليو"، معلم وموجه دراسي ومستشار أكاديمي قدير ورصين وذكي للغاية.
 
 بيانات الطالب الذي تحاوره:
 - اسم الطالب: {name}
@@ -228,7 +230,8 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
    - الخطوة الثانية: كتابة القوانين والمعطيات وتطبيق خطوات الحل بترتيب منظم.
    - الخطوة الثالثة: النتيجة النهائية مع الوحدات والتعليل العلمي.
    - الخطوة الرابعة: نصيحة وتنبيه للأخطاء الشائعة في الامتحانات والوزاريات.
-4. شجع الطالب على التفكير والفهم، ولا تقدم حلولاً سطحية."""
+4. شجع الطالب على التفكير والفهم، ولا تقدم حلولاً سطحية.
+5. يُمنع منعاً باتاً مناداة الطالب بكلمة "يا بني" أو "بني"."""
 
     if study_mode == "math":
         base_prompt += "\n\nتركيز خاص: ركز على القوانين الرياضية والفيزيائية بالتفصيل والرموز العلمية الدقيقة."
@@ -283,8 +286,8 @@ MODEL_MAP = {
 
 VISION_MODELS = {"leo-4o-pro", "leo-vision", "leo-academic", "gemini-2.5-flash", "gpt-5"}
 
-# Upstream Concurrency Limiter: prevents overwhelming model backend with uncontrolled simultaneous requests
-MODEL_SEMAPHORE = threading.BoundedSemaphore(value=4)
+# Upstream Concurrency Limiter: allows smooth parallel requests without excessive delay
+MODEL_SEMAPHORE = threading.BoundedSemaphore(value=12)
 
 # In-Flight Request Tracker: maps conversation_id -> {request_id, abort_event, user_msg, timestamp}
 ACTIVE_GENERATIONS = {}
@@ -553,9 +556,9 @@ class RewindClient:
         else:
             # Brand-new conversation: initial greeting only if user greeted
             if 'هلا' in last_lower or 'مرحبا' in last_lower or 'السلام' in last_lower:
-                text = "أهلاً ومرحباً بك يا بني في منصة LeoGPT. أنا الأستاذ ليو، موجهك ومعلمك الدراسي. يسعدني مرافقتك في فهم المنهج وحل التمارين وتلخيص المواد. ما هو الدرس أو السؤال الذي تود أن نبدأ به؟"
+                text = "أهلاً ومرحباً بك في منصة الأستاذ ليو التعليمية. أنا موجهك ومعلمك الدراسي، يسعدني مرافقتك في فهم المنهج وحل التمارين وتلخيص المواد. ما هو الدرس أو السؤال الذي تود أن نبدأ به؟"
             elif 'صورة' in last_lower or 'شرح' in last_lower:
-                text = "تم فحص المرفق التعليمي بدقة عبر نموذج Leo Vision. دعنا نقوم معاً بتحليل هذه المعطيات خطوة بخطوة وتفكيك المسألة لاستنباط الحل العلمي السليم. حدد لي النقطة التي تحتاج تركيزاً خاصاً لننطلق منها."
+                text = "تم فحص المرفق التعليمي بدقة عبر التحليل البصري. دعنا نقوم معاً بتحليل هذه المعطيات خطوة بخطوة وتفكيك المسألة لاستنباط الحل العلمي السليم. حدد لي النقطة التي تحتاج تركيزاً خاصاً لننطلق منها."
             else:
                 text = f"""إليك الشرح المنهجي حول هذه المسألة:
 
@@ -636,41 +639,41 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send_json(mems)
             return
 
-        # Models list (Ranked cleanly as LeoGPT Models)
+        # Educational Advisory Modes (Realistic Academic Roles)
         if path == '/api/models':
             models_list = [
                 {
                     "id": "leo-4o-mini",
-                    "name": "Leo 4o Mini",
-                    "desc": "افتراضي، فائق السرعة والاستجابة لجميع المهام والدراسة اليومية",
-                    "badge": "افتراضي",
+                    "name": "الموجه السريع (Fast Advisor)",
+                    "desc": "استجابة فورية وشرح مباشر للأسئلة المنهجية والاستفسارات اليومية",
+                    "badge": "سريع",
                     "vision": False
                 },
                 {
                     "id": "leo-4o-pro",
-                    "name": "Leo 4o Pro",
-                    "desc": "النموذج الأذكى والأعلى قدرة، حل متقدم للمسائل وتحليل الصور والمستندات",
-                    "badge": "الأذكى",
+                    "name": "المستشار المتقدم (Advanced Scholar)",
+                    "desc": "تحليل معمق للأفكار المعقدة والمسائل الشاملة مع دعم الصور والمستندات",
+                    "badge": "متقدم",
                     "vision": True
                 },
                 {
                     "id": "leo-o1",
-                    "name": "Leo o1 (تفكير)",
-                    "desc": "تفكير رياضي ومنطقي عميق لحل المسائل المعقدة والاستنتاجات الصعبة",
-                    "badge": "تفكير",
+                    "name": "خبير الحل المنطقي (Logic & Math)",
+                    "desc": "تفكير متسلسل وبرهاني للمسائل الرياضية والفيزيائية والوزارية الصعبة",
+                    "badge": "استدلال منطقي",
                     "vision": False
                 },
                 {
                     "id": "leo-vision",
-                    "name": "Leo Vision",
-                    "desc": "خبير الرؤية البصرية، تحليل صور التمارين والملازم والمخططات والواجبات",
-                    "badge": "رؤية وصور",
+                    "name": "قارئ المخططات والصور (Visual Analyst)",
+                    "desc": "تحليل دقيق لصور الملازم، المسائل المكتوبة، والرسوم البيانية والواجبات",
+                    "badge": "تحليل بصري",
                     "vision": True
                 },
                 {
                     "id": "leo-academic",
-                    "name": "Leo Academic",
-                    "desc": "أكاديمي متخصص في التلخيص والأبحاث العلمية وجداول المقارنات",
+                    "name": "الأكاديمي الشامل (Academic Researcher)",
+                    "desc": "أكاديمي متخصص في التلخيص المنهجي والمقارنات العلمية والأبحاث الموسعة",
                     "badge": "أكاديمي",
                     "vision": True
                 }
@@ -699,6 +702,13 @@ class AppHandler(SimpleHTTPRequestHandler):
             model = body.get('model', 'leo-4o-mini')
             conv = database.create_conversation(title=title, model=model, user_id=uid)
             self._send_json(conv, 201)
+            return
+
+        # Synchronize client-side persistent conversations to server
+        if path == '/api/conversations/sync':
+            convs = body.get('conversations', [])
+            database.sync_conversations(user_id=uid, conversations_data=convs)
+            self._send_json({"status": "synced", "count": len(convs)}, 200)
             return
 
         # Clear all conversations (Memory wipe)
@@ -989,7 +999,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 def run(port=8080):
     server_address = ('', port)
     httpd = ThreadingHTTPServer(server_address, AppHandler)
-    print(f"LeoGPT Server running at http://localhost:{port}")
+    print(f"Professor Leo Server running at http://localhost:{port}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
