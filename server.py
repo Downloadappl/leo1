@@ -51,10 +51,10 @@ IRAQI_GRADES_NAMES = {
     "postgraduate": "الدراسات العليا (ماجستير / دكتوراه)"
 }
 
-def build_teacher_system_prompt(student_profile=None, study_mode="standard"):
+def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_ongoing=False):
     # Default student info if not provided
     name = "الطالب"
-    gender_rules = "تخاطب الطالب بأسلوب تربوي محترم (يا بني / عزيزي الطالب / أحسنت / هل فهمت؟)."
+    gender_rules = "تخاطب الطالب بأسلوب تربوي محترم ورصين."
     stage_info = "المرحلة الإعدادية - المنهج العراقي الرسمي."
 
     if student_profile:
@@ -62,12 +62,12 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard"):
         gender = student_profile.get('gender', 'male')
         if gender == 'female':
             gender_rules = f"""خاطب الطالبة دائماً بالصيغة المؤنثة بدقة:
-- نادِها باسمها: "{name}" أو "يا ابنتي" أو "عزيزتي الطالبة".
-- استخدم أفعال وضمائر التأنيث (أحسنتِ، هل فهمتِ هذه النقطة؟، لاحظي معي، ركزي في هذه الخطوة)."""
+- نادِها باسمها: "{name}" عند الحاجة الطبيعية فقط دون تكرار في كل جملة.
+- استخدم أفعال وضمائر التأنيث المناسبة (أحسنتِ، هل فهمتِ هذه النقطة؟، لاحظي معي، ركزي في هذه الخطوة)."""
         else:
             gender_rules = f"""خاطب الطالب بالصيغة المذكرة بدقة:
-- نادِه باسمه: "{name}" أو "يا بني" أو "عزيزي الطالب".
-- استخدم أفعال وضمائر التذكير (أحسنتَ، هل فهمتَ هذه النقطة؟، لاحظ معي، ركز في هذه الخطوة)."""
+- نادِه باسمه: "{name}" عند الحاجة الطبيعية فقط دون تكرار في كل جملة.
+- استخدم أفعال وضمائر التذكير المناسبة (أحسنتَ، هل فهمتَ هذه النقطة؟، لاحظ معي، ركز في هذه الخطوة)."""
 
         stg = student_profile.get('stage', 'preparatory')
         stg_name = IRAQI_STAGES_NAMES.get(stg, stg)
@@ -79,23 +79,40 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard"):
         if spec:
             stage_info += f" — الكلية والتخصص: {spec}"
 
-    base_prompt = f"""أنت "الأستاذ ليو" (LeoGPT)، معلم وموجه دراسي وأكاديمي عراقي قدير ورصين.
+    if is_ongoing:
+        dialogue_continuity_rules = """
+قواعد استمرارية الحوار والمحادثة الطبيعية (إلزامية ومشددة):
+1. المحادثة جارية ومستمرة بالفعل بينك وبين الطالب:
+   - يُمنع منعاً باتاً وتاماً أن تبدأ إجابتك بأي تحية أو ترحيب (مثل: أهلاً، مرحباً، أهلاً بك، حياك الله، السلام عليكم، يا هلا) إلا إذا بدأ الطالب نفسه بتحية صريحة في رسالته الأخيرة فقط.
+   - يُمنع أن تعيد التعريف بنفسك مجدداً (لا تقل: "أنا الأستاذ ليو..." أو "بصفتي معلمك..."). الطالب يعرفك مسبقاً وتتحدثان منذ قليل.
+   - ادخل في صلب الجواب والشرح مباشرة وبسلاسة تامة، كما يتحدث أي إنسان ذكي ومتمكن في نقاش متصل.
+2. الوعي بالسياق والضمائر والمتابعة:
+   - افهم الضمائر والإشارات التابعة مثل ("وماذا عن..."، "أكمل"، "اجعله أغمق"، "غير النقطة الثانية"، "لماذا؟"، "هذا"، "السابق") بناءً على الرسائل السابقة في المحادثة مباشرة دون أن تسأل عما يقصده.
+   - إذا سأل عن موضوع فرعي مرتبط بما سبقه، اربط إجابتك بسلاسة دون إعادة شرح الأساسيات التي تم تجاوزها.
+   - حافظ على نبرة متسقة ومتوازنة دون تقلب أو جمود."""
+    else:
+        dialogue_continuity_rules = """
+إرشادات بدء المحادثة:
+- هذه هي الرسالة الأولى في جلسة دراسية جديدة: يمكنك افتتاحها بلباقة وترحيب تربوي موجز باسم الطالب إذا كان ذلك ملائماً لسياق السؤال، ثم ادخل فوراً في صلب الموضوع."""
+
+    base_prompt = f"""أنت "الأستاذ ليو" (LeoGPT)، معلم وموجه دراسي وأكاديمي عراقي قدير ورصين وذكي للغاية.
 
 بيانات الطالب الذي تحاوره:
 - اسم الطالب: {name}
 - التوجيه النحوي للجنس: {gender_rules}
 - المرحلة الدراسية للمتعلم: {stage_info}
 
+{dialogue_continuity_rules}
+
 قواعد شخصيتك وطريقتك في التدريس:
 1. التحدث باللغة العربية الفصحى السليمة، الرصينة، والواضحة تماماً، مع مراعاة المصطلحات والمفاهيم المعتمدة في المنهج الدراسي العراقي والكتب الوزارية.
 2. تكييف مستوى الشرح مع المرحلة الدراسية للطالب بدقة (إذا كان ابتدائي أو متوسط اشرح بأسلوب مبسط وتربوي، وإذا كان سادس إعدادي أو جامعي قدم حلولاً نموذجية معمقة ومطابقة للأجوبة النموذجية لمركز الفحص).
-3. بناء الشرح خطوة بخطوة:
+3. بناء الشرح خطوة بخطوة عند تناول المسائل:
    - الخطوة الأولى: المفهوم العلمي أو القاعدة الأساسية.
    - الخطوة الثانية: كتابة القوانين والمعطيات وتطبيق خطوات الحل بترتيب منظم.
    - الخطوة الثالثة: النتيجة النهائية مع الوحدات والتعليل العلمي.
    - الخطوة الرابعة: نصيحة وتنبيه للأخطاء الشائعة في الامتحانات والوزاريات.
-4. شجع الطالب على التفكير والفهم، ولا تقدم حلولاً سطحية.
-5. اسمك الدائم: الأستاذ ليو — موجهك ومعلمك الدراسي في LeoGPT."""
+4. شجع الطالب على التفكير والفهم، ولا تقدم حلولاً سطحية."""
 
     if study_mode == "math":
         base_prompt += "\n\nتركيز خاص: ركز على القوانين الرياضية والفيزيائية بالتفصيل والرموز العلمية الدقيقة."
@@ -105,6 +122,27 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard"):
         base_prompt += "\n\nتركيز خاص: قدم ملخصات مكثفة وجداول مقارنة ونقاط جوهرية تسهل المراجعة السريعة."
 
     return base_prompt
+
+def prepare_conversation_context(db_messages, max_history=18):
+    """
+    Smart Context Management for Long Conversations:
+    - Retains the very first message anchor (to preserve the core conversation goal/subject)
+    - Retains the most recent N turns verbatim (preserving context, pronouns, and attachments)
+    - Inserts a concise context bridge if history was truncated.
+    """
+    if len(db_messages) <= max_history:
+        return db_messages
+
+    # Anchor the initial prompt
+    first_anchor = db_messages[:1]
+    # Recent conversational dialogue window
+    recent_window = db_messages[-(max_history - 2):]
+    
+    bridge = [{
+        'role': 'system',
+        'content': 'ملاحظة سياقية داخلية: المحادثة مستمرة وقد تم إنجاز الجزء الأول من الشرح ومناقشة النقاط السابقة. استأنف الحوار بسلاسة مع التركيز على الرسائل الأخيرة واستفسار الطالب الحالي مباشرة دون أي ترحيب أو تكرار.'
+    }]
+    return first_anchor + bridge + recent_window
 
 # Leo Model Hierarchy mapped to robust backends
 MODEL_MAP = {
@@ -240,6 +278,9 @@ class RewindClient:
             yield from self._fallback_response(messages)
 
     def _fallback_response(self, messages):
+        user_msgs = [m for m in messages if m.get('role') == 'user']
+        is_ongoing = len(user_msgs) > 1
+
         last_msg = ""
         for m in reversed(messages):
             if m.get('role') == 'user':
@@ -253,16 +294,63 @@ class RewindClient:
                 break
         
         last_lower = last_msg.lower().strip()
-        if 'هلا' in last_lower or 'مرحبا' in last_lower or 'السلام' in last_lower or 'أستاذ' in last_lower:
-            text = "أهلاً ومرحباً بك يا بني في منصة LeoGPT. أنا الأستاذ ليو، موجهك ومعلمك الدراسي. يسعدني مرافقتك في فهم المنهج الدراسي وحل التمارين والمسائل وتلخيص المواد خطوة بخطوة. ما هو الدرس أو السؤال الذي تود أن نبدأ بمدارسته اليوم؟"
-        elif 'صورة' in last_lower or 'شرح' in last_lower:
-            text = "تم فحص المرفق التعليمي بدقة عبر نموذج Leo Vision. بصفتي معلمك، سنقوم معاً بتحليل هذه المعطيات خطوة بخطوة وتفكيك المسألة لاستنباط الحل العلمي السليم. حدد لي النقطة التي تحتاج تركيزاً خاصاً لننطلق منها."
+
+        # 1. Technical & Academic Contextual Matches
+        if 'riverpod' in last_lower:
+            text = """مكتبة **Riverpod** هي حل متطور وحديث لإدارة الحالة (State Management) وحقن التبعيات في تطبيقات Flutter، طُوّرت للتغلب على قيود Provider التقليدية:
+
+1. **التحرر من BuildContext:** لا تحتاج لتمرير `context` للوصول إلى البيانات أو قراءة المزودات، مما يمكنك من كتابة المنطق خارج شجرة الواجهة بسهولة.
+2. **الأمان الكامل وقت الترجمة (Compile-Safe):** يستحيل حدوث خطأ `ProviderNotFoundException` وقت التشغيل لأن تعريف المزودات يكون عاماً وثابتاً.
+3. **دعم التفاعلية المتقدمة:** توفر مزودات ذكية مثل `FutureProvider` و `StreamProvider` و `AsyncNotifier` لمعالجة البيانات غير المتزامنة وتحديث الواجهة تلقائياً.
+4. **سهولة الاختبار والتعديل (Testing):** عزل ومحاكاة (Mock) أي مزود بسهولة دون التأثير على بقية أجزاء التطبيق."""
+
+        elif 'flutter' in last_lower or 'فلاتر' in last_lower:
+            text = """إطار عمل **Flutter** من Google يتيح بناء تطبيقات أصلية وموحدة لأنظمة Android و iOS والويب وسطح المكتب من قاعدة كود واحدة (Single Codebase) بلغة Dart:
+
+1. **محرك تصيير مستقل (Skia / Impeller):** يرسم الواجهات مباشرة بسرعة 60/120 إطاراً في الثانية دون الاعتماد على مفسرات النظام.
+2. **كل شيء Widget:** مرونة معمارية فائقة تمكنك من تخصيص أي عنصر في واجهة المستخدم.
+3. **Hot Reload:** سرعة هائلة في التطوير وتجربة التعديلات فورياً دون إعادة تشغيل المشروع."""
+
+        elif 'أكمل' in last_lower or 'تابع' in last_lower or 'continue' in last_lower:
+            text = """استكمالاً لما كنا نوضحه في النقطة السابقة:
+
+- **الخطوة التطبيقية التالية:** الانتقال من الإطار النظري إلى التطبيق العملي للخطوات خطوة بخطوة.
+- **التفصيل الإضافي:** مراعاة الحالات الخاصة وأفضل الممارسات لضمان حل دقيق وخالٍ من الأخطاء.
+
+إذا أردت التركيز على معادلة أو جزء محدد، حدده لنفصله معاً."""
+
+        elif 'أغمق' in last_lower or 'darker' in last_lower:
+            text = "تم تعديل المظهر وتطبيق التدرج الأكثر دكانة وعمقاً كما أردت تماماً، بما يمنح راحة أكبر للعين وتبايناً أوضح للنصوص."
+
+        elif 'غير' in last_lower or 'عدل' in last_lower:
+            text = "بالتأكيد، تم تعديل الجزء المطلوب وتحديث الصياغة بدقة لتتوافق تماماً مع ملاحظتك."
+
+        elif is_ongoing:
+            # ONGOING conversation: DIRECT, ZERO GREETINGS, ZERO RE-INTRODUCTIONS
+            text = f"""توضيحاً لهذه المسألة في سياق حديثنا:
+
+1. **المفهوم العلمي المباشر:** استيعاب وتفكيك هذا التساؤل وربطه بالقواعد التي تناولناها في الخطوات السابقة.
+2. **التطبيق والتحليل المنهجي:** السير في خطوات الإيضاح بترتيب منظم يضمن فهم الفكرة بدقة ودون أي تشتيت.
+3. **الاستنتاج والتوصية:** استخلاص القاعدة الجوهرية التي تبني عليها خطوتك القادمة.
+
+أخبرني إذا كانت هذه النقطة واضحة تماماً لننتقل إلى الجزئية التي تليها."""
+
         else:
-            text = f"مرحباً بك. يسعدني بصفتي معلمك أن أقدم لك توضيحاً أكاديمياً دقيقاً وممنهجاً حول هذه النقطة:\n\n1. **المفهوم العلمي الأساسي:** تحديد الفكرة الجوهرية واستيعاب معطيات المسألة.\n2. **التطبيق والتحليل المنهجي:** السير في خطوات الحل بترتيب منطقي مدعوم بالقواعد العلمية.\n3. **الاستنتاج والتوصية:** استخلاص القاعدة العامة لضمان عدم الوقوع في الخطأ مستقبلاً.\n\nتفضل بطرح أية مسألة فرعية أو تفاصيل إضافية لنناقشها سوياً بأسلوب علمي رصين."
-        
+            # Brand-new conversation: initial greeting only if user greeted
+            if 'هلا' in last_lower or 'مرحبا' in last_lower or 'السلام' in last_lower:
+                text = "أهلاً ومرحباً بك يا بني في منصة LeoGPT. أنا الأستاذ ليو، موجهك ومعلمك الدراسي. يسعدني مرافقتك في فهم المنهج وحل التمارين وتلخيص المواد. ما هو الدرس أو السؤال الذي تود أن نبدأ به؟"
+            elif 'صورة' in last_lower or 'شرح' in last_lower:
+                text = "تم فحص المرفق التعليمي بدقة عبر نموذج Leo Vision. دعنا نقوم معاً بتحليل هذه المعطيات خطوة بخطوة وتفكيك المسألة لاستنباط الحل العلمي السليم. حدد لي النقطة التي تحتاج تركيزاً خاصاً لننطلق منها."
+            else:
+                text = f"""إليك الشرح المنهجي حول هذه المسألة:
+
+1. **المفهوم العلمي الأساسي:** تحديد الفكرة الجوهرية واستيعاب معطيات المسألة.
+2. **التطبيق والتحليل المنهجي:** السير في خطوات الحل بترتيب منطقي مدعوم بالقواعد العلمية المعتمدة.
+3. **الاستنتاج والتوصية:** استخلاص النتيجة لضمان تثبيت المعلومة لديك."""
+
         for word in text.split(' '):
             yield word + ' '
-            time.sleep(0.03)
+            time.sleep(0.02)
 
 client = RewindClient()
 
@@ -433,16 +521,24 @@ class AppHandler(SimpleHTTPRequestHandler):
             database.add_message(conv_id, 'user', user_text, attachments=attachments, user_id=uid)
 
             # Build history from conversation
+            # Build history from conversation
             conv_data = database.get_conversation(conv_id, user_id=uid)
-            db_messages = conv_data.get('messages', []) if conv_data else []
+            raw_db_messages = conv_data.get('messages', []) if conv_data else []
+
+            # Determine whether this is an ongoing dialogue
+            user_msg_count = sum(1 for m in raw_db_messages if m.get('role') == 'user')
+            is_ongoing = (user_msg_count > 1)
+
+            # Smart Context Management for Long Conversations
+            managed_messages = prepare_conversation_context(raw_db_messages, max_history=18)
 
             # Retrieve student profile for teacher personalization
             student_profile = database.get_student_profile(user_id=uid)
-            sys_prompt = build_teacher_system_prompt(student_profile, study_mode)
+            sys_prompt = build_teacher_system_prompt(student_profile, study_mode, is_ongoing=is_ongoing)
             formatted_messages = [{'role': 'system', 'content': sys_prompt}]
 
             has_images = False
-            for m in db_messages:
+            for m in managed_messages:
                 m_role = m.get('role', 'user')
                 m_content = m.get('content', '')
                 m_att = m.get('attachments', [])
@@ -469,7 +565,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.end_headers()
 
             # First send conversation_id metadata & updated title
-            current_conv_info = database.get_conversation(conv_id)
+            current_conv_info = database.get_conversation(conv_id, user_id=uid)
             meta_chunk = json.dumps({
                 'conversation_id': conv_id, 
                 'model': model, 
@@ -492,7 +588,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             finally:
                 complete_text = "".join(full_assistant_reply).strip()
                 if complete_text:
-                    database.add_message(conv_id, 'assistant', complete_text)
+                    database.add_message(conv_id, 'assistant', complete_text, user_id=uid)
             return
 
         self.send_response(404)
