@@ -171,14 +171,78 @@ document.addEventListener('DOMContentLoaded', () => {
   const lightboxCloseBtn = document.getElementById('lightboxCloseBtn');
 
   // Modals & Toast
-  const profileModalOverlay = document.getElementById('profileModalOverlay');
-  const profileModalCloseBtn = document.getElementById('profileModalCloseBtn');
+  // Full-Screen Auth & Onboarding Elements (ChatGPT Style)
+  const authFullscreenScreen = document.getElementById('authFullscreenScreen');
+  const authFullscreenCloseBtn = document.getElementById('authFullscreenCloseBtn');
+  const authStep1 = document.getElementById('authStep1');
+  const authStep2 = document.getElementById('authStep2');
+  const authGoogleBtn = document.getElementById('authGoogleBtn');
+  const authTabLogin = document.getElementById('authTabLogin');
+  const authTabSignup = document.getElementById('authTabSignup');
+  const authEmailInput = document.getElementById('authEmailInput');
+  const authPasswordInput = document.getElementById('authPasswordInput');
+  const authEmailSubmitBtn = document.getElementById('authEmailSubmitBtn');
+  const authEmailSubmitText = document.getElementById('authEmailSubmitText');
+  const authGuestBypassBtn = document.getElementById('authGuestBypassBtn');
+  const profStudyModeSelect = document.getElementById('profStudyModeSelect');
+
   const profNameInput = document.getElementById('profNameInput');
   const profStageSelect = document.getElementById('profStageSelect');
   const profGradeSubSelect = document.getElementById('profGradeSubSelect');
   const profSpecializationWrapper = document.getElementById('profSpecializationWrapper');
   const profSpecializationInput = document.getElementById('profSpecializationInput');
   const saveProfileBtn = document.getElementById('saveProfileBtn');
+
+  // In-App Custom Confirm Modal (Replaces browser confirm())
+  const appConfirmModal = document.getElementById('appConfirmModal');
+  const confirmDialogTitle = document.getElementById('confirmDialogTitle');
+  const confirmDialogDesc = document.getElementById('confirmDialogDesc');
+  const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  const confirmOkBtn = document.getElementById('confirmOkBtn');
+  let pendingConfirmAction = null;
+
+  function showCustomConfirm({ title = 'تأكيد الإجراء', message = '', okText = 'تأكيد الحذف', cancelText = 'إلغاء', danger = true, onConfirm = null }) {
+    if (!appConfirmModal) {
+      if (confirm(message)) {
+        if (typeof onConfirm === 'function') onConfirm();
+      }
+      return;
+    }
+    confirmDialogTitle.textContent = title;
+    confirmDialogDesc.textContent = message;
+    confirmOkBtn.textContent = okText;
+    confirmCancelBtn.textContent = cancelText;
+
+    if (danger) {
+      confirmOkBtn.className = 'confirm-btn confirm-btn-danger';
+    } else {
+      confirmOkBtn.className = 'confirm-btn';
+      confirmOkBtn.style.background = '#4f46e5';
+      confirmOkBtn.style.color = '#ffffff';
+    }
+
+    pendingConfirmAction = onConfirm;
+    appConfirmModal.classList.add('active');
+  }
+
+  function hideCustomConfirm() {
+    if (appConfirmModal) appConfirmModal.classList.remove('active');
+    pendingConfirmAction = null;
+  }
+
+  if (confirmCancelBtn) confirmCancelBtn.onclick = hideCustomConfirm;
+  if (confirmOkBtn) {
+    confirmOkBtn.onclick = () => {
+      const act = pendingConfirmAction;
+      hideCustomConfirm();
+      if (typeof act === 'function') act();
+    };
+  }
+  if (appConfirmModal) {
+    appConfirmModal.onclick = (e) => {
+      if (e.target === appConfirmModal) hideCustomConfirm();
+    };
+  }
 
   const customModalOverlay = document.getElementById('customModalOverlay');
   const modalCloseBtn = document.getElementById('modalCloseBtn');
@@ -917,22 +981,28 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshConversationListOnly();
       };
 
-      item.querySelector('.del').onclick = async (e) => {
+      item.querySelector('.del').onclick = (e) => {
         e.stopPropagation();
-        if (confirm(`هل تريد حذف محادثة "${conv.title}" نهائياً؟`)) {
-          if (window.LeoFirebase) {
-            window.LeoFirebase.deleteConversation(conv.id).catch(() => {});
+        showCustomConfirm({
+          title: 'حذف المحادثة',
+          message: `هل تريد حذف محادثة "${conv.title}" نهائياً من سجلك الدراسي؟`,
+          okText: 'تأكيد الحذف',
+          danger: true,
+          onConfirm: async () => {
+            if (window.LeoFirebase) {
+              window.LeoFirebase.deleteConversation(conv.id).catch(() => {});
+            }
+            fetch(`/api/conversations/${conv.id}`, { method: 'DELETE' }).catch(() => {});
+            removeConversationFromLocalCache(conv.id);
+            showToast('تم حذف المحادثة');
+            if (currentConversationId === conv.id) {
+              currentConversationId = null;
+              localStorage.removeItem('leo_active_conv_id');
+              showEmptyState();
+            }
+            refreshConversationListOnly();
           }
-          fetch(`/api/conversations/${conv.id}`, { method: 'DELETE' }).catch(() => {});
-          removeConversationFromLocalCache(conv.id);
-          showToast('تم حذف المحادثة');
-          if (currentConversationId === conv.id) {
-            currentConversationId = null;
-            localStorage.removeItem('leo_active_conv_id');
-            showEmptyState();
-          }
-          refreshConversationListOnly();
-        }
+        });
       };
 
       recentChatsList.appendChild(item);
@@ -1596,7 +1666,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="msg-action-btn action-like" title="أعجبني"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4.33A2.31 2.31 0 0 1 2 20v-7a2.31 2.31 0 0 1 2.33-2H7"></path></svg></button>
       <button class="msg-action-btn action-retry" title="إعادة التوليد"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></button>
       <button class="msg-action-btn action-copy" title="نسخ الرسالة"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
-      <button class="msg-action-btn action-delete-msg" title="حذف"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
     `;
   }
 
@@ -1606,7 +1675,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const likeBtn = toolbar.querySelector('.action-like');
     const retryBtn = toolbar.querySelector('.action-retry');
     const copyBtn = toolbar.querySelector('.action-copy');
-    const delBtn = toolbar.querySelector('.action-delete-msg');
 
     copyBtn.onclick = async () => {
       await navigator.clipboard.writeText(content);
@@ -1699,24 +1767,6 @@ document.addEventListener('DOMContentLoaded', () => {
         actionPillBtn.classList.add('send-mode');
         handleSendPrompt();
       }
-    };
-
-    delBtn.onclick = async () => {
-      const actualMsgId = msgId || messageRow.dataset.msgId;
-      if (actualMsgId) {
-        try {
-          await fetch(`/api/messages/${actualMsgId}`, { method: 'DELETE' });
-        } catch (e) {}
-      }
-      if (currentConversationId) {
-        const cached = getConversationFromLocalCache(currentConversationId);
-        if (cached && cached.messages) {
-          cached.messages = cached.messages.filter(m => m.id !== actualMsgId);
-          saveConversationToLocalCache(cached);
-        }
-      }
-      messageRow.remove();
-      showToast('تم حذف الرسالة');
     };
   }
 
@@ -1821,17 +1871,49 @@ document.addEventListener('DOMContentLoaded', () => {
     populateGradeSelect(profStageSelect.value);
   });
 
-  function openProfileModal(isMandatory = false) {
+  // --- ChatGPT-Style Full-Screen Auth & Onboarding Flow ---
+  let authMode = 'login'; // 'login' or 'signup'
+
+  if (authTabLogin) {
+    authTabLogin.onclick = () => {
+      authMode = 'login';
+      authTabLogin.classList.add('active');
+      authTabSignup.classList.remove('active');
+      authEmailSubmitText.textContent = 'المتابعة والدخول';
+    };
+  }
+
+  if (authTabSignup) {
+    authTabSignup.onclick = () => {
+      authMode = 'signup';
+      authTabSignup.classList.add('active');
+      authTabLogin.classList.remove('active');
+      authEmailSubmitText.textContent = 'إنشاء حساب ومتابعة';
+    };
+  }
+
+  function goToAuthStep(stepNum) {
+    if (stepNum === 1) {
+      authStep1.classList.add('active');
+      authStep2.classList.remove('active');
+    } else {
+      authStep1.classList.remove('active');
+      authStep2.classList.add('active');
+      setTimeout(() => profNameInput && profNameInput.focus(), 150);
+    }
+  }
+
+  function openProfileModal(isMandatory = false, startAtStep = 1) {
     const profNameError = document.getElementById('profNameError');
     if (profNameError) profNameError.style.display = 'none';
-    profNameInput.classList.remove('input-error');
+    if (profNameInput) profNameInput.classList.remove('input-error');
 
     const isUnregistered = (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب');
-    
+
     if (isMandatory || isUnregistered) {
-      profileModalCloseBtn.style.display = 'none';
+      if (authFullscreenCloseBtn) authFullscreenCloseBtn.style.display = 'none';
     } else {
-      profileModalCloseBtn.style.display = 'flex';
+      if (authFullscreenCloseBtn) authFullscreenCloseBtn.style.display = 'flex';
     }
 
     if (studentProfile && studentProfile.name && studentProfile.name.trim() !== 'الطالب') {
@@ -1841,39 +1923,140 @@ document.addEventListener('DOMContentLoaded', () => {
       
       profStageSelect.value = studentProfile.stage || 'preparatory';
       populateGradeSelect(profStageSelect.value, studentProfile.grade_sub);
-      profSpecializationInput.value = studentProfile.specialization || '';
+      if (profSpecializationInput) profSpecializationInput.value = studentProfile.specialization || '';
+      if (profStudyModeSelect && studentProfile.studyMode) profStudyModeSelect.value = studentProfile.studyMode;
+      goToAuthStep(startAtStep);
     } else {
       profNameInput.value = '';
       const defaultMaleRadio = document.querySelector('input[name="profGender"][value="male"]');
       if (defaultMaleRadio) defaultMaleRadio.checked = true;
       profStageSelect.value = 'preparatory';
       populateGradeSelect('preparatory', 'sixth_scientific');
-      profSpecializationInput.value = '';
+      if (profSpecializationInput) profSpecializationInput.value = '';
+      goToAuthStep(startAtStep);
     }
 
-    profileModalOverlay.classList.add('active');
-    setTimeout(() => {
-      profNameInput.focus();
-    }, 150);
+    if (authFullscreenScreen) authFullscreenScreen.classList.add('active');
   }
 
   function closeProfileModal() {
     if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
-      const profNameError = document.getElementById('profNameError');
-      if (profNameError) profNameError.style.display = 'block';
-      profNameInput.classList.add('input-error');
-      profNameInput.focus();
-      showToast('يرجى تسجيل الدخول وإدخال بياناتك الدراسية للبدء مع الأستاذ ليو');
+      showToast('يرجى إكمال بياناتك الدراسية للبدء مع الأستاذ ليو');
       return;
     }
-    profileModalOverlay.classList.remove('active');
+    if (authFullscreenScreen) authFullscreenScreen.classList.remove('active');
   }
 
-  profileModalCloseBtn.addEventListener('click', closeProfileModal);
-  profileModalOverlay.addEventListener('click', (e) => {
-    if (e.target === profileModalOverlay) closeProfileModal();
-  });
+  if (authFullscreenCloseBtn) authFullscreenCloseBtn.addEventListener('click', closeProfileModal);
 
+  // 1. Google Sign-In Handler
+  if (authGoogleBtn) {
+    authGoogleBtn.onclick = async () => {
+      if (!window.LeoFirebase || typeof window.LeoFirebase.signInWithGoogle !== 'function') {
+        showToast('جاري تحضير خدمة تسجيل الدخول، يرجى المحاولة بعد لحظات');
+        return;
+      }
+      try {
+        showToast('جاري تسجيل الدخول عبر Google...');
+        const user = await window.LeoFirebase.signInWithGoogle();
+        
+        // Check if user already has an existing academic profile in cloud
+        const cloudProf = await window.LeoFirebase.getProfile();
+        if (cloudProf && cloudProf.name && cloudProf.name.trim() && cloudProf.name.trim() !== 'الطالب') {
+          studentProfile = cloudProf;
+          localStorage.setItem('leo_student_profile', JSON.stringify(cloudProf));
+          updateProfileUI();
+          closeProfileModal();
+          showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name} 🎓`);
+          showEmptyState();
+        } else {
+          // New Google account without profile: pre-fill name and advance to Step 2!
+          if (user && user.displayName) {
+            profNameInput.value = user.displayName;
+          }
+          goToAuthStep(2);
+          showToast('تم التحقق من حسابك! يرجى اختيار صفك ومنهجك الدراسي للمتابعة');
+        }
+      } catch (err) {
+        console.warn('Google Sign-in notice:', err);
+        if (err.code === 'auth/popup-closed-by-user') {
+          showToast('تم إلغاء نافذة تسجيل الدخول');
+        } else if (err.code === 'auth/operation-not-allowed') {
+          showToast('تسجيل Google بانتظار التفعيل في إعدادات المنصة. يمكنك المتابعة بالبريد أو كطالب ضيف فوراً');
+        } else {
+          showToast('تعذر تسجيل الدخول عبر Google، يمكنك المتابعة بالبريد أو كطالب ضيف');
+        }
+      }
+    };
+  }
+
+  // 2. Email / Password Submit Handler
+  if (authEmailSubmitBtn) {
+    authEmailSubmitBtn.onclick = async () => {
+      const email = authEmailInput ? authEmailInput.value.trim() : '';
+      const password = authPasswordInput ? authPasswordInput.value.trim() : '';
+
+      if (!email || !email.includes('@')) {
+        showToast('يرجى إدخال بريد إلكتروني صحيح');
+        if (authEmailInput) authEmailInput.focus();
+        return;
+      }
+      if (!password || password.length < 6) {
+        showToast('يجب أن تتكون كلمة المرور من 6 أحرف على الأقل');
+        if (authPasswordInput) authPasswordInput.focus();
+        return;
+      }
+
+      if (!window.LeoFirebase) {
+        goToAuthStep(2);
+        return;
+      }
+
+      try {
+        if (authMode === 'login') {
+          showToast('جاري التحقق من بيانات الحساب...');
+          await window.LeoFirebase.signIn(email, password);
+          const cloudProf = await window.LeoFirebase.getProfile();
+          if (cloudProf && cloudProf.name && cloudProf.name.trim() !== 'الطالب') {
+            studentProfile = cloudProf;
+            localStorage.setItem('leo_student_profile', JSON.stringify(cloudProf));
+            updateProfileUI();
+            closeProfileModal();
+            showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name} 🎓`);
+            showEmptyState();
+          } else {
+            goToAuthStep(2);
+          }
+        } else {
+          showToast('جاري إنشاء الحساب الجديد...');
+          await window.LeoFirebase.signUp(email, password, { email });
+          showToast('تم إنشاء الحساب بنجاح! خطوتك الأخيرة لاختيار مرحلتك');
+          goToAuthStep(2);
+        }
+      } catch (err) {
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+          showToast('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+        } else if (err.code === 'auth/email-already-in-use') {
+          showToast('هذا البريد مسجل مسبقاً، يمكنك تسجيل الدخول به');
+          authTabLogin.click();
+        } else {
+          showToast('حدث خطأ في المصادقة، يمكنك المتابعة كطالب ضيف');
+        }
+      }
+    };
+  }
+
+  // 3. Guest Fast Bypass Handler
+  if (authGuestBypassBtn) {
+    authGuestBypassBtn.onclick = async () => {
+      if (window.LeoFirebase) {
+        await window.LeoFirebase.ensureAuthenticated(deviceUserId).catch(() => {});
+      }
+      goToAuthStep(2);
+    };
+  }
+
+  // 4. Step 2 Save Academic Profile Handler
   saveProfileBtn.addEventListener('click', async () => {
     const name = profNameInput.value.trim();
     const profNameError = document.getElementById('profNameError');
@@ -1893,34 +2076,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const gender = genderRadio ? genderRadio.value : 'male';
     const stage = profStageSelect.value;
     const grade_sub = profGradeSubSelect.value;
-    const specialization = profSpecializationInput.value.trim();
+    const specialization = profSpecializationInput ? profSpecializationInput.value.trim() : '';
+    const studyMode = profStudyModeSelect ? profStudyModeSelect.value : 'standard';
 
-    const emailInput = document.getElementById('profEmailInput');
-    const passInput = document.getElementById('profPasswordInput');
-    const email = emailInput ? emailInput.value.trim() : '';
-    const password = passInput ? passInput.value.trim() : '';
+    const email = authEmailInput ? authEmailInput.value.trim() : '';
 
-    studentProfile = { name, gender, stage, grade_sub, specialization, email };
+    studentProfile = { name, gender, stage, grade_sub, specialization, studyMode, email };
+    settingsState.studyMode = studyMode;
+
     try {
       localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
     } catch (e) {}
 
-    // Save & Authenticate with Firebase Cloud Storage
+    // Save to Firebase Cloud Storage (silently without exposing technical details)
     if (window.LeoFirebase) {
       try {
-        if (email && password && password.length >= 6) {
-          try {
-            await window.LeoFirebase.signIn(email, password);
-            await window.LeoFirebase.saveProfile(studentProfile);
-          } catch (signInErr) {
-            await window.LeoFirebase.signUp(email, password, studentProfile);
-          }
-        } else {
-          await window.LeoFirebase.ensureAuthenticated(deviceUserId, name);
-          await window.LeoFirebase.saveProfile(studentProfile);
-        }
+        await window.LeoFirebase.ensureAuthenticated(deviceUserId, name);
+        await window.LeoFirebase.saveProfile(studentProfile);
       } catch (fbErr) {
-        console.warn('Firebase profile notice:', fbErr);
+        console.warn('Profile save notice:', fbErr);
       }
     }
 
@@ -1931,11 +2105,33 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify(studentProfile)
     }).catch(() => {});
 
-    profileModalCloseBtn.style.display = 'flex';
+    saveSettingsToServer();
+
+    if (authFullscreenCloseBtn) authFullscreenCloseBtn.style.display = 'flex';
     updateProfileUI();
-    profileModalOverlay.classList.remove('active');
-    showToast(`أهلاً بك يا ${name}! تم حفظ بياناتك ومحادثاتك سحابياً في Firebase 🎓`);
+    if (authFullscreenScreen) authFullscreenScreen.classList.remove('active');
+    showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${name} 🎓`);
     showEmptyState();
+  });
+
+  // --- Keyboard Shortcut 'T' to Toggle Dark / Light Theme ---
+  function toggleThemeShortcut() {
+    const isCurrentlyLight = document.body.classList.contains('theme-light') || settingsState.appearance === 'light';
+    const nextTheme = isCurrentlyLight ? 'dark' : 'light';
+    applyAppearance(nextTheme);
+    saveSettingsToServer();
+    showToast(nextTheme === 'dark' ? '🌙 تم تفعيل الوضع الداكن (اختصار T)' : '☀️ تم تفعيل الوضع الفاتح (اختصار T)');
+  }
+
+  document.addEventListener('keydown', (e) => {
+    const targetTag = (e.target.tagName || '').toLowerCase();
+    if (targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || e.target.isContentEditable) {
+      return;
+    }
+    if (e.key === 't' || e.key === 'T' || e.code === 'KeyT') {
+      e.preventDefault();
+      toggleThemeShortcut();
+    }
   });
 
   function updateProfileUI() {
@@ -2161,26 +2357,38 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (clearAllMemoriesBtn) {
-    clearAllMemoriesBtn.onclick = async () => {
-      if (confirm('هل أنت متأكد من مسح جميع التفضيلات والذكريات المحفوظة نهائياً؟')) {
-        await fetch('/api/memories/clear', { method: 'POST' });
-        showToast('تم مسح جميع التفضيلات المحفوظة');
-        renderMemoriesModalList();
-      }
+    clearAllMemoriesBtn.onclick = () => {
+      showCustomConfirm({
+        title: 'مسح الذكريات المحفوظة',
+        message: 'هل أنت متأكد من مسح جميع التفضيلات والذكريات المحفوظة نهائياً؟',
+        okText: 'مسح الكل',
+        danger: true,
+        onConfirm: async () => {
+          await fetch('/api/memories/clear', { method: 'POST' });
+          showToast('تم مسح جميع التفضيلات المحفوظة');
+          renderMemoriesModalList();
+        }
+      });
     };
   }
 
   // Clear Chat History Row
   if (clearChatHistoryRow) {
-    clearChatHistoryRow.onclick = async () => {
-      if (confirm('هل أنت متأكد من مسح سجل جميع المحادثات السابقة نهائياً؟')) {
-        await fetch('/api/conversations/clear', { method: 'POST' });
-        currentConversationId = null;
-        localStorage.removeItem('leo_active_conv_id');
-        showEmptyState();
-        loadConversationHistory();
-        showToast('تم مسح سجل المحادثات بنجاح');
-      }
+    clearChatHistoryRow.onclick = () => {
+      showCustomConfirm({
+        title: 'مسح سجل المحادثات',
+        message: 'هل أنت متأكد من مسح سجل جميع المحادثات السابقة نهائياً؟',
+        okText: 'مسح السجل',
+        danger: true,
+        onConfirm: async () => {
+          await fetch('/api/conversations/clear', { method: 'POST' });
+          currentConversationId = null;
+          localStorage.removeItem('leo_active_conv_id');
+          showEmptyState();
+          loadConversationHistory();
+          showToast('تم مسح سجل المحادثات بنجاح');
+        }
+      });
     };
   }
 
@@ -2245,18 +2453,24 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Logout / Switch Student Account
-  logoutRow.onclick = async () => {
-    if (confirm('هل ترغب بتسجيل الخروج وتبديل الحساب الدراسي؟')) {
-      if (window.LeoFirebase && typeof window.LeoFirebase.signOutUser === 'function') {
-        await window.LeoFirebase.signOutUser().catch(() => {});
+  logoutRow.onclick = () => {
+    showCustomConfirm({
+      title: 'تسجيل الخروج',
+      message: 'هل ترغب بتسجيل الخروج وتبديل الحساب الدراسي؟',
+      okText: 'تسجيل الخروج',
+      danger: true,
+      onConfirm: async () => {
+        if (window.LeoFirebase && typeof window.LeoFirebase.signOutUser === 'function') {
+          await window.LeoFirebase.signOutUser().catch(() => {});
+        }
+        localStorage.removeItem('leo_student_profile');
+        studentProfile = null;
+        updateProfileUI();
+        settingsScreen.classList.remove('active');
+        openProfileModal(true, 1);
+        showToast('تم تسجيل الخروج، يرجى ملء بيانات الطالب الجديد');
       }
-      localStorage.removeItem('leo_student_profile');
-      studentProfile = null;
-      updateProfileUI();
-      settingsScreen.classList.remove('active');
-      openProfileModal(true);
-      showToast('تم تسجيل الخروج، يرجى ملء بيانات الطالب الجديد');
-    }
+    });
   };
 
   // Modal Handlers

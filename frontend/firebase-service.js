@@ -8,6 +8,8 @@ import {
   getAuth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
+  GoogleAuthProvider,
+  signInWithPopup,
   onAuthStateChanged, 
   signOut,
   updateProfile
@@ -142,6 +144,16 @@ window.LeoFirebase = {
   // تسجيل الدخول بالبريد وكلمة المرور
   async signIn(email, password) {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    this.currentUser = cred.user;
+    this._setupConversationsRealtimeListener();
+    return cred.user;
+  },
+
+  // تسجيل الدخول السريع عبر Google
+  async signInWithGoogle() {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const cred = await signInWithPopup(auth, provider);
     this.currentUser = cred.user;
     this._setupConversationsRealtimeListener();
     return cred.user;
