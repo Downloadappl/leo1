@@ -2478,7 +2478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         localStorage.removeItem('leo_student_profile');
         studentProfile = null;
-        window.location.replace('login.html');
+        window.location.replace(window.location.protocol === 'file:' ? 'login.html' : '/login');
       }
     });
   };
@@ -2553,7 +2553,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 3. Strict Authentication Check: If no real user data exists, redirect to login page!
       if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
-        window.location.replace('login.html');
+        window.location.replace(window.location.protocol === 'file:' ? 'login.html' : '/login');
         return;
       }
 

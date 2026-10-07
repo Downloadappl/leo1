@@ -9,6 +9,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   GoogleAuthProvider,
+  GithubAuthProvider,
   signInWithPopup,
   onAuthStateChanged, 
   signOut,
@@ -153,6 +154,15 @@ window.LeoFirebase = {
   async signInWithGoogle() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+    const cred = await signInWithPopup(auth, provider);
+    this.currentUser = cred.user;
+    this._setupConversationsRealtimeListener();
+    return cred.user;
+  },
+
+  // تسجيل الدخول السريع عبر GitHub
+  async signInWithGithub() {
+    const provider = new GithubAuthProvider();
     const cred = await signInWithPopup(auth, provider);
     this.currentUser = cred.user;
     this._setupConversationsRealtimeListener();

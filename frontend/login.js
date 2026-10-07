@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Step 1: Auth Elements
   const googleAuthBtn = document.getElementById('googleAuthBtn');
+  const githubAuthBtn = document.getElementById('githubAuthBtn');
   const tabSignInBtn = document.getElementById('tabSignInBtn');
   const tabSignUpBtn = document.getElementById('tabSignUpBtn');
   const emailAuthForm = document.getElementById('emailAuthForm');
@@ -224,10 +225,10 @@ document.addEventListener('DOMContentLoaded', () => {
       window.LeoFirebase.saveProfile(profileData).catch(() => {});
     }
 
-    // 3. Show success alert briefly and redirect to the main app!
+    // 3. Show success alert briefly and redirect to the main app (Clean URL / without index.html)!
     showAlert(`تم تجهيز حسابك بنجاح! جاري تحويلك إلى قاعة الدراسة...`, 'success');
     setTimeout(() => {
-      window.location.replace('index.html');
+      window.location.replace(window.location.protocol === 'file:' ? 'index.html' : '/');
     }, 400);
   }
 
@@ -274,7 +275,51 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- 2. Email & Password Sign-In / Sign-Up Form ---
+  // --- 2. GitHub Sign-In Handler ---
+  if (githubAuthBtn) {
+    githubAuthBtn.addEventListener('click', async () => {
+      clearAlert();
+      githubAuthBtn.disabled = true;
+      githubAuthBtn.style.opacity = '0.7';
+
+      try {
+        if (!window.LeoFirebase || typeof window.LeoFirebase.signInWithGithub !== 'function') {
+          throw new Error('جاري تحميل خدمات المصادقة، يرجى المحاولة بعد لحظات');
+        }
+
+        const user = await window.LeoFirebase.signInWithGithub();
+        const displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'مطور GitHub');
+
+        // Check if user already had a saved profile in Firebase
+        const existingCloudProfile = await window.LeoFirebase.getProfile().catch(() => null);
+        if (existingCloudProfile && existingCloudProfile.name && existingCloudProfile.grade) {
+          finishAuthAndEnter(existingCloudProfile);
+          return;
+        }
+
+        goToStep2(displayName);
+
+      } catch (err) {
+        console.warn('GitHub Auth Error:', err);
+        githubAuthBtn.disabled = false;
+        githubAuthBtn.style.opacity = '1';
+
+        if (err.code === 'auth/unauthorized-domain') {
+          showAlert('يرجى إضافة نطاق الموقع في إعدادات Firebase، أو المتابعة بالبريد أو كزائر فوراً.');
+        } else if (err.code === 'auth/popup-closed-by-user') {
+          showAlert('تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.');
+        } else if (err.code === 'auth/account-exists-with-different-credential') {
+          showAlert('هذا البريد مسجل مسبقاً بموفر خدمة آخر (مثل Google أو البريد).');
+        } else if (err.code === 'auth/operation-not-allowed') {
+          showAlert('تسجيل GitHub بانتظار إدخال Client ID و Secret في Firebase Console.');
+        } else {
+          showAlert(err.message || 'حدث خطأ أثناء تسجيل الدخول عبر GitHub. يمكنك المتابعة بالبريد أو كزائر.');
+        }
+      }
+    });
+  }
+
+  // --- 3. Email & Password Sign-In / Sign-Up Form ---
   if (emailAuthForm) {
     emailAuthForm.addEventListener('submit', async (e) => {
       e.preventDefault();

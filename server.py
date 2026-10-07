@@ -681,6 +681,12 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send_json(models_list)
             return
 
+        # Clean URLs support (no .html in browser address bar)
+        if path == '/login':
+            self.path = '/login.html'
+        elif path == '' or path == '/':
+            self.path = '/index.html'
+
         return super().do_GET()
 
     def do_POST(self):

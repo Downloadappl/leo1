@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "cleanUrls": true,
   "builds": [
     {
       "src": "api/index.py",
@@ -14,6 +15,14 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/index.py"
+    },
+    {
+      "src": "/login",
+      "dest": "/frontend/login.html"
+    },
+    {
+      "src": "/login.html",
+      "dest": "/frontend/login.html"
     },
     {
       "src": "/",
