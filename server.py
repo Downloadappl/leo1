@@ -51,7 +51,7 @@ IRAQI_GRADES_NAMES = {
     "postgraduate": "الدراسات العليا (ماجستير / دكتوراه)"
 }
 
-def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_ongoing=False):
+def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_ongoing=False, relevant_memories=None):
     # Default student info if not provided
     name = "الطالب"
     gender_rules = "تخاطب الطالب بأسلوب تربوي محترم ورصين."
@@ -120,6 +120,13 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
         base_prompt += "\n\nتركيز خاص: ركز على الأسئلة الوزارية المهمة، وكيفية كتابة الأجوبة النموذجية لتحصيل الدرجة الكاملة."
     elif study_mode == "summary":
         base_prompt += "\n\nتركيز خاص: قدم ملخصات مكثفة وجداول مقارنة ونقاط جوهرية تسهل المراجعة السريعة."
+
+    if relevant_memories and len(relevant_memories) > 0:
+        base_prompt += "\n\n=== الذاكرة طويلة الأمد المسترجعة للطالب (ذات صلة وثيقة بسؤاله الحالي فقط) ===\n"
+        for mem in relevant_memories:
+            base_prompt += f"- {mem['content']}\n"
+        base_prompt += "قاعدة استخدام الذاكرة: هذه تفضيلات ومعلومات حقيقية مسبقة يتذكرها الأستاذ ليو عن الطالب. استخدمها مباشرة لتقديم إجابة مخصصة ومطابقة لما يفضله الطالب، دون أن تطالبه بتكرار ما ذكره سابقاً ودون أن تقول بأسلوب آلي مكرر أنك تتذكر ذلك.\n"
+        base_prompt += "========================================================================"
 
     return base_prompt
 
@@ -200,10 +207,10 @@ class RewindClient:
                 print(f"[AUTH ERROR] {e}")
             return False
 
-    def stream_chat(self, messages, model_name="leo-4o-mini", has_images=False, temperature=0.7):
+    def stream_chat(self, messages, model_name="leo-4o-mini", has_images=False, temperature=0.7, relevant_memories=None):
         if not self.access_token:
             if not self.authenticate():
-                yield from self._fallback_response(messages)
+                yield from self._fallback_response(messages, relevant_memories=relevant_memories)
                 return
 
         # Auto-switch to vision model if image is present
@@ -249,7 +256,7 @@ class RewindClient:
 
             if resp.status_code != 200:
                 print(f"[STATUS ERROR {resp.status_code}] {resp.text[:150]}")
-                yield from self._fallback_response(messages)
+                yield from self._fallback_response(messages, relevant_memories=relevant_memories)
                 return
 
             has_yielded = False
@@ -271,13 +278,13 @@ class RewindClient:
                         pass
 
             if not has_yielded:
-                yield from self._fallback_response(messages)
+                yield from self._fallback_response(messages, relevant_memories=relevant_memories)
 
         except Exception as e:
             print(f"[STREAM EXCEPTION] {e}")
-            yield from self._fallback_response(messages)
+            yield from self._fallback_response(messages, relevant_memories=relevant_memories)
 
-    def _fallback_response(self, messages):
+    def _fallback_response(self, messages, relevant_memories=None):
         user_msgs = [m for m in messages if m.get('role') == 'user']
         is_ongoing = len(user_msgs) > 1
 
@@ -295,8 +302,42 @@ class RewindClient:
         
         last_lower = last_msg.lower().strip()
 
+        # Check for long-term memory preference relevance (e.g. Flutter preference across separate conversations)
+        has_flutter_pref = False
+        if relevant_memories:
+            for rm in relevant_memories:
+                c_str = rm.get('content', '').lower()
+                if 'flutter' in c_str or 'dart' in c_str or 'فلاتر' in c_str:
+                    has_flutter_pref = True
+                    break
+
+        if ('mobile' in last_lower or 'تطبيق' in last_lower or 'موبايل' in last_lower or 'app' in last_lower) and ('start' in last_lower or 'بدء' in last_lower or 'جديد' in last_lower or 'help' in last_lower or 'ساعدني' in last_lower or 'أنشئ' in last_lower):
+            if has_flutter_pref:
+                text = """بناءً على تفضيلك المحفوظ لتقنيات **Flutter & Dart**، سنبدأ بتأسيس بنية تطبيق الهاتف المحمول وفق أفضل المعايير المعمارية:
+
+1. **إنشاء هيكل المشروع الموحد:**
+   ```bash
+   flutter create my_smart_app
+   cd my_smart_app
+   ```
+2. **إدارة الحالة النظيفة (State Management):**
+   نوصي باعتماد مكتبة **Riverpod** للفصل التام بين الواجهة ومنطق الأعمال، مع ميزة الأمان العالي وقت الترجمة (Compile Safety).
+3. **تنظيم بنية المجلدات (Feature-First Architecture):**
+   - `lib/features/`: تقسيم الميزات (المصادقة، الدردشة، الإعدادات).
+   - `lib/core/`: الثوابت، المظهر، وخدمات الشبكة.
+
+ما هي الوظيفة الأساسية الأولى التي تود الانطلاق في برمجتها للتطبيق؟"""
+            else:
+                text = """لبدء تطبيق هاتف محمول جديد، إليك المسار المنهجي الأنسب:
+
+1. **تحديد المنصات والهدف:** هل يستهدف التطبيق نظامي Android و iOS معاً؟
+2. **اختيار إطار العمل:** نوصي بإطار **Flutter** بلغة Dart لتجربة واجهات أصلية فائقة السرعة وشفرة برمجية موحدة.
+3. **التصميم المعماري:** عزل طبقة البيانات (Data Layer) عن العرض (UI Layer).
+
+أخبرني عن فكرة التطبيق والوظائف التي تحتاجها لنضع خطة التنفيذ خطوة بخطوة!"""
+
         # 1. Technical & Academic Contextual Matches
-        if 'riverpod' in last_lower:
+        elif 'riverpod' in last_lower:
             text = """مكتبة **Riverpod** هي حل متطور وحديث لإدارة الحالة (State Management) وحقن التبعيات في تطبيقات Flutter، طُوّرت للتغلب على قيود Provider التقليدية:
 
 1. **التحرر من BuildContext:** لا تحتاج لتمرير `context` للوصول إلى البيانات أو قراءة المزودات، مما يمكنك من كتابة المنطق خارج شجرة الواجهة بسهولة.
@@ -412,6 +453,12 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send_json(settings)
             return
 
+        # Get Long-Term Memories
+        if path == '/api/memories':
+            mems = database.get_memories(user_id=uid)
+            self._send_json(mems)
+            return
+
         # Models list (Ranked cleanly as LeoGPT Models)
         if path == '/api/models':
             models_list = [
@@ -503,6 +550,20 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send_json({"status": "recorded", "id": fb_id}, 201)
             return
 
+        # Add Long-Term Memory manually
+        if path == '/api/memories':
+            content = body.get('content', '').strip()
+            cat = body.get('category', 'preference')
+            mid = database.add_memory(user_id=uid, content=content, category=cat)
+            self._send_json({"id": mid, "status": "created"}, 201)
+            return
+
+        # Clear all Long-Term Memories
+        if path == '/api/memories/clear':
+            database.clear_all_memories(user_id=uid)
+            self._send_json({"status": "cleared"})
+            return
+
         # Stream Chat
         if path == '/api/chat':
             conv_id = body.get('conversation_id')
@@ -520,7 +581,16 @@ class AppHandler(SimpleHTTPRequestHandler):
             # Save user message to database
             database.add_message(conv_id, 'user', user_text, attachments=attachments, user_id=uid)
 
-            # Build history from conversation
+            # --- LONG-TERM MEMORY: Automatic extraction of user facts/preferences ---
+            if user_text:
+                candidates = database.extract_memory_candidates(user_text)
+                for cand_content, cand_cat in candidates:
+                    database.add_memory(uid, cand_content, cand_cat)
+
+            # --- LONG-TERM MEMORY: Intelligent Relevant Retrieval ---
+            # Retrieve ONLY memories strictly relevant to user_text (avoids sending unrelated memories)
+            relevant_memories = database.find_relevant_memories(user_id=uid, query_text=user_text, limit=3)
+
             # Build history from conversation
             conv_data = database.get_conversation(conv_id, user_id=uid)
             raw_db_messages = conv_data.get('messages', []) if conv_data else []
@@ -534,7 +604,12 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             # Retrieve student profile for teacher personalization
             student_profile = database.get_student_profile(user_id=uid)
-            sys_prompt = build_teacher_system_prompt(student_profile, study_mode, is_ongoing=is_ongoing)
+            sys_prompt = build_teacher_system_prompt(
+                student_profile,
+                study_mode,
+                is_ongoing=is_ongoing,
+                relevant_memories=relevant_memories
+            )
             formatted_messages = [{'role': 'system', 'content': sys_prompt}]
 
             has_images = False
@@ -576,7 +651,13 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             full_assistant_reply = []
             try:
-                for chunk in client.stream_chat(formatted_messages, model_name=model, has_images=has_images, temperature=temperature):
+                for chunk in client.stream_chat(
+                    formatted_messages,
+                    model_name=model,
+                    has_images=has_images,
+                    temperature=temperature,
+                    relevant_memories=relevant_memories
+                ):
                     full_assistant_reply.append(chunk)
                     data_line = f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
                     self.wfile.write(data_line.encode('utf-8'))
@@ -634,6 +715,12 @@ class AppHandler(SimpleHTTPRequestHandler):
         if path.startswith('/api/messages/'):
             msg_id = path.split('/api/messages/')[1].strip()
             database.delete_message(msg_id)
+            self._send_json({"status": "deleted"})
+            return
+
+        if path.startswith('/api/memories/'):
+            mem_id = path.split('/api/memories/')[1].strip()
+            database.delete_memory(mem_id, user_id=uid)
             self._send_json({"status": "deleted"})
             return
 

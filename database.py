@@ -100,6 +100,19 @@ def init_db():
             created_at REAL NOT NULL
         );
         """)
+
+        # Long-Term Memories Table (Persistent cross-conversation memory)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS long_term_memories (
+            id TEXT PRIMARY KEY,
+            user_id TEXT DEFAULT 'default_user',
+            category TEXT DEFAULT 'preference',
+            content TEXT NOT NULL,
+            keywords TEXT DEFAULT '',
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        );
+        """)
         
         # Clean up any legacy dummy placeholder profiles
         try:
@@ -373,4 +386,180 @@ def add_feedback(user_id, text):
         conn.commit()
     return fb_id
 
+# ============================================================
+# LONG-TERM MEMORY SYSTEM (Cross-Conversation Intelligence)
+# ============================================================
+
+COMMON_STOP_WORDS = {
+    'في', 'من', 'على', 'إلى', 'عن', 'مع', 'هذا', 'هذه', 'تلك', 'ذلك', 'هل', 'ما',
+    'ماذا', 'كيف', 'أين', 'متى', 'لماذا', 'كم', 'يا', 'أنا', 'هو', 'هي', 'هم', 'نحن',
+    'أن', 'إن', 'كان', 'يكون', 'سوف', 'قد', 'ثم', 'أو', 'لا', 'لم', 'لن', 'بل',
+    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for',
+    'with', 'and', 'or', 'of', 'by', 'it', 'this', 'that', 'i', 'my', 'me', 'you',
+    'we', 'he', 'she', 'they', 'do', 'does', 'did', 'have', 'has', 'had', 'what', 'how'
+}
+
+def extract_keywords(text):
+    if not text:
+        return set()
+    cleaned = re.sub(r'[^\w\s]', ' ', text.lower())
+    tokens = set(cleaned.split())
+    return {w for w in tokens if len(w) > 2 and w not in COMMON_STOP_WORDS}
+
+def add_memory(user_id, content, category='preference', keywords=''):
+    content = content.strip()
+    if not content or len(content) < 4:
+        return None
+
+    if not keywords:
+        kws = extract_keywords(content)
+        keywords = ' '.join(kws)
+
+    now = time.time()
+    mem_id = f"mem_{int(now*1000)}_{uuid.uuid4().hex[:5]}"
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        # Avoid duplicate memories with near-identical content
+        cursor.execute("SELECT id, content FROM long_term_memories WHERE user_id = ?", (user_id,))
+        existing = cursor.fetchall()
+        for row in existing:
+            ex_content = row['content'].strip().lower()
+            if content.lower() == ex_content or (len(content) > 10 and content.lower() in ex_content):
+                # Update timestamp on existing
+                cursor.execute("UPDATE long_term_memories SET updated_at = ?, keywords = ? WHERE id = ?", (now, keywords, row['id']))
+                conn.commit()
+                return row['id']
+
+        cursor.execute("""
+            INSERT INTO long_term_memories (id, user_id, category, content, keywords, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (mem_id, user_id, category, content, keywords, now, now))
+        conn.commit()
+    return mem_id
+
+def get_memories(user_id="default_user"):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, category, content, keywords, created_at, updated_at
+            FROM long_term_memories
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+        """, (user_id,))
+        return [dict(r) for r in cursor.fetchall()]
+
+def delete_memory(memory_id, user_id="default_user"):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM long_term_memories WHERE id = ? AND user_id = ?", (memory_id, user_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def clear_all_memories(user_id="default_user"):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM long_term_memories WHERE user_id = ?", (user_id,))
+        conn.commit()
+    return True
+
+def find_relevant_memories(user_id, query_text, limit=4):
+    """
+    Intelligent Memory Retrieval:
+    Analyzes the user's current query and returns ONLY relevant memories.
+    Does NOT return unrelated memories.
+    """
+    if not query_text or not query_text.strip():
+        return []
+
+    query_tokens = extract_keywords(query_text)
+    if not query_tokens:
+        return []
+
+    memories = get_memories(user_id=user_id)
+    if not memories:
+        return []
+
+    scored_memories = []
+    # Expanded technical domain associations
+    domain_synonyms = {
+        'mobile': {'flutter', 'dart', 'react native', 'android', 'ios', 'تطبيق', 'تطبيقات', 'موبايل', 'هاتف'},
+        'flutter': {'mobile', 'dart', 'widget', 'riverpod', 'bloc', 'تطبيق', 'فلاتر'},
+        'dart': {'flutter', 'mobile', 'دارت'},
+        'physics': {'فيزياء', 'مسألة', 'قانون', 'تيار', 'فولت', 'أوم'},
+        'math': {'رياضيات', 'تكامل', 'تفاضل', 'معادلة', 'مبرهنة'},
+        'وزاري': {'امتحان', 'أسئلة', 'بكالوريا', 'دور', 'درجة', 'مركز الفحص'}
+    }
+
+    for mem in memories:
+        mem_tokens = extract_keywords(mem['content'] + " " + mem.get('keywords', ''))
+        # Direct word overlap
+        overlap = query_tokens.intersection(mem_tokens)
+        score = len(overlap) * 2
+
+        # Semantic/domain synonym boost
+        for qt in query_tokens:
+            if qt in domain_synonyms:
+                syns = domain_synonyms[qt]
+                if syns.intersection(mem_tokens):
+                    score += 3
+            # Check substrings
+            for mt in mem_tokens:
+                if len(qt) > 3 and (qt in mt or mt in qt):
+                    score += 1
+
+        if score >= 2:
+            scored_memories.append((score, mem))
+
+    # Sort descending by relevance score
+    scored_memories.sort(key=lambda x: x[0], reverse=True)
+    return [m[1] for m in scored_memories[:limit]]
+
+def extract_memory_candidates(user_text):
+    """
+    Detects potential long-term user facts and preferences automatically.
+    Avoids saving generic/trivial conversation phrases.
+    """
+    if not user_text or len(user_text.strip()) < 8:
+        return []
+
+    text = user_text.strip()
+    candidates = []
+
+    # Regex patterns for explicit preferences and personal background
+    patterns = [
+        # Preferences (English & Arabic)
+        (r"(?:i prefer|i like to use|my preferred (?:framework|language|stack|tool) is)\s+([^.?!,;\n]+)", "preference"),
+        (r"(?:أفضل استخدام|أفضل دائماً|أفضل|أحب أن استخدم|إطاري المفضل هو|لغتي المفضلة هي)\s+([^.?!,;\n]+)", "preference"),
+        # Technical choices
+        (r"(?:i am using|my projects? (?:are|is) built with|working on a project in)\s+([^.?!,;\n]+)", "tech_stack"),
+        (r"(?:مشروعي مبني بـ|أعمل على مشروع بـ|أستخدم في مشروعي)\s+([^.?!,;\n]+)", "tech_stack"),
+        # Learning goals & Exam dates
+        (r"(?:امتحاني (?:الوزاري|النهائي|القادم)|أنا أستعد لامتحان)\s+([^.?!,;\n]+)", "curriculum"),
+        (r"(?:i am preparing for|my exam is)\s+([^.?!,;\n]+)", "goal"),
+    ]
+
+    for pat, cat in patterns:
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            extracted_phrase = m.group(1).strip()
+            if len(extracted_phrase) >= 3 and len(extracted_phrase) <= 120:
+                # Format clean human memory statement
+                if cat == "preference":
+                    if "prefer" in m.group(0).lower():
+                        cleaned_memory = f"User prefers {extracted_phrase} for projects/work."
+                    else:
+                        cleaned_memory = f"يفضل المستخدم: {extracted_phrase}."
+                elif cat == "tech_stack":
+                    cleaned_memory = f"التقنيات المستخدمة في مشاريع المستخدم: {extracted_phrase}."
+                elif cat == "curriculum":
+                    cleaned_memory = f"الاستعداد الدراسي والامتحانات: {extracted_phrase}."
+                else:
+                    cleaned_memory = f"معلومة عن المستخدم: {extracted_phrase}."
+                
+                candidates.append((cleaned_memory, cat))
+
+    return candidates
+
 init_db()
+

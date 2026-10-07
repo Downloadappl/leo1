@@ -483,12 +483,30 @@
 
             <div class="card-inner-divider"></div>
 
-            <!-- Row 3: مسح الذكريات -->
-            <div class="settings-card-row clickable-row" id="clearMemoryRow">
-              <span class="row-label">مسح الذكريات وسجل الدروس</span>
+            <!-- Row 3: الذاكرة طويلة الأمد -->
+            <div class="settings-card-row clickable-row" id="longTermMemoryRow">
+              <svg class="chevron-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <div class="row-text-column">
+                <span class="row-title">الذاكرة طويلة الأمد</span>
+                <span class="row-subtitle" id="memoryCountSubtitle">إدارة التفضيلات والمعلومات المحفوظة</span>
+              </div>
               <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </div>
+
+            <div class="card-inner-divider"></div>
+
+            <!-- Row 4: مسح سجل المحادثات والدروس -->
+            <div class="settings-card-row clickable-row" id="clearChatHistoryRow">
+              <span class="row-label">مسح سجل المحادثات والدروس</span>
+              <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
               </svg>
             </div>
           </div>
@@ -645,6 +663,53 @@
           <button class="modal-close-btn" id="modalCloseBtn">✕</button>
         </div>
         <div class="modal-body" id="modalBody"></div>
+      </div>
+    </div>
+
+    <!-- Long-Term Memory Manager Modal -->
+    <div class="custom-modal-overlay" id="memoryModalOverlay">
+      <div class="custom-modal-content memory-modal-card">
+        <div class="modal-header">
+          <div class="login-modal-title-row">
+            <span class="login-badge-icon">🧠</span>
+            <div>
+              <h3 class="modal-title">الذاكرة طويلة الأمد — التفضيلات المحفوظة</h3>
+              <p class="login-modal-subtitle">يتذكر الأستاذ ليو هذه التفضيلات عبر مختلف المحادثات لاستخدامها فقط عند الحاجة.</p>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="memoryModalCloseBtn">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Add manual memory input -->
+          <div class="add-memory-row">
+            <input type="text" id="manualMemoryInput" placeholder="أضف تفضيلاً يدوياً (مثال: أفضل Flutter و Dart، أحب الشرح بالنقاط)..." dir="rtl">
+            <button class="add-memory-btn" id="addManualMemoryBtn" type="button">حفظ</button>
+          </div>
+
+          <!-- Stored memories list -->
+          <div class="memory-items-list" id="memoryItemsList">
+            <div class="memory-empty-state">لا توجد تفضيلات محفوظة حالياً</div>
+          </div>
+
+          <div class="memory-modal-footer">
+            <button class="clear-memories-btn" id="clearAllMemoriesBtn" type="button">مسح جميع الذكريات</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Lightbox Modal Viewer -->
+    <div class="image-lightbox-modal" id="imageLightboxModal" style="display: none;">
+      <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+      <div class="lightbox-toolbar">
+        <button class="lightbox-tool-btn" id="lightboxZoomOutBtn" title="تصغير" type="button">−</button>
+        <span class="lightbox-zoom-level" id="lightboxZoomLevel">100%</span>
+        <button class="lightbox-tool-btn" id="lightboxZoomInBtn" title="تكبير" type="button">+</button>
+        <button class="lightbox-tool-btn" id="lightboxResetBtn" title="إعادة التعيين" type="button">⟲</button>
+        <button class="lightbox-tool-btn lightbox-close-btn" id="lightboxCloseBtn" title="إغلاق (Esc)" type="button">✕</button>
+      </div>
+      <div class="lightbox-img-wrapper" id="lightboxImgWrapper">
+        <img id="lightboxImg" src="" alt="معاينة الصورة المكبرة">
       </div>
     </div>
 

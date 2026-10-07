@@ -98,6 +98,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const reportBugRow = document.getElementById('reportBugRow');
   const logoutRow = document.getElementById('logoutRow');
 
+  // Long-Term Memory & History UI
+  const longTermMemoryRow = document.getElementById('longTermMemoryRow');
+  const memoryCountSubtitle = document.getElementById('memoryCountSubtitle');
+  const clearChatHistoryRow = document.getElementById('clearChatHistoryRow');
+  const memoryModalOverlay = document.getElementById('memoryModalOverlay');
+  const memoryModalCloseBtn = document.getElementById('memoryModalCloseBtn');
+  const manualMemoryInput = document.getElementById('manualMemoryInput');
+  const addManualMemoryBtn = document.getElementById('addManualMemoryBtn');
+  const memoryItemsList = document.getElementById('memoryItemsList');
+  const clearAllMemoriesBtn = document.getElementById('clearAllMemoriesBtn');
+
+  // Image Lightbox Modal Viewer
+  const imageLightboxModal = document.getElementById('imageLightboxModal');
+  const lightboxBackdrop = document.getElementById('lightboxBackdrop');
+  const lightboxImg = document.getElementById('lightboxImg');
+  const lightboxZoomOutBtn = document.getElementById('lightboxZoomOutBtn');
+  const lightboxZoomInBtn = document.getElementById('lightboxZoomInBtn');
+  const lightboxZoomLevel = document.getElementById('lightboxZoomLevel');
+  const lightboxResetBtn = document.getElementById('lightboxResetBtn');
+  const lightboxCloseBtn = document.getElementById('lightboxCloseBtn');
+
   // Modals & Toast
   const profileModalOverlay = document.getElementById('profileModalOverlay');
   const profileModalCloseBtn = document.getElementById('profileModalCloseBtn');
@@ -183,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let settingsState = {
     studyMode: 'standard',
     temperature: 0.7,
-    appearance: 'default',
+    appearance: 'dark',
     bubbleTheme: 'theme-blue-pink'
   };
 
@@ -1032,8 +1053,8 @@ document.addEventListener('DOMContentLoaded', () => {
         img.className = 'user-attached-image';
         img.src = att.data || att.url;
         img.alt = att.name || 'مرفق دراسي';
-        img.title = 'اضغط للمعاينة الكاملة';
-        img.onclick = () => window.open(img.src, '_blank');
+        img.title = 'اضغط لتكبير الصورة في عارض الصور';
+        img.onclick = () => openImageLightbox(img.src);
         row.appendChild(img);
       });
     }
@@ -1043,6 +1064,67 @@ document.addEventListener('DOMContentLoaded', () => {
       bubble.className = 'user-bubble';
       bubble.textContent = text;
       row.appendChild(bubble);
+
+      // User Message Actions Toolbar (Copy, Edit, Delete)
+      const toolbar = document.createElement('div');
+      toolbar.className = 'user-actions-toolbar';
+      toolbar.innerHTML = `
+        <button class="user-action-btn action-copy-user" title="نسخ الرسالة" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        </button>
+        <button class="user-action-btn action-edit-user" title="تعديل الرسالة في محرر النصوص" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </button>
+        <button class="user-action-btn action-del-user" title="حذف" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      `;
+
+      // Copy Action
+      toolbar.querySelector('.action-copy-user').onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast('تم نسخ نص الرسالة');
+        } catch (err) {
+          showToast('تم النسخ');
+        }
+      };
+
+      // Edit Action (populate composer and focus)
+      toolbar.querySelector('.action-edit-user').onclick = (e) => {
+        e.stopPropagation();
+        chatTextInput.value = text;
+        autoResizeTextarea();
+        chatTextInput.focus();
+        actionPillBtn.classList.add('send-mode');
+        showToast('يمكنك تعديل الرسالة الآن وإعادة إرسالها');
+      };
+
+      // Delete Action
+      toolbar.querySelector('.action-del-user').onclick = (e) => {
+        e.stopPropagation();
+        row.remove();
+        showToast('تم حذف الرسالة');
+      };
+
+      row.appendChild(toolbar);
+
+      // Mobile Long-Press Touch Handler (450ms hold)
+      let touchTimer = null;
+      row.addEventListener('touchstart', () => {
+        touchTimer = setTimeout(() => {
+          row.classList.toggle('actions-visible');
+          if (navigator.vibrate) navigator.vibrate(30);
+        }, 450);
+      }, { passive: true });
+
+      row.addEventListener('touchend', () => {
+        if (touchTimer) clearTimeout(touchTimer);
+      });
+      row.addEventListener('touchmove', () => {
+        if (touchTimer) clearTimeout(touchTimer);
+      });
     }
 
     messagesStreamList.appendChild(row);
@@ -1492,52 +1574,204 @@ document.addEventListener('DOMContentLoaded', () => {
     openModal();
   };
 
-  // Appearance Row
-  appearanceRow.onclick = () => {
-    const modes = [
-      { id: 'default', label: 'داكن (افتراضي)', class: '' },
-      { id: 'oled', label: 'أسود نقي (OLED)', class: 'mode-oled' },
-      { id: 'contrast', label: 'عالي التباين', class: 'mode-contrast' }
-    ];
-    const currIdx = modes.findIndex(m => m.id === settingsState.appearance);
-    const nextMode = modes[(currIdx + 1) % modes.length];
+  // --- Appearance Engine (Dark, Light, System) ---
+  const appearanceModes = [
+    { id: 'dark', label: 'داكن (Dark)' },
+    { id: 'light', label: 'فاتح (Light)' },
+    { id: 'system', label: 'تلقائي حسب النظام (System)' }
+  ];
 
-    document.body.classList.remove('mode-oled', 'mode-contrast');
-    if (nextMode.class) document.body.classList.add(nextMode.class);
+  function applyAppearance(mode) {
+    settingsState.appearance = mode;
+    const modeObj = appearanceModes.find(m => m.id === mode) || appearanceModes[0];
+    if (currentAppearanceLabel) currentAppearanceLabel.textContent = modeObj.label;
 
-    settingsState.appearance = nextMode.id;
-    currentAppearanceLabel.textContent = nextMode.label;
-    saveSettingsToServer();
-    showToast(`تم تفعيل: ${nextMode.label}`);
-  };
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (mode === 'light' || (mode === 'system' && !prefersDark)) {
+      document.body.classList.add('theme-light');
+    } else {
+      document.body.classList.remove('theme-light');
+    }
+  }
+
+  // OS theme change listener
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (settingsState.appearance === 'system') {
+        applyAppearance('system');
+      }
+    });
+  }
+
+  // Appearance Row Click Handler (Cycles Dark -> Light -> System)
+  if (appearanceRow) {
+    appearanceRow.onclick = () => {
+      const currIdx = appearanceModes.findIndex(m => m.id === settingsState.appearance);
+      const nextMode = appearanceModes[(currIdx + 1) % appearanceModes.length];
+      applyAppearance(nextMode.id);
+      saveSettingsToServer();
+      showToast(`تم تفعيل المظهر: ${nextMode.label}`);
+    };
+  }
 
   // Bubble Theme Row
-  bubbleThemeRow.onclick = () => {
-    const idx = bubbleThemes.findIndex(t => t.id === settingsState.bubbleTheme);
-    const nextIdx = (idx + 1) % bubbleThemes.length;
-    const nextTheme = bubbleThemes[nextIdx];
+  if (bubbleThemeRow) {
+    bubbleThemeRow.onclick = () => {
+      const idx = bubbleThemes.findIndex(t => t.id === settingsState.bubbleTheme);
+      const nextIdx = (idx + 1) % bubbleThemes.length;
+      const nextTheme = bubbleThemes[nextIdx];
 
-    bubbleThemes.forEach(t => document.body.classList.remove(t.id));
-    document.body.classList.add(nextTheme.id);
+      bubbleThemes.forEach(t => document.body.classList.remove(t.id));
+      document.body.classList.add(nextTheme.id);
 
-    settingsState.bubbleTheme = nextTheme.id;
-    currentBubbleThemeLabel.textContent = nextTheme.name;
-    document.getElementById('glowingOrbPreview').style.background = nextTheme.preview;
-    saveSettingsToServer();
-    showToast(`تم تغيير مظهر التوهج: ${nextTheme.name}`);
-  };
+      settingsState.bubbleTheme = nextTheme.id;
+      currentBubbleThemeLabel.textContent = nextTheme.name;
+      document.getElementById('glowingOrbPreview').style.background = nextTheme.preview;
+      saveSettingsToServer();
+      showToast(`تم تغيير مظهر التوهج: ${nextTheme.name}`);
+    };
+  }
 
-  // Clear Memories Row
-  clearMemoryRow.onclick = async () => {
-    if (confirm('هل أنت متأكد من مسح جميع الذكريات وسجل المحادثات نهائياً؟')) {
-      await fetch('/api/conversations/clear', { method: 'POST' });
-      currentConversationId = null;
-      localStorage.removeItem('leo_active_conv_id');
-      showEmptyState();
-      loadConversationHistory();
-      showToast('تم مسح جميع الدروس والمحادثات');
+  // --- Real Long-Term Memory Management ---
+  async function refreshMemoriesUI() {
+    try {
+      const res = await fetch('/api/memories');
+      if (!res.ok) return [];
+      const data = await res.json();
+      const memories = data.memories || [];
+      if (memoryCountSubtitle) {
+        memoryCountSubtitle.textContent = memories.length > 0 ? `${memories.length} تفضيلات محفوظة` : 'لا توجد تفضيلات بعد';
+      }
+      return memories;
+    } catch (e) {
+      return [];
     }
-  };
+  }
+
+  async function renderMemoriesModalList() {
+    if (!memoryItemsList) return;
+    memoryItemsList.innerHTML = '<div class="memory-empty-state">جاري تحميل التفضيلات...</div>';
+    const memories = await refreshMemoriesUI();
+
+    if (!memories || memories.length === 0) {
+      memoryItemsList.innerHTML = '<div class="memory-empty-state">🧠 لا توجد تفضيلات محفوظة بعد. سيتذكر الأستاذ ليو تفضيلاتك تلقائياً أو يمكنك إضافتها يدوياً أعلاه.</div>';
+      return;
+    }
+
+    memoryItemsList.innerHTML = '';
+    memories.forEach(mem => {
+      const card = document.createElement('div');
+      card.className = 'memory-item-card';
+      const dateStr = mem.created_at ? new Date(mem.created_at).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }) : '';
+      card.innerHTML = `
+        <div class="memory-item-info">
+          <span class="memory-item-text">${mem.content}</span>
+          <span class="memory-item-date">${dateStr ? 'حُفظ في: ' + dateStr : ''}</span>
+        </div>
+        <button class="memory-item-del-btn" title="حذف هذا التفضيل" type="button">✕</button>
+      `;
+      card.querySelector('.memory-item-del-btn').onclick = async (e) => {
+        e.stopPropagation();
+        await fetch(`/api/memories/${mem.id}`, { method: 'DELETE' });
+        showToast('تم حذف التفضيل بنجاح');
+        renderMemoriesModalList();
+      };
+      memoryItemsList.appendChild(card);
+    });
+  }
+
+  function openMemoryModal() {
+    if (!memoryModalOverlay) return;
+    memoryModalOverlay.classList.add('active');
+    renderMemoriesModalList();
+  }
+
+  function closeMemoryModal() {
+    if (!memoryModalOverlay) return;
+    memoryModalOverlay.classList.remove('active');
+  }
+
+  if (longTermMemoryRow) longTermMemoryRow.onclick = openMemoryModal;
+  if (memoryModalCloseBtn) memoryModalCloseBtn.onclick = closeMemoryModal;
+  if (memoryModalOverlay) {
+    memoryModalOverlay.onclick = (e) => {
+      if (e.target === memoryModalOverlay) closeMemoryModal();
+    };
+  }
+
+  if (addManualMemoryBtn) {
+    addManualMemoryBtn.onclick = async () => {
+      const text = manualMemoryInput.value.trim();
+      if (!text) return;
+      await fetch('/api/memories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, category: 'preference' })
+      });
+      manualMemoryInput.value = '';
+      showToast('تم حفظ التفضيل في ذاكرة ليو');
+      renderMemoriesModalList();
+    };
+  }
+
+  if (clearAllMemoriesBtn) {
+    clearAllMemoriesBtn.onclick = async () => {
+      if (confirm('هل أنت متأكد من مسح جميع التفضيلات والذكريات المحفوظة نهائياً؟')) {
+        await fetch('/api/memories/clear', { method: 'POST' });
+        showToast('تم مسح جميع التفضيلات المحفوظة');
+        renderMemoriesModalList();
+      }
+    };
+  }
+
+  // Clear Chat History Row
+  if (clearChatHistoryRow) {
+    clearChatHistoryRow.onclick = async () => {
+      if (confirm('هل أنت متأكد من مسح سجل جميع المحادثات السابقة نهائياً؟')) {
+        await fetch('/api/conversations/clear', { method: 'POST' });
+        currentConversationId = null;
+        localStorage.removeItem('leo_active_conv_id');
+        showEmptyState();
+        loadConversationHistory();
+        showToast('تم مسح سجل المحادثات بنجاح');
+      }
+    };
+  }
+
+  // --- Real Image Lightbox Viewer Controls ---
+  let currentZoom = 1.0;
+
+  function updateLightboxZoom(newZoom) {
+    currentZoom = Math.min(Math.max(newZoom, 0.5), 3.0);
+    if (lightboxImg) lightboxImg.style.transform = `scale(${currentZoom})`;
+    if (lightboxZoomLevel) lightboxZoomLevel.textContent = `${Math.round(currentZoom * 100)}%`;
+  }
+
+  function openImageLightbox(src) {
+    if (!imageLightboxModal || !lightboxImg) return;
+    lightboxImg.src = src;
+    updateLightboxZoom(1.0);
+    imageLightboxModal.style.display = 'flex';
+  }
+
+  function closeImageLightbox() {
+    if (!imageLightboxModal) return;
+    imageLightboxModal.style.display = 'none';
+    if (lightboxImg) lightboxImg.src = '';
+  }
+
+  if (lightboxZoomInBtn) lightboxZoomInBtn.onclick = () => updateLightboxZoom(currentZoom + 0.25);
+  if (lightboxZoomOutBtn) lightboxZoomOutBtn.onclick = () => updateLightboxZoom(currentZoom - 0.25);
+  if (lightboxResetBtn) lightboxResetBtn.onclick = () => updateLightboxZoom(1.0);
+  if (lightboxCloseBtn) lightboxCloseBtn.onclick = closeImageLightbox;
+  if (lightboxBackdrop) lightboxBackdrop.onclick = closeImageLightbox;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && imageLightboxModal && imageLightboxModal.style.display === 'flex') {
+      closeImageLightbox();
+    }
+  });
 
   // Report Bug Row
   reportBugRow.onclick = () => {
@@ -1655,6 +1889,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Apply saved appearance (Dark / Light / System)
+      applyAppearance(settingsState.appearance || 'dark');
+
       // 3. Set model label
       const activeModelItem = document.querySelector(`.dropdown-item[data-model="${selectedModel}"]`);
       if (activeModelItem) {
@@ -1663,8 +1900,9 @@ document.addEventListener('DOMContentLoaded', () => {
         currentModelLabel.textContent = activeModelItem.querySelector('.item-title').textContent;
       }
 
-      // 4. Load Conversation History
+      // 4. Load Conversation History & Memories
       loadConversationHistory();
+      refreshMemoriesUI();
 
     } catch (e) {
       console.error('Startup error:', e);
