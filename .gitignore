@@ -7,3 +7,4 @@ data/*.db
 data/*.sqlite3
 .DS_Store
 Thumbs.db
+data/tts_cache/

@@ -496,21 +496,56 @@ document.addEventListener('DOMContentLoaded', () => {
     chatgptAudioBar.style.display = 'none';
   }
 
+  // --- Active Dynamic Edge-TTS Audio Player State ---
+  let currentActiveTTSAudio = null;
+  let currentActiveSpeakBtn = null;
+  const speakerDefaultSvg = `<svg class="speaker-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+  const speakerPlayingSvg = `<svg class="stop-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>`;
+  const speakerLoadingSvg = `<svg class="tts-spin-anim" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10"></path></svg>`;
+
+  function stopActiveTTSAudio() {
+    if (currentActiveTTSAudio) {
+      currentActiveTTSAudio.pause();
+      currentActiveTTSAudio.currentTime = 0;
+      currentActiveTTSAudio = null;
+    }
+    if (currentActiveSpeakBtn) {
+      currentActiveSpeakBtn.classList.remove('playing-audio', 'loading-audio');
+      currentActiveSpeakBtn.innerHTML = speakerDefaultSvg;
+      currentActiveSpeakBtn.title = 'استماع إلى إجابة الأستاذ ليو';
+      currentActiveSpeakBtn = null;
+    }
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    isTTSPlaying = false;
+    hideAudioBar();
+  }
+
   audioCancelBtn.addEventListener('click', () => {
     if (isRecording && speechRec) {
       speechRec.abort();
       isRecording = false;
       micBtn.classList.remove('recording');
     }
-    if (isTTSPlaying && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      isTTSPlaying = false;
-    }
-    hideAudioBar();
+    stopActiveTTSAudio();
     showToast('تم إيقاف الصوت');
   });
 
   audioPauseBtn.addEventListener('click', () => {
+    if (currentActiveTTSAudio) {
+      if (currentActiveTTSAudio.paused) {
+        currentActiveTTSAudio.play();
+        audioPauseBtn.textContent = '⏸';
+        audioBarStatusText.textContent = 'الأستاذ ليو يواصل القراءة...';
+      } else {
+        currentActiveTTSAudio.pause();
+        audioPauseBtn.textContent = '▶';
+        audioBarStatusText.textContent = 'تم إيقاف القراءة مؤقتاً';
+      }
+      return;
+    }
+
     if (isTTSPlaying && window.speechSynthesis) {
       if (isAudioPaused) {
         window.speechSynthesis.resume();
@@ -1210,8 +1245,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function buildToolbarHtml(actionsElem) {
     actionsElem.innerHTML = `
-      <button class="msg-action-btn action-speak" title="قراءة صوتية" aria-label="قراءة">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+      <button class="msg-action-btn action-speak" title="استماع إلى إجابة الأستاذ ليو" aria-label="استماع">
+        <svg class="speaker-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
       </button>
       <button class="msg-action-btn action-dislike" title="لم يعجبني"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg></button>
       <button class="msg-action-btn action-like" title="أعجبني"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4.33A2.31 2.31 0 0 1 2 20v-7a2.31 2.31 0 0 1 2.33-2H7"></path></svg></button>
@@ -1234,42 +1269,71 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('تم نسخ نص الرسالة');
     };
 
-    speakBtn.onclick = () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        
-        let plain = content
-          .replace(/```[\s\S]*?```/g, ' كود برمجي توضيحي ')
-          .replace(/`([^`]+)`/g, '$1')
-          .replace(/[#*~_>]/g, '')
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-          .trim();
+    // Real Edge-TTS Speech Synthesis (voice: ar-AE-HamdanNeural)
+    speakBtn.onclick = async () => {
+      // 1. If currently playing this specific message, toggle stop
+      if (currentActiveSpeakBtn === speakBtn) {
+        stopActiveTTSAudio();
+        showToast('تم إيقاف القراءة الصوتية');
+        return;
+      }
 
-        const utt = new SpeechSynthesisUtterance(plain);
-        const voices = window.speechSynthesis.getVoices();
-        const arabicVoices = voices.filter(v => v.lang.startsWith('ar') || v.lang.includes('Arabic'));
-        const preferred = arabicVoices.find(v => 
-          v.name.includes('Maged') || v.name.includes('Naayf') || v.name.includes('Tarik') || v.name.includes('Google')
-        ) || arabicVoices[0];
+      // 2. Stop any other audio that might be playing
+      stopActiveTTSAudio();
 
-        if (preferred) utt.voice = preferred;
-        utt.lang = 'ar-SA';
-        utt.rate = 0.90;
-        utt.pitch = 0.95;
+      // 3. Set loading state on this button
+      speakBtn.classList.add('loading-audio');
+      speakBtn.innerHTML = speakerLoadingSvg;
+      speakBtn.title = 'جاري تحضير الصوت...';
+      currentActiveSpeakBtn = speakBtn;
+      isTTSPlaying = true;
+      showAudioBar('الأستاذ ليو يجهز صوته للاستماع...', true);
 
-        utt.onstart = () => {
-          isTTSPlaying = true;
-          showAudioBar('الأستاذ ليو يشرح صوتياً...', true);
+      try {
+        const resp = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: content })
+        });
+
+        if (!resp.ok) {
+          throw new Error('TTS server responded with ' + resp.status);
+        }
+
+        // Check if user clicked cancel or stopped while downloading
+        if (currentActiveSpeakBtn !== speakBtn) {
+          return;
+        }
+
+        const audioBlob = await resp.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        currentActiveTTSAudio = audio;
+
+        // 4. Update button to playing state
+        speakBtn.classList.remove('loading-audio');
+        speakBtn.classList.add('playing-audio');
+        speakBtn.innerHTML = speakerPlayingSvg;
+        speakBtn.title = 'إيقاف الاستماع';
+        showAudioBar('الأستاذ ليو يشرح بصوته (حمدان)...', true);
+
+        audio.onended = () => {
+          stopActiveTTSAudio();
         };
 
-        utt.onend = () => {
-          isTTSPlaying = false;
-          hideAudioBar();
+        audio.onerror = () => {
+          stopActiveTTSAudio();
+          showToast('حدث خطأ أثناء تشغيل الصوت');
         };
 
-        window.speechSynthesis.speak(utt);
-      } else {
-        showToast('القراءة الصوتية غير مدعومة');
+        await audio.play();
+
+      } catch (err) {
+        console.error('Edge-TTS playback error:', err);
+        if (currentActiveSpeakBtn === speakBtn) {
+          stopActiveTTSAudio();
+        }
+        showToast('تعذر توليد القراءة الصوتية، يرجى المحاولة لاحقاً');
       }
     };
 

@@ -6,12 +6,85 @@ import requests
 import threading
 import sys
 import time
+import re
+import hashlib
+import asyncio
+import edge_tts
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import database
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+TTS_CACHE_DIR = os.path.join(BASE_DIR, "data", "tts_cache")
+os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+
+def clean_text_for_speech(text: str) -> str:
+    """Prepares text for natural Edge-TTS speech while keeping exact wording intact."""
+    # Replace markdown code blocks with an informative Arabic phrase
+    cleaned = re.sub(r'```[\w]*\n[\s\S]*?\n```', ' كود برمجي توضيحي ', text)
+    # Remove inline code backticks
+    cleaned = re.sub(r'`([^`]+)`', r'\1', cleaned)
+    # Strip markdown symbols (*, #, _, ~, >, etc.)
+    cleaned = re.sub(r'[*#_~>]', '', cleaned)
+    # Clean links [text](url) -> text
+    cleaned = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', cleaned)
+    # Clean up whitespace
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
+
+def generate_edge_tts_audio(text: str) -> bytes:
+    """Generates speech via Microsoft Edge TTS with voice 'ar-AE-HamdanNeural' and specified settings."""
+    spoken_text = clean_text_for_speech(text)
+    if not spoken_text:
+        spoken_text = text.strip()
+    if not spoken_text:
+        return b""
+
+    # Cache key based on text and voice params: ar-AE-HamdanNeural, Rate:+0%, Pitch:-2Hz, Volume:+0%
+    cache_key = hashlib.md5((spoken_text + "_ar-AE-HamdanNeural_+0%_-2Hz_+0%").encode('utf-8')).hexdigest()
+    cache_file = os.path.join(TTS_CACHE_DIR, f"{cache_key}.mp3")
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "rb") as f:
+                cached_bytes = f.read()
+                if len(cached_bytes) > 0:
+                    return cached_bytes
+        except Exception:
+            pass
+
+    async def _run():
+        communicate = edge_tts.Communicate(
+            text=spoken_text,
+            voice="ar-AE-HamdanNeural",
+            rate="+0%",
+            pitch="-2Hz",
+            volume="+0%"
+        )
+        chunks = []
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                chunks.append(chunk["data"])
+        return b"".join(chunks)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        audio_data = loop.run_until_complete(_run())
+    except Exception as e:
+        print(f"[EDGE-TTS ERROR] {e}")
+        audio_data = b""
+    finally:
+        loop.close()
+
+    if audio_data:
+        try:
+            with open(cache_file, "wb") as f:
+                f.write(audio_data)
+        except Exception:
+            pass
+
+    return audio_data
 
 # Iraqi Educational Stages Mapping
 IRAQI_STAGES_NAMES = {
@@ -562,6 +635,27 @@ class AppHandler(SimpleHTTPRequestHandler):
         if path == '/api/memories/clear':
             database.clear_all_memories(user_id=uid)
             self._send_json({"status": "cleared"})
+            return
+
+        # Text-To-Speech (Microsoft Edge TTS with ar-AE-HamdanNeural)
+        if path == '/api/tts':
+            text_to_speak = body.get('text', '').strip()
+            if not text_to_speak:
+                self._send_json({'error': 'No text provided'}, 400)
+                return
+
+            audio_bytes = generate_edge_tts_audio(text_to_speak)
+            if not audio_bytes:
+                self._send_json({'error': 'Failed to generate speech'}, 500)
+                return
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'audio/mpeg')
+            self.send_header('Content-Length', str(len(audio_bytes)))
+            self.send_header('Cache-Control', 'public, max-age=86400')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(audio_bytes)
             return
 
         # Stream Chat

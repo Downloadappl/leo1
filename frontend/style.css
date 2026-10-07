@@ -2770,3 +2770,49 @@ body.theme-light .user-action-btn:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
+/* ============================================================
+   TTS SPEAKER LISTENING BUTTON STYLES
+   ============================================================ */
+.msg-action-btn.action-speak {
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.msg-action-btn.action-speak:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+}
+
+.msg-action-btn.action-speak.playing-audio {
+  color: #ec4899 !important;
+  background: rgba(236, 72, 153, 0.18) !important;
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.4);
+  animation: pulse-speaker 1.4s infinite ease-in-out;
+}
+
+body.theme-light .msg-action-btn.action-speak.playing-audio {
+  color: #db2777 !important;
+  background: rgba(219, 39, 119, 0.12) !important;
+  box-shadow: 0 0 12px rgba(219, 39, 119, 0.25);
+}
+
+.msg-action-btn.action-speak.loading-audio {
+  color: #a855f7 !important;
+  opacity: 0.85;
+}
+
+@keyframes pulse-speaker {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.14); }
+}
+
+@keyframes tts-spin-anim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.tts-spin-anim {
+  animation: tts-spin-anim 0.85s linear infinite;
+}
+
+
