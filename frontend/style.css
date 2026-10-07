@@ -2815,4 +2815,54 @@ body.theme-light .msg-action-btn.action-speak.playing-audio {
   animation: tts-spin-anim 0.85s linear infinite;
 }
 
+/* --- Stream Error Card & Inline Retry --- */
+.stream-error-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: 6px;
+  color: #fca5a5;
+  font-size: 13.5px;
+  line-height: 1.5;
+  backdrop-filter: blur(8px);
+}
+
+.stream-error-card .stream-error-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.stream-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.stream-retry-btn:hover {
+  background: rgba(239, 68, 68, 0.32);
+  border-color: rgba(239, 68, 68, 0.6);
+  transform: translateY(-1px);
+}
+
+.stream-retry-btn:active {
+  transform: translateY(0);
+}
+
 

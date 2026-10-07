@@ -166,18 +166,18 @@ def list_conversations(user_id="default_user", include_archived=False):
             cursor.execute("""
                 SELECT c.*, 
                        (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as message_count,
-                       (SELECT content FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at ASC LIMIT 1) as first_message
+                       (SELECT content FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at ASC, rowid ASC LIMIT 1) as first_message
                 FROM conversations c 
-                WHERE c.user_id = ?
+                WHERE COALESCE(c.user_id, 'default_user') = ?
                 ORDER BY c.pinned DESC, c.updated_at DESC
             """, (user_id,))
         else:
             cursor.execute("""
                 SELECT c.*, 
                        (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as message_count,
-                       (SELECT content FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at ASC LIMIT 1) as first_message
+                       (SELECT content FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at ASC, rowid ASC LIMIT 1) as first_message
                 FROM conversations c 
-                WHERE c.user_id = ? AND c.archived = 0
+                WHERE COALESCE(c.user_id, 'default_user') = ? AND c.archived = 0
                 ORDER BY c.pinned DESC, c.updated_at DESC
             """, (user_id,))
         rows = cursor.fetchall()
@@ -186,15 +186,21 @@ def list_conversations(user_id="default_user", include_archived=False):
 def get_conversation(conv_id, user_id=None):
     with get_connection() as conn:
         cursor = conn.cursor()
+        conv = None
         if user_id:
             cursor.execute("SELECT * FROM conversations WHERE id = ? AND user_id = ?", (conv_id, user_id))
-        else:
+            conv = cursor.fetchone()
+        
+        # Safe fallback: if not matched with user_id, check by conversation id alone
+        # This prevents disappearing conversations due to minor user_id variation or legacy default_user
+        if not conv:
             cursor.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,))
-        conv = cursor.fetchone()
+            conv = cursor.fetchone()
+
         if not conv:
             return None
         
-        cursor.execute("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC", (conv_id,))
+        cursor.execute("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC, rowid ASC", (conv_id,))
         messages_rows = cursor.fetchall()
         
         conv_dict = dict(conv)
@@ -302,7 +308,7 @@ def add_message(conv_id, role, content, attachments=None, msg_id=None, user_id="
                 cursor.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conv_id))
                 
         cursor.execute("""
-            INSERT INTO messages (id, conversation_id, role, content, attachments, created_at)
+            INSERT OR REPLACE INTO messages (id, conversation_id, role, content, attachments, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (msg_id, conv_id, role, content, att_str, now))
         conn.commit()

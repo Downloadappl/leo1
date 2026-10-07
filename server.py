@@ -9,6 +9,7 @@ import time
 import re
 import hashlib
 import asyncio
+import uuid
 try:
     import edge_tts
 except Exception as e:
@@ -282,6 +283,13 @@ MODEL_MAP = {
 
 VISION_MODELS = {"leo-4o-pro", "leo-vision", "leo-academic", "gemini-2.5-flash", "gpt-5"}
 
+# Upstream Concurrency Limiter: prevents overwhelming model backend with uncontrolled simultaneous requests
+MODEL_SEMAPHORE = threading.BoundedSemaphore(value=4)
+
+# In-Flight Request Tracker: maps conversation_id -> {request_id, abort_event, user_msg, timestamp}
+ACTIVE_GENERATIONS = {}
+ACTIVE_GENERATIONS_LOCK = threading.Lock()
+
 class RewindClient:
     def __init__(self):
         self.session = requests.Session()
@@ -322,10 +330,13 @@ class RewindClient:
                 print(f"[AUTH ERROR] {e}")
             return False
 
-    def stream_chat(self, messages, model_name="leo-4o-mini", has_images=False, temperature=0.7, relevant_memories=None):
+    def stream_chat(self, messages, model_name="leo-4o-mini", has_images=False, temperature=0.7, relevant_memories=None, abort_event=None):
+        if abort_event and abort_event.is_set():
+            return
+
         if not self.access_token:
             if not self.authenticate():
-                yield from self._fallback_response(messages, relevant_memories=relevant_memories)
+                yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
                 return
 
         # Auto-switch to vision model if image is present
@@ -341,26 +352,23 @@ class RewindClient:
             'temperature': temperature
         }
 
-        headers = {
-            'Authorization': f"Bearer {self.access_token}",
-            'x-user-id': self.user_id,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
-
+        # Concurrency Limiter check (wait up to 4 seconds for a model slot)
+        acquired = MODEL_SEMAPHORE.acquire(blocking=True, timeout=4.0)
         try:
-            resp = self.session.post(
-                'https://api.rewind.ai/v1/chat/completions/',
-                json=payload,
-                headers=headers,
-                stream=True,
-                timeout=18
-            )
+            max_retries = 2
+            resp = None
+            for attempt in range(max_retries + 1):
+                if abort_event and abort_event.is_set():
+                    return
 
-            if resp.status_code in [401, 403]:
-                if self.authenticate():
-                    headers['Authorization'] = f"Bearer {self.access_token}"
-                    headers['x-user-id'] = self.user_id
+                headers = {
+                    'Authorization': f"Bearer {self.access_token}",
+                    'x-user-id': self.user_id or 'default_user',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+
+                try:
                     resp = self.session.post(
                         'https://api.rewind.ai/v1/chat/completions/',
                         json=payload,
@@ -368,14 +376,65 @@ class RewindClient:
                         stream=True,
                         timeout=18
                     )
+                except Exception as req_err:
+                    print(f"[REQUEST EXCEPTION attempt {attempt}] {req_err}")
+                    if attempt < max_retries:
+                        time.sleep(1.0)
+                        continue
+                    else:
+                        yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
+                        return
 
-            if resp.status_code != 200:
-                print(f"[STATUS ERROR {resp.status_code}] {resp.text[:150]}")
-                yield from self._fallback_response(messages, relevant_memories=relevant_memories)
+                # Auth expired
+                if resp.status_code in [401, 403]:
+                    if self.authenticate():
+                        headers['Authorization'] = f"Bearer {self.access_token}"
+                        headers['x-user-id'] = self.user_id or 'default_user'
+                        try:
+                            resp = self.session.post(
+                                'https://api.rewind.ai/v1/chat/completions/',
+                                json=payload,
+                                headers=headers,
+                                stream=True,
+                                timeout=18
+                            )
+                        except Exception:
+                            pass
+
+                # Rate Limiting & Temporary Overload Backoff (429, 502, 503, 504)
+                if resp.status_code in [429, 502, 503, 504]:
+                    print(f"[API STATUS {resp.status_code} attempt {attempt}] Rate limit or temporary provider overload.")
+                    if attempt < max_retries:
+                        retry_after = resp.headers.get('Retry-After')
+                        try:
+                            wait_time = float(retry_after) if retry_after else (1.2 * (2 ** attempt))
+                        except Exception:
+                            wait_time = 1.2 * (2 ** attempt)
+                        wait_time = min(wait_time, 3.5)
+                        if abort_event and abort_event.wait(timeout=wait_time):
+                            return
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"[RETRIES EXHAUSTED] Smooth fallback to curriculum knowledge base.")
+                        yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
+                        return
+
+                if resp.status_code == 200:
+                    break
+                else:
+                    print(f"[STATUS ERROR {resp.status_code}] {resp.text[:120]}")
+                    yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
+                    return
+
+            if not resp or resp.status_code != 200:
+                yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
                 return
 
             has_yielded = False
             for line in resp.iter_lines(decode_unicode=True):
+                if abort_event and abort_event.is_set():
+                    break
                 if not line:
                     continue
                 if line.startswith('data: '):
@@ -392,14 +451,14 @@ class RewindClient:
                     except Exception:
                         pass
 
-            if not has_yielded:
-                yield from self._fallback_response(messages, relevant_memories=relevant_memories)
+            if not has_yielded and (not abort_event or not abort_event.is_set()):
+                yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
 
-        except Exception as e:
-            print(f"[STREAM EXCEPTION] {e}")
-            yield from self._fallback_response(messages, relevant_memories=relevant_memories)
+        finally:
+            if acquired:
+                MODEL_SEMAPHORE.release()
 
-    def _fallback_response(self, messages, relevant_memories=None):
+    def _fallback_response(self, messages, relevant_memories=None, abort_event=None):
         user_msgs = [m for m in messages if m.get('role') == 'user']
         is_ongoing = len(user_msgs) > 1
 
@@ -505,6 +564,8 @@ class RewindClient:
 3. **الاستنتاج والتوصية:** استخلاص النتيجة لضمان تثبيت المعلومة لديك."""
 
         for word in text.split(' '):
+            if abort_event and abort_event.is_set():
+                break
             yield word + ' '
             time.sleep(0.02)
 
@@ -518,6 +579,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-User-Id, Authorization, X-Requested-With')
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
 
@@ -717,14 +779,45 @@ class AppHandler(SimpleHTTPRequestHandler):
             model = body.get('model', 'leo-4o-mini')
             temperature = float(body.get('temperature', 0.7))
             study_mode = body.get('study_mode', 'standard')
+            req_id = body.get('request_id') or f"req_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
+            user_msg_id = body.get('message_id') or f"msg_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
+            assistant_msg_id = body.get('assistant_message_id') or f"msg_{int(time.time()*1000)+1}_{uuid.uuid4().hex[:6]}"
 
             if not conv_id:
                 auto_t = database.generate_smart_title(user_text)
                 conv = database.create_conversation(title=auto_t, model=model, user_id=uid)
                 conv_id = conv['id']
 
-            # Save user message to database
-            database.add_message(conv_id, 'user', user_text, attachments=attachments, user_id=uid)
+            # In-Flight Concurrency & Deduplication Management
+            abort_event = threading.Event()
+            with ACTIVE_GENERATIONS_LOCK:
+                old_gen = ACTIVE_GENERATIONS.get(conv_id)
+                if old_gen:
+                    # Check for accidental duplicate submission of the exact same request
+                    if old_gen.get('request_id') == req_id or (old_gen.get('user_msg') == user_text and time.time() - old_gen.get('timestamp', 0) < 2.5):
+                        print(f"[CHAT DEDUPLICATION] Ignoring duplicate request {req_id} for conv {conv_id}")
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+                        self.send_header('Cache-Control', 'no-cache')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-User-Id, Authorization, X-Requested-With')
+                        self.end_headers()
+                        self.wfile.write(b"data: [DONE]\n\n")
+                        return
+
+                    # A new prompt or intentional retry superseded the active generation: signal abort to previous stream
+                    print(f"[CHAT SUPERSEDED] Cancelling previous active stream on conv {conv_id}")
+                    old_gen['abort_event'].set()
+
+                ACTIVE_GENERATIONS[conv_id] = {
+                    'request_id': req_id,
+                    'abort_event': abort_event,
+                    'user_msg': user_text,
+                    'timestamp': time.time()
+                }
+
+            # Save user message immediately to database with stable ID
+            database.add_message(conv_id, 'user', user_text, attachments=attachments, msg_id=user_msg_id, user_id=uid)
 
             # --- LONG-TERM MEMORY: Automatic extraction of user facts/preferences ---
             if user_text:
@@ -733,7 +826,6 @@ class AppHandler(SimpleHTTPRequestHandler):
                     database.add_memory(uid, cand_content, cand_cat)
 
             # --- LONG-TERM MEMORY: Intelligent Relevant Retrieval ---
-            # Retrieve ONLY memories strictly relevant to user_text (avoids sending unrelated memories)
             relevant_memories = database.find_relevant_memories(user_id=uid, query_text=user_text, limit=3)
 
             # Build history from conversation
@@ -782,12 +874,16 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Connection', 'close')
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-User-Id, Authorization, X-Requested-With')
             self.end_headers()
 
-            # First send conversation_id metadata & updated title
+            # First send conversation metadata (including request_id and stable message IDs)
             current_conv_info = database.get_conversation(conv_id, user_id=uid)
             meta_chunk = json.dumps({
+                'request_id': req_id,
                 'conversation_id': conv_id, 
+                'message_id': user_msg_id,
+                'assistant_message_id': assistant_msg_id,
                 'model': model, 
                 'title': current_conv_info.get('title', 'محادثة دراسية') if current_conv_info else 'محادثة دراسية'
             }, ensure_ascii=False)
@@ -801,20 +897,31 @@ class AppHandler(SimpleHTTPRequestHandler):
                     model_name=model,
                     has_images=has_images,
                     temperature=temperature,
-                    relevant_memories=relevant_memories
+                    relevant_memories=relevant_memories,
+                    abort_event=abort_event
                 ):
+                    if abort_event.is_set():
+                        break
                     full_assistant_reply.append(chunk)
                     data_line = f"data: {json.dumps({'content': chunk}, ensure_ascii=False)}\n\n"
                     self.wfile.write(data_line.encode('utf-8'))
                     self.wfile.flush()
-                self.wfile.write(b"data: [DONE]\n\n")
-                self.wfile.flush()
+
+                if not abort_event.is_set():
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush()
             except Exception as e:
                 print(f"[STREAM CLIENT TERMINATED] {e}")
             finally:
+                # Clean up in-flight generation registration
+                with ACTIVE_GENERATIONS_LOCK:
+                    cur = ACTIVE_GENERATIONS.get(conv_id)
+                    if cur and cur.get('request_id') == req_id:
+                        ACTIVE_GENERATIONS.pop(conv_id, None)
+
                 complete_text = "".join(full_assistant_reply).strip()
-                if complete_text:
-                    database.add_message(conv_id, 'assistant', complete_text, user_id=uid)
+                if complete_text and (not abort_event.is_set() or len(complete_text) > 15):
+                    database.add_message(conv_id, 'assistant', complete_text, msg_id=assistant_msg_id, user_id=uid)
             return
 
         self.send_response(404)
@@ -876,7 +983,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-User-Id, Authorization, X-Requested-With')
         self.end_headers()
 
 def run(port=8080):

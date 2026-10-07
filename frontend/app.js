@@ -37,6 +37,49 @@ document.addEventListener('DOMContentLoaded', () => {
     return _originalFetch(url, options);
   };
 
+  // --- Reliable Local Persistent Storage (Instant recovery on refresh / offline resilience) ---
+  function saveConversationToLocalCache(conv) {
+    if (!conv || !conv.id) return;
+    try {
+      localStorage.setItem(`leo_conv_${conv.id}`, JSON.stringify(conv));
+    } catch (e) {
+      console.warn('LocalStorage save failed:', e);
+    }
+  }
+
+  function getConversationFromLocalCache(convId) {
+    if (!convId) return null;
+    try {
+      const raw = localStorage.getItem(`leo_conv_${convId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function removeConversationFromLocalCache(convId) {
+    if (!convId) return;
+    try {
+      localStorage.removeItem(`leo_conv_${convId}`);
+    } catch (e) {}
+  }
+
+  function saveConversationsIndexToLocalCache(convs) {
+    if (!Array.isArray(convs)) return;
+    try {
+      localStorage.setItem('leo_conversations_index', JSON.stringify(convs));
+    } catch (e) {}
+  }
+
+  function getConversationsIndexFromLocalCache() {
+    try {
+      const raw = localStorage.getItem('leo_conversations_index');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Attachment Action Sheet Elements (Matches User Screenshot)
   const glowingInputBox = document.getElementById('glowingInputBox');
   const attachmentActionPanel = document.getElementById('attachmentActionPanel');
@@ -278,13 +321,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Enter strictly adds newline and does NOT send
+  // Enter handling: Ctrl+Enter sends with strict double-send prevention, plain Enter adds newline
   chatTextInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       if (e.ctrlKey || e.metaKey) {
-        // Optional convenience: Ctrl+Enter sends
         e.preventDefault();
-        handleSendPrompt();
+        if (!isSubmitting && !isGenerating) {
+          handleSendPrompt();
+        }
       } else {
         // Plain Enter adds a line break (مسافة سطر) and DOES NOT send
         setTimeout(autoResizeTextarea, 0);
@@ -292,8 +336,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Action pill click (Waveform / Send / Stop)
+  // Action pill click (Waveform / Send / Stop) with rapid double-click guard
+  let lastActionPillClick = 0;
   actionPillBtn.addEventListener('click', () => {
+    const clickTime = Date.now();
+    if (clickTime - lastActionPillClick < 350) return; // Prevent accidental rapid double-clicks
+    lastActionPillClick = clickTime;
+
     if (isGenerating) {
       if (activeStreamer) {
         activeStreamer.cancel();
@@ -310,7 +359,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (actionPillBtn.classList.contains('send-mode')) {
-      handleSendPrompt();
+      if (!isSubmitting && !isGenerating) {
+        handleSendPrompt();
+      }
     } else {
       toggleVoiceRecording();
     }
@@ -649,12 +700,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
   micBtn.addEventListener('click', toggleVoiceRecording);
 
-  // --- Load Persistent Conversations ---
-  async function loadConversationHistory() {
+  // --- Render Messages Stream Helper ---
+  function renderConversationMessages(messages) {
+    messagesStreamList.innerHTML = '';
+    if (!messages || messages.length === 0) {
+      showEmptyState();
+      return;
+    }
+    emptyStateContainer.style.display = 'none';
+    messages.forEach(msg => {
+      if (msg.role === 'user') {
+        appendUserMessage(msg.content, msg.attachments, msg.id);
+      } else {
+        renderStoredAssistantMessage(msg.content, msg.id);
+      }
+    });
+    scrollToBottom();
+  }
+
+  // --- Refresh Sidebar Conversation List Only (Does NOT touch or clear the active chat) ---
+  async function refreshConversationListOnly() {
     try {
       const res = await fetch(`/api/conversations?archived=${viewingArchived}`);
       if (!res.ok) return;
       const convs = await res.json();
+      saveConversationsIndexToLocalCache(convs);
+      renderRecentConversations(convs);
+    } catch (err) {
+      console.warn('Failed to refresh conversation list:', err);
+    }
+  }
+
+  // --- Load Persistent Conversations (On startup or tab switch) ---
+  async function loadConversationHistory() {
+    try {
+      const res = await fetch(`/api/conversations?archived=${viewingArchived}`);
+      if (!res.ok) {
+        // Fallback to local cache index if network hiccup
+        const cachedIndex = getConversationsIndexFromLocalCache();
+        if (cachedIndex) renderRecentConversations(cachedIndex);
+        return;
+      }
+      const convs = await res.json();
+      saveConversationsIndexToLocalCache(convs);
       renderRecentConversations(convs);
 
       if (currentConversationId) {
@@ -662,9 +750,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (exists) {
           openConversation(currentConversationId);
         } else if (convs.length > 0) {
-          openConversation(convs[0].id);
+          const localDraft = getConversationFromLocalCache(currentConversationId);
+          if (localDraft && localDraft.messages && localDraft.messages.length > 0) {
+            renderConversationMessages(localDraft.messages);
+          } else {
+            openConversation(convs[0].id);
+          }
         } else {
-          showEmptyState();
+          const localDraft = getConversationFromLocalCache(currentConversationId);
+          if (localDraft && localDraft.messages && localDraft.messages.length > 0) {
+            renderConversationMessages(localDraft.messages);
+          } else {
+            showEmptyState();
+          }
         }
       } else if (convs.length > 0) {
         openConversation(convs[0].id);
@@ -673,6 +771,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
+      const cachedIndex = getConversationsIndexFromLocalCache();
+      if (cachedIndex) renderRecentConversations(cachedIndex);
+      if (currentConversationId) {
+        const localDraft = getConversationFromLocalCache(currentConversationId);
+        if (localDraft && localDraft.messages && localDraft.messages.length > 0) {
+          renderConversationMessages(localDraft.messages);
+        }
+      }
     }
   }
 
@@ -728,7 +834,7 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({ pinned: !conv.pinned })
         });
         showToast(conv.pinned ? 'تم إلغاء التثبيت' : 'تم تثبيت المحادثة في الأعلى 📌');
-        loadConversationHistory();
+        refreshConversationListOnly();
       };
 
       item.querySelector('.edit').onclick = (e) => {
@@ -741,7 +847,13 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({ title: newTitle.trim() })
           }).then(() => {
             showToast('تمت إعادة تسمية المحادثة');
-            loadConversationHistory();
+            // Update local cache title
+            const cached = getConversationFromLocalCache(conv.id);
+            if (cached) {
+              cached.title = newTitle.trim();
+              saveConversationToLocalCache(cached);
+            }
+            refreshConversationListOnly();
           });
         }
       };
@@ -754,19 +866,21 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({ archived: !conv.archived })
         });
         showToast(conv.archived ? 'تم استرجاع المحادثة من الأرشيف' : 'تمت أرشفة المحادثة');
-        loadConversationHistory();
+        refreshConversationListOnly();
       };
 
       item.querySelector('.del').onclick = async (e) => {
         e.stopPropagation();
         if (confirm(`هل تريد حذف محادثة "${conv.title}" نهائياً؟`)) {
           await fetch(`/api/conversations/${conv.id}`, { method: 'DELETE' });
+          removeConversationFromLocalCache(conv.id);
           showToast('تم حذف المحادثة');
           if (currentConversationId === conv.id) {
             currentConversationId = null;
             localStorage.removeItem('leo_active_conv_id');
+            showEmptyState();
           }
-          loadConversationHistory();
+          refreshConversationListOnly();
         }
       };
 
@@ -798,27 +912,35 @@ document.addEventListener('DOMContentLoaded', () => {
       el.classList.toggle('active', el.dataset.id === convId);
     });
 
+    // 1. Instant Cache Render: Render cached messages immediately in 0ms!
+    const cachedConv = getConversationFromLocalCache(convId);
+    if (cachedConv && cachedConv.messages && cachedConv.messages.length > 0) {
+      renderConversationMessages(cachedConv.messages);
+    }
+
+    // 2. Fetch from server to sync latest updates
     try {
       const res = await fetch(`/api/conversations/${convId}`);
-      if (!res.ok) throw new Error('Not found');
+      if (!res.ok) {
+        if (!cachedConv || !cachedConv.messages || cachedConv.messages.length === 0) {
+          throw new Error('Not found');
+        }
+        return;
+      }
       const conv = await res.json();
+      saveConversationToLocalCache(conv);
 
-      messagesStreamList.innerHTML = '';
       if (!conv.messages || conv.messages.length === 0) {
-        showEmptyState();
+        if (!cachedConv || !cachedConv.messages || cachedConv.messages.length === 0) {
+          showEmptyState();
+        }
       } else {
-        emptyStateContainer.style.display = 'none';
-        conv.messages.forEach(msg => {
-          if (msg.role === 'user') {
-            appendUserMessage(msg.content, msg.attachments, msg.id);
-          } else {
-            renderStoredAssistantMessage(msg.content, msg.id);
-          }
-        });
-        scrollToBottom();
+        renderConversationMessages(conv.messages);
       }
     } catch (err) {
-      showEmptyState();
+      if (!cachedConv || !cachedConv.messages || cachedConv.messages.length === 0) {
+        showEmptyState();
+      }
     }
   }
 
@@ -846,6 +968,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const genderTerm = (studentProfile && studentProfile.gender === 'female') ? 'يا ابنتي' : 'يا بني';
     const phrase = name ? `هل أنت مستعد، ${genderTerm} ${name}؟` : 'هل أنت مستعد؟';
     runTypewriterEffect(phrase);
+  }
+
+  // --- Safe Markdown Parser for Streaming (handles unclosed code blocks gracefully) ---
+  function safeParseMarkdown(mdText) {
+    if (!window.marked) return mdText;
+    try {
+      const fenceMatches = mdText.match(/```/g);
+      const fenceCount = fenceMatches ? fenceMatches.length : 0;
+      let textToParse = mdText;
+      if (fenceCount % 2 !== 0) {
+        textToParse += '\n```';
+      }
+      return marked.parse(textToParse);
+    } catch (e) {
+      try {
+        return marked.parse(mdText);
+      } catch (e2) {
+        return mdText;
+      }
+    }
   }
 
   // --- Silky-Smooth Progressive Streaming Engine (ChatGPT & Claude Style) ---
@@ -909,12 +1051,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           this.revealed = this.buffer.slice(0, this.revealed.length + stepSize);
 
-          // Render progressive Markdown
-          if (window.marked) {
-            this.textElem.innerHTML = marked.parse(this.revealed);
-          } else {
-            this.textElem.textContent = this.revealed;
-          }
+          // Render progressive Markdown safely without breaking on partial code blocks
+          this.textElem.innerHTML = safeParseMarkdown(this.revealed);
 
           // Keep glowing typing cursor affixed at the active typing tip
           if (this.cursorElem) {
@@ -946,11 +1084,7 @@ document.addEventListener('DOMContentLoaded', () => {
         this.cursorElem.remove();
       }
       const finalText = this.buffer || this.revealed;
-      if (window.marked) {
-        this.textElem.innerHTML = marked.parse(finalText);
-      } else {
-        this.textElem.textContent = finalText;
-      }
+      this.textElem.innerHTML = safeParseMarkdown(finalText);
       bindCopyCodeButtons(this.textElem);
       scrollToBottom(true);
       if (this.onDone) {
@@ -959,10 +1093,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Send Message & Progressive Streaming (ChatGPT Style) ---
-  async function handleSendPrompt() {
-    const text = chatTextInput.value.trim();
-    if ((!text && pendingAttachments.length === 0) || isGenerating) return;
+  // --- Send Message & Progressive Streaming (Instant Optimistic UI + Deduplication Protection) ---
+  let isSubmitting = false;
+
+  async function handleSendPrompt(retryPromptText = null, retryAttachments = null) {
+    if (isSubmitting || isGenerating) return;
+
+    const text = (retryPromptText !== null) ? retryPromptText : chatTextInput.value.trim();
+    const attachmentsToSend = (retryAttachments !== null) ? retryAttachments : [...pendingAttachments];
+
+    if (!text && attachmentsToSend.length === 0) return;
 
     // Strict Authentication & Profile Gate (No dummy data allowed)
     if (!studentProfile || !studentProfile.name || !studentProfile.name.trim() || studentProfile.name.trim() === 'الطالب') {
@@ -971,23 +1111,55 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    chatTextInput.value = '';
-    autoResizeTextarea();
-    const attachmentsToSend = [...pendingAttachments];
-    pendingAttachments = [];
-    renderAttachmentChips();
-    actionPillBtn.classList.remove('send-mode');
+    isSubmitting = true;
+
+    // Reset composer immediately
+    if (retryPromptText === null) {
+      chatTextInput.value = '';
+      autoResizeTextarea();
+      pendingAttachments = [];
+      renderAttachmentChips();
+      actionPillBtn.classList.remove('send-mode');
+    }
     emptyStateContainer.style.display = 'none';
 
-    // Append User Message Immediately
-    appendUserMessage(text, attachmentsToSend);
-    scrollToBottom();
+    // Unique stable message IDs
+    const userMsgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const assistantMsgId = 'msg_' + (Date.now() + 2) + '_' + Math.random().toString(36).substring(2, 7);
+    const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    // Append User Message Immediately (unless it was already in DOM from a retry)
+    if (retryPromptText === null) {
+      appendUserMessage(text, attachmentsToSend, userMsgId);
+      scrollToBottom();
+    }
 
     // Prepare Assistant Slot for Streaming
-    const { messageRow, textElem, actionsElem, cursorElem } = createAssistantSlot();
+    const { messageRow, textElem, actionsElem, cursorElem } = createAssistantSlot(assistantMsgId);
     scrollToBottom();
 
+    // Immediately cache optimistic user message into local persistent storage
+    if (currentConversationId) {
+      let cached = getConversationFromLocalCache(currentConversationId) || {
+        id: currentConversationId,
+        title: 'محادثة دراسية',
+        messages: []
+      };
+      cached.messages = cached.messages || [];
+      if (retryPromptText === null) {
+        cached.messages.push({
+          id: userMsgId,
+          role: 'user',
+          content: text,
+          attachments: attachmentsToSend,
+          created_at: Date.now() / 1000
+        });
+      }
+      saveConversationToLocalCache(cached);
+    }
+
     isGenerating = true;
+    isSubmitting = false;
     actionPillBtn.classList.add('generating-mode');
     activeAbortController = new AbortController();
 
@@ -997,8 +1169,31 @@ document.addEventListener('DOMContentLoaded', () => {
       cursorElem,
       onDone: (finalContent) => {
         actionsElem.style.display = 'flex';
-        setupMessageToolbar(actionsElem, finalContent, messageRow);
-        loadConversationHistory();
+        setupMessageToolbar(actionsElem, finalContent, messageRow, assistantMsgId);
+        
+        // Persist completed assistant message into local persistent storage
+        if (currentConversationId && finalContent) {
+          let cached = getConversationFromLocalCache(currentConversationId) || {
+            id: currentConversationId,
+            title: 'محادثة دراسية',
+            messages: []
+          };
+          cached.messages = cached.messages || [];
+          if (!cached.messages.some(m => m.id === assistantMsgId)) {
+            cached.messages.push({
+              id: assistantMsgId,
+              role: 'assistant',
+              content: finalContent,
+              attachments: [],
+              created_at: Date.now() / 1000
+            });
+          }
+          saveConversationToLocalCache(cached);
+        }
+
+        // Only refresh the sidebar title and list - NEVER wipe active chat!
+        refreshConversationListOnly();
+
         isGenerating = false;
         activeAbortController = null;
         activeStreamer = null;
@@ -1009,7 +1204,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const payload = {
+        request_id: requestId,
         conversation_id: currentConversationId,
+        message_id: userMsgId,
+        assistant_message_id: assistantMsgId,
         content: text,
         attachments: attachmentsToSend,
         model: selectedModel,
@@ -1047,36 +1245,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
           try {
             const parsed = JSON.parse(dataContent);
-            if (parsed.conversation_id && !currentConversationId) {
+            if (parsed.conversation_id && parsed.conversation_id !== currentConversationId) {
               currentConversationId = parsed.conversation_id;
               localStorage.setItem('leo_active_conv_id', currentConversationId);
+              // Migrate local draft cache to new conversation ID if needed
+              let cached = getConversationFromLocalCache(currentConversationId) || {
+                id: currentConversationId,
+                title: parsed.title || 'محادثة دراسية',
+                messages: [{
+                  id: userMsgId,
+                  role: 'user',
+                  content: text,
+                  attachments: attachmentsToSend,
+                  created_at: Date.now() / 1000
+                }]
+              };
+              saveConversationToLocalCache(cached);
             }
             if (parsed.content) {
-              // Pipe into the smooth progressive cadence streamer
               activeStreamer.append(parsed.content);
             }
           } catch (e) {}
         }
       }
 
-      // Notify streamer that network transmission ended
       activeStreamer.finish();
 
     } catch (err) {
+      isSubmitting = false;
       if (err.name === 'AbortError') {
-        // Generation cancelled by user
+        isGenerating = false;
+        activeAbortController = null;
+        activeStreamer = null;
+        actionPillBtn.classList.remove('generating-mode');
         return;
       }
-      if (!activeStreamer.buffer) {
-        let errorMsg = '⚠️ حدث خطأ أثناء الاستجابة.';
-        if (!navigator.onLine || (err.message && (err.message.toLowerCase().includes('failed to fetch') || err.message.toLowerCase().includes('network')))) {
-          errorMsg = '⚠️ حدث خطأ أثناء الاستجابة: لا يوجد اتصال بالإنترنت. يرجى التحقق من اتصالك بالشبكة ثم إعادة المحاولة.';
-        } else {
-          errorMsg = `⚠️ حدث خطأ أثناء الاستجابة: ${err.message || 'تعذر الاتصال بالخادم'}. يرجى المحاولة مرة أخرى.`;
-        }
-        activeStreamer.append(errorMsg);
+
+      isGenerating = false;
+      actionPillBtn.classList.remove('generating-mode');
+
+      let errorMsg = '⚠️ حدث خطأ أثناء الاستجابة.';
+      if (!navigator.onLine || (err.message && (err.message.toLowerCase().includes('failed to fetch') || err.message.toLowerCase().includes('network')))) {
+        errorMsg = 'لا يوجد اتصال بالإنترنت أو تعذر الوصول إلى الخادم. رسالتك محفوظة.';
+      } else {
+        errorMsg = `تعذر استلام الرد (${err.message || 'خطأ في الاتصال'}).`;
       }
-      activeStreamer.finish();
+
+      // Keep user message intact and display real inline retry card
+      textElem.innerHTML = `
+        <div class="stream-error-card">
+          <div class="stream-error-content">
+            <span>⚠️</span>
+            <span>${errorMsg}</span>
+          </div>
+          <button class="stream-retry-btn" type="button">🔄 إعادة المحاولة</button>
+        </div>
+      `;
+
+      const retryBtn = textElem.querySelector('.stream-retry-btn');
+      if (retryBtn) {
+        retryBtn.onclick = () => {
+          messageRow.remove();
+          handleSendPrompt(text, attachmentsToSend);
+        };
+      }
+
+      if (cursorElem && cursorElem.parentNode) cursorElem.remove();
+      activeAbortController = null;
+      activeStreamer = null;
     }
   }
 
@@ -1158,14 +1394,35 @@ document.addEventListener('DOMContentLoaded', () => {
               body: JSON.stringify({ message_id: actualMsgId })
             });
           } catch (err) {}
+          const cached = getConversationFromLocalCache(currentConversationId);
+          if (cached && cached.messages) {
+            const idx = cached.messages.findIndex(m => m.id === actualMsgId);
+            if (idx !== -1) {
+              cached.messages = cached.messages.slice(0, idx);
+              saveConversationToLocalCache(cached);
+            }
+          }
         }
 
         showToast('تم فتح الرسالة للتعديل وحذف الردود اللاحقة');
       };
 
       // Delete Action
-      toolbar.querySelector('.action-del-user').onclick = (e) => {
+      toolbar.querySelector('.action-del-user').onclick = async (e) => {
         e.stopPropagation();
+        const actualMsgId = msgId || row.dataset.msgId;
+        if (actualMsgId) {
+          try {
+            await fetch(`/api/messages/${actualMsgId}`, { method: 'DELETE' });
+          } catch (err) {}
+        }
+        if (currentConversationId) {
+          const cached = getConversationFromLocalCache(currentConversationId);
+          if (cached && cached.messages) {
+            cached.messages = cached.messages.filter(m => m.id !== actualMsgId);
+            saveConversationToLocalCache(cached);
+          }
+        }
         row.remove();
         showToast('تم حذف الرسالة');
       };
@@ -1192,9 +1449,10 @@ document.addEventListener('DOMContentLoaded', () => {
     messagesStreamList.appendChild(row);
   }
 
-  function createAssistantSlot() {
+  function createAssistantSlot(msgId) {
     const messageRow = document.createElement('div');
     messageRow.className = 'assistant-message-row';
+    if (msgId) messageRow.dataset.msgId = msgId;
 
     const textElem = document.createElement('div');
     textElem.className = 'assistant-message-text';
@@ -1385,7 +1643,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     delBtn.onclick = async () => {
-      if (msgId) await fetch(`/api/messages/${msgId}`, { method: 'DELETE' });
+      const actualMsgId = msgId || messageRow.dataset.msgId;
+      if (actualMsgId) {
+        try {
+          await fetch(`/api/messages/${actualMsgId}`, { method: 'DELETE' });
+        } catch (e) {}
+      }
+      if (currentConversationId) {
+        const cached = getConversationFromLocalCache(currentConversationId);
+        if (cached && cached.messages) {
+          cached.messages = cached.messages.filter(m => m.id !== actualMsgId);
+          saveConversationToLocalCache(cached);
+        }
+      }
       messageRow.remove();
       showToast('تم حذف الرسالة');
     };
@@ -1922,7 +2192,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initial Startup & Profile Check ---
   async function startup() {
     try {
-      // 0. Immediate localStorage cache restore (strictly purge any placeholder 'الطالب')
+      // 0. Immediate synchronous restore of conversation and sidebar index (0ms latency, prevents screen wipe on refresh!)
+      const cachedActiveConvId = localStorage.getItem('leo_active_conv_id');
+      const cachedIndex = getConversationsIndexFromLocalCache();
+      if (cachedIndex && cachedIndex.length > 0) {
+        renderRecentConversations(cachedIndex);
+      }
+      if (cachedActiveConvId) {
+        const cachedActiveConv = getConversationFromLocalCache(cachedActiveConvId);
+        if (cachedActiveConv && cachedActiveConv.messages && cachedActiveConv.messages.length > 0) {
+          currentConversationId = cachedActiveConvId;
+          renderConversationMessages(cachedActiveConv.messages);
+        }
+      }
+
+      // 1. Immediate localStorage profile cache restore (strictly purge any placeholder 'الطالب')
       const localCachedProf = localStorage.getItem('leo_student_profile');
       if (localCachedProf) {
         try {
