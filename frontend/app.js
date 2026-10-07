@@ -37,13 +37,17 @@ document.addEventListener('DOMContentLoaded', () => {
     return _originalFetch(url, options);
   };
 
-  // --- Reliable Local Persistent Storage (Instant recovery on refresh / offline resilience) ---
+  // --- Reliable Local Persistent Storage + Firebase Cloud Sync ---
   function saveConversationToLocalCache(conv) {
     if (!conv || !conv.id) return;
     try {
       localStorage.setItem(`leo_conv_${conv.id}`, JSON.stringify(conv));
     } catch (e) {
       console.warn('LocalStorage save failed:', e);
+    }
+    // Instant Cloud Persistence to Firebase (Ensures conversations never disappear)
+    if (window.LeoFirebase && typeof window.LeoFirebase.saveConversation === 'function') {
+      window.LeoFirebase.saveConversation(conv).catch(() => {});
     }
   }
 
@@ -62,6 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       localStorage.removeItem(`leo_conv_${convId}`);
     } catch (e) {}
+    // Delete from Firebase Cloud
+    if (window.LeoFirebase && typeof window.LeoFirebase.deleteConversation === 'function') {
+      window.LeoFirebase.deleteConversation(convId).catch(() => {});
+    }
   }
 
   function saveConversationsIndexToLocalCache(convs) {
@@ -731,30 +739,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Load Persistent Conversations (On startup or tab switch) ---
+  // --- Load Persistent Conversations (Firebase Cloud + Local Offline + Server) ---
   async function loadConversationHistory() {
     try {
-      const res = await fetch(`/api/conversations?archived=${viewingArchived}`);
-      if (!res.ok) {
-        // Fallback to local cache index if network hiccup
-        const cachedIndex = getConversationsIndexFromLocalCache();
-        if (cachedIndex) renderRecentConversations(cachedIndex);
-        return;
+      // 0. Instant Render: Local Cache Index (0ms latency)
+      const cachedIndex = getConversationsIndexFromLocalCache();
+      if (cachedIndex && cachedIndex.length > 0) {
+        const filteredCached = viewingArchived ? cachedIndex.filter(c => c.archived) : cachedIndex.filter(c => !c.archived);
+        renderRecentConversations(filteredCached);
       }
-      const convs = await res.json();
+
+      // 1. Fetch from Firebase Cloud Storage
+      let convs = null;
+      if (window.LeoFirebase && typeof window.LeoFirebase.getAllConversations === 'function') {
+        try {
+          const cloudList = await window.LeoFirebase.getAllConversations();
+          if (Array.isArray(cloudList) && cloudList.length > 0) {
+            convs = cloudList;
+          }
+        } catch (e) {
+          console.warn('Firebase conversation load notice:', e);
+        }
+      }
+
+      // 2. Fallback to server API if Firebase had no entries yet
+      if (!convs) {
+        try {
+          const res = await fetch(`/api/conversations?archived=${viewingArchived}`);
+          if (res.ok) {
+            convs = await res.json();
+          }
+        } catch (e) {}
+      }
+
+      if (!convs) {
+        convs = cachedIndex || [];
+      }
+
       saveConversationsIndexToLocalCache(convs);
-      renderRecentConversations(convs);
+      const filtered = viewingArchived ? convs.filter(c => c.archived) : convs.filter(c => !c.archived);
+      renderRecentConversations(filtered);
 
       if (currentConversationId) {
         const exists = convs.find(c => c.id === currentConversationId);
         if (exists) {
           openConversation(currentConversationId);
-        } else if (convs.length > 0) {
+        } else if (filtered.length > 0) {
           const localDraft = getConversationFromLocalCache(currentConversationId);
           if (localDraft && localDraft.messages && localDraft.messages.length > 0) {
             renderConversationMessages(localDraft.messages);
           } else {
-            openConversation(convs[0].id);
+            openConversation(filtered[0].id);
           }
         } else {
           const localDraft = getConversationFromLocalCache(currentConversationId);
@@ -764,8 +799,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showEmptyState();
           }
         }
-      } else if (convs.length > 0) {
-        openConversation(convs[0].id);
+      } else if (filtered.length > 0) {
+        openConversation(filtered[0].id);
       } else {
         showEmptyState();
       }
@@ -828,12 +863,17 @@ document.addEventListener('DOMContentLoaded', () => {
       // Actions Bindings
       item.querySelector('.pin').onclick = async (e) => {
         e.stopPropagation();
-        await fetch(`/api/conversations/${conv.id}`, {
+        const newPinned = !conv.pinned;
+        conv.pinned = newPinned;
+        if (window.LeoFirebase) {
+          window.LeoFirebase.updateConversation(conv.id, { pinned: newPinned }).catch(() => {});
+        }
+        fetch(`/api/conversations/${conv.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pinned: !conv.pinned })
-        });
-        showToast(conv.pinned ? 'تم إلغاء التثبيت' : 'تم تثبيت المحادثة في الأعلى 📌');
+          body: JSON.stringify({ pinned: newPinned })
+        }).catch(() => {});
+        showToast(newPinned ? 'تم تثبيت المحادثة في الأعلى 📌' : 'تم إلغاء التثبيت');
         refreshConversationListOnly();
       };
 
@@ -841,38 +881,49 @@ document.addEventListener('DOMContentLoaded', () => {
         e.stopPropagation();
         const newTitle = prompt('أدخل الاسم الجديد للمحادثة:', conv.title);
         if (newTitle && newTitle.trim()) {
+          const finalTitle = newTitle.trim();
+          conv.title = finalTitle;
+          if (window.LeoFirebase) {
+            window.LeoFirebase.updateConversation(conv.id, { title: finalTitle }).catch(() => {});
+          }
           fetch(`/api/conversations/${conv.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: newTitle.trim() })
-          }).then(() => {
-            showToast('تمت إعادة تسمية المحادثة');
-            // Update local cache title
-            const cached = getConversationFromLocalCache(conv.id);
-            if (cached) {
-              cached.title = newTitle.trim();
-              saveConversationToLocalCache(cached);
-            }
-            refreshConversationListOnly();
-          });
+            body: JSON.stringify({ title: finalTitle })
+          }).catch(() => {});
+          showToast('تمت إعادة تسمية المحادثة');
+          const cached = getConversationFromLocalCache(conv.id);
+          if (cached) {
+            cached.title = finalTitle;
+            saveConversationToLocalCache(cached);
+          }
+          refreshConversationListOnly();
         }
       };
 
       item.querySelector('.archive').onclick = async (e) => {
         e.stopPropagation();
-        await fetch(`/api/conversations/${conv.id}`, {
+        const newArchived = !conv.archived;
+        conv.archived = newArchived;
+        if (window.LeoFirebase) {
+          window.LeoFirebase.updateConversation(conv.id, { archived: newArchived }).catch(() => {});
+        }
+        fetch(`/api/conversations/${conv.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ archived: !conv.archived })
-        });
-        showToast(conv.archived ? 'تم استرجاع المحادثة من الأرشيف' : 'تمت أرشفة المحادثة');
+          body: JSON.stringify({ archived: newArchived })
+        }).catch(() => {});
+        showToast(newArchived ? 'تمت أرشفة المحادثة' : 'تم استرجاع المحادثة من الأرشيف');
         refreshConversationListOnly();
       };
 
       item.querySelector('.del').onclick = async (e) => {
         e.stopPropagation();
         if (confirm(`هل تريد حذف محادثة "${conv.title}" نهائياً؟`)) {
-          await fetch(`/api/conversations/${conv.id}`, { method: 'DELETE' });
+          if (window.LeoFirebase) {
+            window.LeoFirebase.deleteConversation(conv.id).catch(() => {});
+          }
+          fetch(`/api/conversations/${conv.id}`, { method: 'DELETE' }).catch(() => {});
           removeConversationFromLocalCache(conv.id);
           showToast('تم حذف المحادثة');
           if (currentConversationId === conv.id) {
@@ -918,8 +969,17 @@ document.addEventListener('DOMContentLoaded', () => {
       renderConversationMessages(cachedConv.messages);
     }
 
-    // 2. Fetch from server to sync latest updates
+    // 2. Fetch from Firebase Cloud or server to sync latest updates
     try {
+      if (window.LeoFirebase && typeof window.LeoFirebase.getConversation === 'function') {
+        const cloudConv = await window.LeoFirebase.getConversation(convId);
+        if (cloudConv && Array.isArray(cloudConv.messages) && cloudConv.messages.length > 0) {
+          saveConversationToLocalCache(cloudConv);
+          renderConversationMessages(cloudConv.messages);
+          return;
+        }
+      }
+
       const res = await fetch(`/api/conversations/${convId}`);
       if (!res.ok) {
         if (!cachedConv || !cachedConv.messages || cachedConv.messages.length === 0) {
@@ -1835,21 +1895,46 @@ document.addEventListener('DOMContentLoaded', () => {
     const grade_sub = profGradeSubSelect.value;
     const specialization = profSpecializationInput.value.trim();
 
-    studentProfile = { name, gender, stage, grade_sub, specialization };
+    const emailInput = document.getElementById('profEmailInput');
+    const passInput = document.getElementById('profPasswordInput');
+    const email = emailInput ? emailInput.value.trim() : '';
+    const password = passInput ? passInput.value.trim() : '';
+
+    studentProfile = { name, gender, stage, grade_sub, specialization, email };
     try {
       localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
     } catch (e) {}
 
-    await fetch('/api/profile', {
+    // Save & Authenticate with Firebase Cloud Storage
+    if (window.LeoFirebase) {
+      try {
+        if (email && password && password.length >= 6) {
+          try {
+            await window.LeoFirebase.signIn(email, password);
+            await window.LeoFirebase.saveProfile(studentProfile);
+          } catch (signInErr) {
+            await window.LeoFirebase.signUp(email, password, studentProfile);
+          }
+        } else {
+          await window.LeoFirebase.ensureAuthenticated(deviceUserId, name);
+          await window.LeoFirebase.saveProfile(studentProfile);
+        }
+      } catch (fbErr) {
+        console.warn('Firebase profile notice:', fbErr);
+      }
+    }
+
+    // Sync to local server
+    fetch('/api/profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(studentProfile)
-    });
+    }).catch(() => {});
 
     profileModalCloseBtn.style.display = 'flex';
     updateProfileUI();
     profileModalOverlay.classList.remove('active');
-    showToast(`أهلاً بك يا ${name}! تم تسجيل دخولك بنجاح 🎓`);
+    showToast(`أهلاً بك يا ${name}! تم حفظ بياناتك ومحادثاتك سحابياً في Firebase 🎓`);
     showEmptyState();
   });
 
@@ -2160,8 +2245,11 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Logout / Switch Student Account
-  logoutRow.onclick = () => {
+  logoutRow.onclick = async () => {
     if (confirm('هل ترغب بتسجيل الخروج وتبديل الحساب الدراسي؟')) {
+      if (window.LeoFirebase && typeof window.LeoFirebase.signOutUser === 'function') {
+        await window.LeoFirebase.signOutUser().catch(() => {});
+      }
       localStorage.removeItem('leo_student_profile');
       studentProfile = null;
       updateProfileUI();
@@ -2278,12 +2366,99 @@ document.addEventListener('DOMContentLoaded', () => {
       loadConversationHistory();
       refreshMemoriesUI();
 
-      // 7. Background Sync: Push all locally cached conversations to server DB
+      // 7. Background Sync: Push all locally cached conversations to server DB & Firebase Cloud
       //    This ensures conversations survive server restarts, Vercel cold starts, and DB resets.
       syncLocalConversationsToServer();
 
+      // 8. Firebase Realtime Cloud Synchronization
+      initFirebaseStartup();
+
     } catch (e) {
       console.error('Startup error:', e);
+    }
+  }
+
+  // --- Firebase Cloud Sync Initialization ---
+  async function initFirebaseStartup() {
+    if (!window.LeoFirebase) {
+      window.addEventListener('load', () => setTimeout(initFirebaseStartup, 200), { once: true });
+      return;
+    }
+
+    try {
+      await window.LeoFirebase.ensureAuthenticated(deviceUserId, studentProfile ? studentProfile.name : '');
+
+      // Realtime listener: Any change in Firebase immediately updates the sidebar & cache
+      window.LeoFirebase.onConversationsChanged((firebaseConvs) => {
+        if (Array.isArray(firebaseConvs) && firebaseConvs.length > 0) {
+          saveConversationsIndexToLocalCache(firebaseConvs);
+          const filtered = viewingArchived ? firebaseConvs.filter(c => c.archived) : firebaseConvs.filter(c => !c.archived);
+          renderRecentConversations(filtered);
+
+          firebaseConvs.forEach(fc => {
+            if (fc && fc.id && Array.isArray(fc.messages)) {
+              try {
+                localStorage.setItem(`leo_conv_${fc.id}`, JSON.stringify(fc));
+              } catch (e) {}
+            }
+          });
+
+          if (currentConversationId) {
+            const activeCloud = firebaseConvs.find(c => c.id === currentConversationId);
+            if (activeCloud && activeCloud.messages && activeCloud.messages.length > 0) {
+              const currentRows = messagesStreamList.querySelectorAll('.message-row');
+              if (currentRows.length === 0) {
+                renderConversationMessages(activeCloud.messages);
+              }
+            }
+          }
+        }
+      });
+
+      // Restore profile from Firebase if local is missing
+      const cloudProfile = await window.LeoFirebase.getProfile();
+      if (cloudProfile && cloudProfile.name && (!studentProfile || !studentProfile.name || studentProfile.name === 'الطالب')) {
+        studentProfile = cloudProfile;
+        localStorage.setItem('leo_student_profile', JSON.stringify(cloudProfile));
+        updateProfileUI();
+      } else if (studentProfile && studentProfile.name && studentProfile.name !== 'الطالب') {
+        window.LeoFirebase.saveProfile(studentProfile).catch(() => {});
+      }
+
+      // Sync local conversations to Firebase cloud
+      syncLocalConversationsToFirebase();
+
+    } catch (err) {
+      console.warn('Firebase startup initialization notice:', err);
+    }
+  }
+
+  // --- Sync local conversations to Firebase Cloud ---
+  async function syncLocalConversationsToFirebase() {
+    if (!window.LeoFirebase || typeof window.LeoFirebase.saveConversation !== 'function') return;
+    try {
+      const indexRaw = localStorage.getItem('leo_conversations_index');
+      if (!indexRaw) return;
+      const index = JSON.parse(indexRaw);
+      if (!Array.isArray(index) || index.length === 0) return;
+
+      for (const conv of index) {
+        if (!conv || !conv.id) continue;
+        const cached = getConversationFromLocalCache(conv.id);
+        const dataToPush = (cached && cached.messages) ? cached : {
+          id: conv.id,
+          title: conv.title || 'محادثة دراسية',
+          created_at: conv.created_at,
+          updated_at: conv.updated_at,
+          model: conv.model,
+          pinned: conv.pinned,
+          archived: conv.archived,
+          messages: []
+        };
+        await window.LeoFirebase.saveConversation(dataToPush).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Firebase local sync failed (non-critical):', e);
     }
   }
 

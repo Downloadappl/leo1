@@ -668,6 +668,16 @@
             <input type="text" id="profSpecializationInput" placeholder="مثال: هندسة معلومات، طب عام، صيدلة، قانون، إدارة..." dir="rtl">
           </div>
 
+          <!-- Firebase Cloud Account Sync (Optional Email & Password) -->
+          <div class="modal-field">
+            <label for="profEmailInput">البريد الإلكتروني (اختياري — لحفظ ومزامنة محادثاتك سحابياً عبر فايربيس):</label>
+            <input type="email" id="profEmailInput" placeholder="student@example.com" dir="ltr" autocomplete="email">
+          </div>
+          <div class="modal-field">
+            <label for="profPasswordInput">كلمة المرور (اختياري لحسابك السحابي):</label>
+            <input type="password" id="profPasswordInput" placeholder="•••••••• (6 أحرف على الأقل)" dir="ltr" autocomplete="current-password">
+          </div>
+
           <button class="modal-primary-btn login-submit-btn" id="saveProfileBtn">
             <span>تسجيل الدخول والبدء مع الأستاذ ليو</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -675,7 +685,7 @@
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
           </button>
-          <div class="login-privacy-note">🔒 بياناتك الدراسية تُحفظ على جهازك وحسابك فقط لتخصيص الشرح بدقة.</div>
+          <div class="login-privacy-note">🔒 بياناتك ومحادثاتك تُحفظ سحابياً في Firebase لضمان عدم اختفائها أبداً عند تحديث الصفحة أو تغيير الجهاز.</div>
         </div>
       </div>
     </div>
@@ -743,6 +753,8 @@
 
   </div>
 
+  <!-- Firebase Cloud Integration Module -->
+  <script type="module" src="firebase-service.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
