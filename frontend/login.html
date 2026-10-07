@@ -428,7 +428,7 @@
         <!-- Active Session Quick Jump (Shown if user already has profile) -->
         <div id="existingSessionBanner" class="existing-session-banner" style="display: none;">
           <span>أنت مسجل حالياً باسم: <strong id="existingUserName">الطالب</strong></span>
-          <a id="continueExistingBtn" href="/">الدخول مباشرة ←</a>
+          <a id="continueExistingBtn" href="index.html">الدخول مباشرة ←</a>
         </div>
 
         <!-- ========================================================
@@ -598,15 +598,9 @@
 
   </div>
 
-  <!-- Firebase Integration & Login Script -->
-  <script type="module">
-    const scriptPrefix = window.location.pathname.includes('/login') ? '/' : './';
-    import(`${scriptPrefix}firebase-service.js`).then(() => {
-      return import(`${scriptPrefix}login.js`);
-    }).catch(e => {
-      // Fallback relative import
-      import('./firebase-service.js').then(() => import('./login.js'));
-    });
-  </script>
+  <!-- Firebase Integration -->
+  <script type="module" src="firebase-service.js"></script>
+  <!-- Login App Logic -->
+  <script type="module" src="login.js"></script>
 </body>
 </html>

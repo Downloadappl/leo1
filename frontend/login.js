@@ -225,10 +225,10 @@ document.addEventListener('DOMContentLoaded', () => {
       window.LeoFirebase.saveProfile(profileData).catch(() => {});
     }
 
-    // 3. Show success alert briefly and redirect to the main app (Clean URL / without index.html)!
+    // 3. Show success alert briefly and redirect to the main app!
     showAlert(`تم تجهيز حسابك بنجاح! جاري تحويلك إلى قاعة الدراسة...`, 'success');
     setTimeout(() => {
-      window.location.replace(window.location.protocol === 'file:' ? 'index.html' : '/');
+      window.location.replace('index.html');
     }, 400);
   }
 

@@ -43,21 +43,20 @@
   <script src="marked.min.js"></script>
   <script src="highlight.min.js"></script>
 
-  <!-- Instant Session Guard: If student has not logged in, immediately redirect to clean URL /login -->
+  <!-- Instant Session Guard: If student has not logged in, immediately redirect to login.html -->
   <script>
     try {
       const _p = localStorage.getItem('leo_student_profile');
-      const _loginPath = window.location.protocol === 'file:' ? 'login.html' : '/login';
       if (!_p) {
-        window.location.replace(_loginPath);
+        window.location.replace('login.html');
       } else {
         const _parsed = JSON.parse(_p);
         if (!_parsed || !_parsed.name || _parsed.name.trim() === 'الطالب') {
-          window.location.replace(_loginPath);
+          window.location.replace('login.html');
         }
       }
     } catch (e) {
-      window.location.replace(window.location.protocol === 'file:' ? 'login.html' : '/login');
+      window.location.replace('login.html');
     }
   </script>
 </head>
