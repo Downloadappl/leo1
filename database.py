@@ -317,6 +317,19 @@ def delete_message(msg_id):
         conn.commit()
     return True
 
+def trim_messages_from_id(conv_id, msg_id):
+    """Deletes the specified message and all subsequent messages in the conversation."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT created_at FROM messages WHERE id = ? AND conversation_id = ?", (msg_id, conv_id))
+        row = cursor.fetchone()
+        if row:
+            msg_time = row['created_at']
+            cursor.execute("DELETE FROM messages WHERE conversation_id = ? AND created_at >= ?", (conv_id, msg_time))
+            conn.commit()
+    return True
+
+
 # --- Student Profile (Per User - Iraqi Curriculum) ---
 
 def get_student_profile(user_id="default_user"):

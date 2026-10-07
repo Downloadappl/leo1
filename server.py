@@ -20,16 +20,37 @@ TTS_CACHE_DIR = os.path.join(BASE_DIR, "data", "tts_cache")
 os.makedirs(TTS_CACHE_DIR, exist_ok=True)
 
 def clean_text_for_speech(text: str) -> str:
-    """Prepares text for natural Edge-TTS speech while keeping exact wording intact."""
-    # Replace markdown code blocks with an informative Arabic phrase
+    """Prepares text for natural Edge-TTS speech without underscores or markdown symbols, pronouncing C++ as سي بلس بلس."""
+    # 1. Replace markdown code blocks with an informative Arabic phrase
     cleaned = re.sub(r'```[\w]*\n[\s\S]*?\n```', ' كود برمجي توضيحي ', text)
-    # Remove inline code backticks
     cleaned = re.sub(r'`([^`]+)`', r'\1', cleaned)
-    # Strip markdown symbols (*, #, _, ~, >, etc.)
-    cleaned = re.sub(r'[*#_~>]', '', cleaned)
-    # Clean links [text](url) -> text
+
+    # 2. Pronounce C++, C#, ++, etc. properly as asked ("ينطقها بلاس")
+    cleaned = re.sub(r'(?i)\bc\+\+', 'سي بلس بلس', cleaned)
+    cleaned = re.sub(r'سي\+\+', 'سي بلس بلس', cleaned)
+    cleaned = re.sub(r'(?i)\bc#', 'سي شارب', cleaned)
+    cleaned = re.sub(r'\+\+', ' بلس بلس ', cleaned)
+    cleaned = re.sub(r'(?<=[a-zA-Z\u0600-\u06FF])\+(?=[a-zA-Z\u0600-\u06FF]|\b)', ' بلس ', cleaned)
+
+    # 3. Remove underscores completely (الشرطة السفلية _ ) so they are NEVER pronounced
+    cleaned = cleaned.replace('_', ' ')
+
+    # 4. Clean bullet markers at start of lines (- , * , • )
+    cleaned = re.sub(r'(?m)^[ \t]*[-*•]\s+', '', cleaned)
+
+    # 5. Remove horizontal rules and repeated dashes / equal signs
+    cleaned = re.sub(r'[-=~*#_>|]{2,}', ' ', cleaned)
+
+    # 6. Remove remaining markdown formatting symbols (*, #, ~, >, |, etc.)
+    cleaned = re.sub(r'[*#~>|\\]', '', cleaned)
+
+    # 7. Clean markdown links [label](url) -> label
     cleaned = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', cleaned)
-    # Clean up whitespace
+
+    # 8. Clean up isolated hyphens between spaces
+    cleaned = re.sub(r'\s+-\s+', ' ، ', cleaned)
+
+    # 9. Normalize whitespace
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
     return cleaned
 
@@ -41,8 +62,8 @@ def generate_edge_tts_audio(text: str) -> bytes:
     if not spoken_text:
         return b""
 
-    # Cache key based on text and voice params: ar-AE-HamdanNeural, Rate:+0%, Pitch:-2Hz, Volume:+0%
-    cache_key = hashlib.md5((spoken_text + "_ar-AE-HamdanNeural_+0%_-2Hz_+0%").encode('utf-8')).hexdigest()
+    # Cache key with v3 salt ensuring new pronunciation rules are applied
+    cache_key = hashlib.md5((spoken_text + "_v3_ar-AE-HamdanNeural_+0%_-2Hz_+0%").encode('utf-8')).hexdigest()
     cache_file = os.path.join(TTS_CACHE_DIR, f"{cache_key}.mp3")
     if os.path.exists(cache_file):
         try:
@@ -656,6 +677,15 @@ class AppHandler(SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(audio_bytes)
+            return
+
+        # Trim conversation from a specific message ID onward (when user edits a message)
+        if path.startswith('/api/conversations/') and path.endswith('/trim'):
+            conv_id = path.split('/api/conversations/')[1].replace('/trim', '').strip()
+            msg_id = body.get('message_id')
+            if conv_id and msg_id:
+                database.trim_messages_from_id(conv_id, msg_id)
+            self._send_json({"status": "trimmed"})
             return
 
         # Stream Chat

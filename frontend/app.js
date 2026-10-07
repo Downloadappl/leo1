@@ -1068,9 +1068,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       if (!activeStreamer.buffer) {
-        const nameGreeting = studentProfile ? studentProfile.name : 'بني';
-        const fallbackMsg = `أهلاً ومرحباً بك يا ${nameGreeting} في منصة LeoGPT. أنا الأستاذ ليو، موجهك ومعلمك الدراسي. يسعدني مرافقتك في فهم المنهج الدراسي وحل التمارين والمسائل وتلخيص المواد خطوة بخطوة.`;
-        activeStreamer.append(fallbackMsg);
+        let errorMsg = '⚠️ حدث خطأ أثناء الاستجابة.';
+        if (!navigator.onLine || (err.message && (err.message.toLowerCase().includes('failed to fetch') || err.message.toLowerCase().includes('network')))) {
+          errorMsg = '⚠️ حدث خطأ أثناء الاستجابة: لا يوجد اتصال بالإنترنت. يرجى التحقق من اتصالك بالشبكة ثم إعادة المحاولة.';
+        } else {
+          errorMsg = `⚠️ حدث خطأ أثناء الاستجابة: ${err.message || 'تعذر الاتصال بالخادم'}. يرجى المحاولة مرة أخرى.`;
+        }
+        activeStreamer.append(errorMsg);
       }
       activeStreamer.finish();
     }
@@ -1126,14 +1130,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       };
 
-      // Edit Action (populate composer and focus)
-      toolbar.querySelector('.action-edit-user').onclick = (e) => {
+      // Edit Action: populate composer and delete all subsequent messages
+      toolbar.querySelector('.action-edit-user').onclick = async (e) => {
         e.stopPropagation();
         chatTextInput.value = text;
         autoResizeTextarea();
         chatTextInput.focus();
         actionPillBtn.classList.add('send-mode');
-        showToast('يمكنك تعديل الرسالة الآن وإعادة إرسالها');
+
+        // Delete all subsequent messages in the UI
+        let next = row.nextElementSibling;
+        while (next) {
+          const toRemove = next;
+          next = next.nextElementSibling;
+          toRemove.remove();
+        }
+        // Remove the edited row itself from UI
+        row.remove();
+
+        // Also trim backend database so reopening the chat reflects the trim
+        const actualMsgId = msgId || row.dataset.msgId;
+        if (actualMsgId && currentConversationId) {
+          try {
+            await fetch(`/api/conversations/${currentConversationId}/trim`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message_id: actualMsgId })
+            });
+          } catch (err) {}
+        }
+
+        showToast('تم فتح الرسالة للتعديل وحذف الردود اللاحقة');
       };
 
       // Delete Action
