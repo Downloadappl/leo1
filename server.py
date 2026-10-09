@@ -904,28 +904,54 @@ class AppHandler(SimpleHTTPRequestHandler):
                     'conversation_id': conv_id, 
                     'message_id': user_msg_id,
                     'assistant_message_id': assistant_msg_id,
-                    'model': 'flux-schnell', 
-                    'title': current_conv_info.get('title', 'إنشاء صورة') if current_conv_info else 'إنشاء صورة'
+                    'model': 'gpt-image-2', 
+                    'title': current_conv_info.get('title', 'تصميم صورة') if current_conv_info else 'تصميم صورة'
                 }, ensure_ascii=False)
                 self.wfile.write(f"data: {meta_chunk}\n\n".encode('utf-8'))
                 self.wfile.flush()
 
-                intro = "جاري إنشاء وتصميم الصورة بالذكاء الاصطناعي عبر محرك الرسم فائق الدقة (Flux Turbo)...\n\n"
-                self.wfile.write(f"data: {json.dumps({'content': intro}, ensure_ascii=False)}\n\n".encode('utf-8'))
+                # Stream ChatGPT-style animated skeleton graphic placeholder
+                placeholder_markup = (
+                    f'<div class="chat-image-generating-card" id="card_{req_id}">\n'
+                    f'  <div class="generating-shimmer-bg"></div>\n'
+                    f'  <div class="generating-center-content">\n'
+                    f'    <div class="generating-icon-orbit">\n'
+                    f'      <svg class="generating-sparkle-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
+                    f'        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>\n'
+                    f'      </svg>\n'
+                    f'    </div>\n'
+                    f'    <span class="generating-title">جاري إنشاء وتصميم الصورة بالذكاء الاصطناعي...</span>\n'
+                    f'    <span class="generating-subtitle">المحرك: GPT Image 2 (عالي الدقة)</span>\n'
+                    f'    <div class="generating-pulse-dots"><span></span><span></span><span></span></div>\n'
+                    f'  </div>\n'
+                    f'</div>\n\n'
+                )
+                self.wfile.write(f"data: {json.dumps({'content': placeholder_markup}, ensure_ascii=False)}\n\n".encode('utf-8'))
                 self.wfile.flush()
 
                 try:
-                    gen_res = image_service.generate_image(img_prompt, model="flux-schnell")
+                    gen_res = image_service.generate_image(img_prompt, model="gpt-image-2")
                     img_url = gen_res.get('url')
-                    res_body = f"![{img_prompt}]({img_url})\n\n**تم إنجاز التصميم بنجاح!**\n- **الموضوع:** {img_prompt}\n- **المحرك:** Flux Turbo الذكي\n\nيمكنك النقر على الصورة لتكبيرها، أو فتح استوديو الصور لمزيد من خيارات التعديل وتغيير الأبعاد."
+                    res_body = (
+                        f'<div class="chat-image-card-container">\n'
+                        f'  <div class="chat-image-compact-wrapper">\n'
+                        f'    <img src="{img_url}" alt="{img_prompt}" class="chat-rendered-image chat-compact-img">\n'
+                        f'  </div>\n'
+                        f'  <div class="chat-image-info-row">\n'
+                        f'    <span class="chat-image-caption-text">{img_prompt}</span>\n'
+                        f'    <span class="chat-image-badge">GPT Image 2</span>\n'
+                        f'  </div>\n'
+                        f'</div>\n\n'
+                        f'**تم تصميم الصورة بنجاح!** يمكنك النقر عليها لمعاينتها وتكبيرها بدقة كاملة.'
+                    )
                 except Exception as ex:
                     res_body = f"عذراً، حدث خطأ أثناء محاولة إنشاء الصورة: {str(ex)}"
 
-                self.wfile.write(f"data: {json.dumps({'content': res_body}, ensure_ascii=False)}\n\n".encode('utf-8'))
+                self.wfile.write(f"data: {json.dumps({'content': res_body, 'replace': True}, ensure_ascii=False)}\n\n".encode('utf-8'))
                 self.wfile.write(b"data: [DONE]\n\n")
                 self.wfile.flush()
 
-                database.add_message(conv_id, 'assistant', intro + res_body, msg_id=assistant_msg_id, user_id=uid)
+                database.add_message(conv_id, 'assistant', res_body, msg_id=assistant_msg_id, user_id=uid)
                 with ACTIVE_GENERATIONS_LOCK:
                     cur = ACTIVE_GENERATIONS.get(conv_id)
                     if cur and cur.get('request_id') == req_id:

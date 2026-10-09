@@ -1149,9 +1149,33 @@ document.addEventListener('DOMContentLoaded', () => {
     append(textChunk) {
       if (this.isAborted) return;
       this.buffer += textChunk;
+      // If the incoming text contains a rich HTML card, reveal immediately without typewriter delay
+      if (textChunk.includes('chat-image-generating-card') || textChunk.includes('chat-image-card-container')) {
+        this.revealed = this.buffer;
+        this.textElem.innerHTML = safeParseMarkdown(this.revealed);
+        if (this.cursorElem) this.textElem.appendChild(this.cursorElem);
+        scrollToBottom(true);
+        return;
+      }
       if (!this.rafId) {
         this.run();
       }
+    }
+
+    replace(newContent) {
+      if (this.isAborted) return;
+      this.buffer = newContent;
+      this.revealed = newContent;
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+      this.textElem.innerHTML = safeParseMarkdown(newContent);
+      if (this.cursorElem) {
+        this.textElem.appendChild(this.cursorElem);
+      }
+      bindCopyCodeButtons(this.textElem);
+      scrollToBottom(true);
     }
 
     finish() {
@@ -1406,7 +1430,11 @@ document.addEventListener('DOMContentLoaded', () => {
               saveConversationToLocalCache(cached);
             }
             if (parsed.content) {
-              activeStreamer.append(parsed.content);
+              if (parsed.replace) {
+                activeStreamer.replace(parsed.content);
+              } else {
+                activeStreamer.append(parsed.content);
+              }
             }
           } catch (e) {}
         }
@@ -2442,6 +2470,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateLightboxZoom(1.0);
     imageLightboxModal.style.display = 'flex';
   }
+  window.openStudioLightbox = openImageLightbox;
 
   function closeImageLightbox() {
     if (!imageLightboxModal) return;
@@ -2467,7 +2496,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ============================================================
-  // AI IMAGE STUDIO CONTROLLER (RIVAL / FAL INTEGRATION)
+  // AI IMAGE STUDIO CONTROLLER (GPT IMAGE 2 / BANANA / REMBG)
   // ============================================================
   const imageStudioBtn = document.getElementById('imageStudioBtn');
   const sheetGenerateImgBtn = document.getElementById('sheetGenerateImgBtn');
@@ -2493,7 +2522,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const studioActionInsertBtn = document.getElementById('studioActionInsertBtn');
   const studioActionCopyBtn = document.getElementById('studioActionCopyBtn');
 
-  let currentStudioModel = 'flux-schnell';
+  let currentStudioModel = 'gpt-image-2';
   let currentStudioRatio = 'square_hd';
   let currentStudioUploadedUrl = null;
   let currentGeneratedImageUrl = null;
@@ -2540,7 +2569,18 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.onclick = () => {
         studioModelSelector.querySelectorAll('.studio-segment-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        currentStudioModel = btn.dataset.model || 'flux-schnell';
+        currentStudioModel = btn.dataset.model || 'gpt-image-2';
+
+        const genSubtitle = document.getElementById('studioGenSubtitle');
+        if (genSubtitle) {
+          if (currentStudioModel === 'nano-banana') {
+            genSubtitle.textContent = 'يتم الرسم عبر Nano Banana فائق السرعة';
+          } else if (currentStudioModel === 'gpt-image-2') {
+            genSubtitle.textContent = 'يتم الرسم عبر GPT Image 2 بأعلى جودة';
+          } else if (currentStudioModel === 'rembg') {
+            genSubtitle.textContent = 'يتم عزل الخلفية بدقة عالية';
+          }
+        }
 
         if (currentStudioModel === 'rembg') {
           if (studioUploadBox) studioUploadBox.style.display = 'block';
@@ -2703,7 +2743,7 @@ document.addEventListener('DOMContentLoaded', () => {
     studioActionInsertBtn.onclick = () => {
       if (!currentGeneratedImageUrl) return;
       const promptText = studioPromptInput ? studioPromptInput.value.trim() : 'صورة مولدة بالذكاء الاصطناعي';
-      const modelTitle = currentStudioModel === 'flux-schnell' ? 'Flux Turbo' : currentStudioModel === 'gpt-image-2' ? 'GPT Image 2' : 'إزالة الخلفية';
+      const modelTitle = currentStudioModel === 'nano-banana' ? 'Nano Banana' : currentStudioModel === 'gpt-image-2' ? 'GPT Image 2' : 'إزالة الخلفية';
       const markdownMsg = `![${promptText}](${currentGeneratedImageUrl})\n\n**تم إنشاء وتصميم الصورة بالذكاء الاصطناعي.**\n- **الموضوع:** ${promptText}\n- **المحرك:** ${modelTitle}`;
 
       closeImageStudio();

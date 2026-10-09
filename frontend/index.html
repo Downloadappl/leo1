@@ -965,17 +965,17 @@
           <!-- Engine / Model Selection Segmented Tabs -->
           <div class="studio-section-label">محرك التوليد والتصميم</div>
           <div class="studio-segmented-control" id="studioModelSelector">
-            <button class="studio-segment-btn active" data-model="flux-schnell" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-              </svg>
-              <span>Flux Turbo (سريع)</span>
-            </button>
-            <button class="studio-segment-btn" data-model="gpt-image-2" type="button">
+            <button class="studio-segment-btn active" data-model="gpt-image-2" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
               </svg>
-              <span>GPT Image 2 (دقيق)</span>
+              <span>GPT Image 2 (عالي الدقة)</span>
+            </button>
+            <button class="studio-segment-btn" data-model="nano-banana" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              <span>Nano Banana (بانانا)</span>
             </button>
             <button class="studio-segment-btn" data-model="rembg" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1042,17 +1042,30 @@
           <!-- Action Button -->
           <button class="studio-generate-btn" id="studioGenerateBtn" type="button">
             <svg class="studio-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
             </svg>
             <span id="studioGenerateBtnText">إنشاء وتصميم الصورة</span>
           </button>
 
           <!-- Studio Live Result Box -->
           <div class="studio-result-container" id="studioResultContainer" style="display: none;">
-            <!-- Loading State -->
+            <!-- Loading State: ChatGPT Style Animated Graphic -->
             <div class="studio-loading-state" id="studioLoadingState" style="display: none;">
-              <div class="studio-spinner"></div>
-              <span class="studio-loading-text">جاري معالجة وتوليد الصورة الذكية، يرجى الانتظار لحظات...</span>
+              <div class="chat-image-generating-card in-studio">
+                <div class="generating-shimmer-bg"></div>
+                <div class="generating-center-content">
+                  <div class="generating-icon-orbit">
+                    <svg class="generating-sparkle-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                    </svg>
+                  </div>
+                  <span class="generating-title">جاري تصميم وإنشاء الصورة بالذكاء الاصطناعي...</span>
+                  <span class="generating-subtitle" id="studioLoadingSubtitle">محرك GPT Image 2 عالي الدقة</span>
+                  <div class="generating-pulse-dots">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Output Preview -->
