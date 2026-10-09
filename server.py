@@ -879,14 +879,24 @@ class AppHandler(SimpleHTTPRequestHandler):
             raw_text = (user_text or "").strip()
             raw_lower = raw_text.lower()
             img_triggers = [
-                "ارسم لي ", "ارسم ", "صمم صورة ", "صمم لي صورة ", "أنشئ صورة ", "انشئ صورة ",
-                "توليد صورة ", "ولد صورة ", "رسم صورة ", "/image ", "/draw ", "generate image of ", "draw "
+                "صمم صورة ", "صمم لي صورة ", "صمم صوره ", "صمم لي صوره ", "صمم صورة",
+                "ارسم لي ", "ارسم ", "ارسم صوره ", "ارسم صورة ",
+                "أنشئ صورة ", "انشئ صورة ", "أنشئ صوره ", "انشئ صوره ",
+                "توليد صورة ", "توليد صوره ", "ولد صورة ", "ولد صوره ",
+                "سوي صورة ", "سوي صوره ", "اعمل صورة ", "اعمل صوره ",
+                "اريد صورة ", "اريد صوره ", "صورة لـ ", "صورة ",
+                "/image ", "/draw ", "generate image of ", "draw "
             ]
             img_prompt = None
             for trg in img_triggers:
                 if raw_lower.startswith(trg):
                     img_prompt = raw_text[len(trg):].strip()
+                    if not img_prompt:
+                        img_prompt = raw_text.strip()
                     break
+            if not img_prompt and any(k in raw_lower for k in ["صمم صورة", "ارسم صورة", "انشئ صورة", "علم العراق"]):
+                if "علم العراق" in raw_lower:
+                    img_prompt = "علم العراق"
 
             if img_prompt:
                 self.send_response(200)
@@ -910,19 +920,13 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(f"data: {meta_chunk}\n\n".encode('utf-8'))
                 self.wfile.flush()
 
-                # Stream ChatGPT-style animated skeleton graphic placeholder
+                # Stream exact ChatGPT-style Dot-Matrix Canvas Graphic Placeholder
                 placeholder_markup = (
-                    f'<div class="chat-image-generating-card" id="card_{req_id}">\n'
-                    f'  <div class="generating-shimmer-bg"></div>\n'
-                    f'  <div class="generating-center-content">\n'
-                    f'    <div class="generating-icon-orbit">\n'
-                    f'      <svg class="generating-sparkle-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
-                    f'        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>\n'
-                    f'      </svg>\n'
-                    f'    </div>\n'
-                    f'    <span class="generating-title">جاري إنشاء وتصميم الصورة بالذكاء الاصطناعي...</span>\n'
-                    f'    <span class="generating-subtitle">المحرك: GPT Image 2 (عالي الدقة)</span>\n'
-                    f'    <div class="generating-pulse-dots"><span></span><span></span><span></span></div>\n'
+                    f'<div class="chat-dalle-generating-box" id="dalle_{req_id}">\n'
+                    f'  <div class="dalle-gen-header">جاري إنشاء الصورة</div>\n'
+                    f'  <div class="dalle-dot-matrix-canvas">\n'
+                    f'    <div class="dalle-dot-wave"></div>\n'
+                    f'    <div class="dalle-progress-pill" id="prog_{req_id}" data-req="{req_id}">26%</div>\n'
                     f'  </div>\n'
                     f'</div>\n\n'
                 )
@@ -933,16 +937,55 @@ class AppHandler(SimpleHTTPRequestHandler):
                     gen_res = image_service.generate_image(img_prompt, model="gpt-image-2")
                     img_url = gen_res.get('url')
                     res_body = (
-                        f'<div class="chat-image-card-container">\n'
-                        f'  <div class="chat-image-compact-wrapper">\n'
-                        f'    <img src="{img_url}" alt="{img_prompt}" class="chat-rendered-image chat-compact-img">\n'
+                        f'<div class="chat-dalle-result-card" data-img-url="{img_url}">\n'
+                        f'  <div class="chat-dalle-image-frame">\n'
+                        f'    <img src="{img_url}" alt="{img_prompt}" class="chat-dalle-img" onclick="openStudioLightbox && openStudioLightbox(\'{img_url}\')" loading="lazy" />\n'
+                        f'    <div class="dalle-frame-overlay">\n'
+                        f'      <button class="dalle-floating-circle-btn" onclick="downloadImageDirect && downloadImageDirect(\'{img_url}\', \'image_{req_id}.png\')" title="تحميل أو مشاركة">\n'
+                        f'        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
+                        f'          <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"></path>\n'
+                        f'          <polyline points="16 6 12 2 8 6"></polyline>\n'
+                        f'          <line x1="12" y1="2" x2="12" y2="15"></line>\n'
+                        f'        </svg>\n'
+                        f'      </button>\n'
+                        f'      <button class="dalle-floating-pill-btn" onclick="openImageStudio && openImageStudio(\'{img_prompt}\', \'{img_url}\')" title="تحرير الصورة">\n'
+                        f'        تحرير\n'
+                        f'      </button>\n'
+                        f'    </div>\n'
                         f'  </div>\n'
-                        f'  <div class="chat-image-info-row">\n'
-                        f'    <span class="chat-image-caption-text">{img_prompt}</span>\n'
-                        f'    <span class="chat-image-badge">GPT Image 2</span>\n'
+                        f'  <div class="dalle-actions-row">\n'
+                        f'    <button class="dalle-act-icon-btn" onclick="openImageMoreMenu && openImageMoreMenu(this, \'{img_url}\')" title="المزيد">\n'
+                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">\n'
+                        f'        <circle cx="12" cy="12" r="1"></circle>\n'
+                        f'        <circle cx="19" cy="12" r="1"></circle>\n'
+                        f'        <circle cx="5" cy="12" r="1"></circle>\n'
+                        f'      </svg>\n'
+                        f'    </button>\n'
+                        f'    <button class="dalle-act-icon-btn" onclick="shareGeneratedImage && shareGeneratedImage(\'{img_url}\', \'{img_prompt}\')" title="مشاركة">\n'
+                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
+                        f'        <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"></path>\n'
+                        f'        <polyline points="16 6 12 2 8 6"></polyline>\n'
+                        f'        <line x1="12" y1="2" x2="12" y2="15"></line>\n'
+                        f'      </svg>\n'
+                        f'    </button>\n'
+                        f'    <button class="dalle-act-icon-btn" onclick="rateGeneratedImage && rateGeneratedImage(this, \'dislike\')" title="لم يعجبني">\n'
+                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
+                        f'        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path>\n'
+                        f'      </svg>\n'
+                        f'    </button>\n'
+                        f'    <button class="dalle-act-icon-btn" onclick="rateGeneratedImage && rateGeneratedImage(this, \'like\')" title="أعجبني">\n'
+                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
+                        f'        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>\n'
+                        f'      </svg>\n'
+                        f'    </button>\n'
+                        f'    <button class="dalle-act-icon-btn" onclick="copyImageLinkDirect && copyImageLinkDirect(\'{img_url}\')" title="نسخ رابط الصورة">\n'
+                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
+                        f'        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>\n'
+                        f'        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>\n'
+                        f'      </svg>\n'
+                        f'    </button>\n'
                         f'  </div>\n'
                         f'</div>\n\n'
-                        f'**تم تصميم الصورة بنجاح!** يمكنك النقر عليها لمعاينتها وتكبيرها بدقة كاملة.'
                     )
                 except Exception as ex:
                     res_body = f"عذراً، حدث خطأ أثناء محاولة إنشاء الصورة: {str(ex)}"

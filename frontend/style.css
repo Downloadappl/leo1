@@ -739,18 +739,20 @@ html, body {
 }
 
 .user-bubble {
-  background-color: var(--bg-user-bubble);
+  background-color: #1d4ed8;
   color: #ffffff;
-  padding: 10px 18px;
-  border-radius: 20px;
-  font-size: 15px;
-  line-height: 1.55;
+  padding: 8px 20px;
+  border-radius: 9999px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.5;
   max-width: 86%;
   word-break: break-word;
   white-space: pre-wrap;
   direction: rtl;
   text-align: right;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  display: inline-block;
 }
 
 .user-attached-image {
@@ -4411,6 +4413,237 @@ body.theme-light .chat-image-card-wrapper {
 body.theme-light .chat-image-caption {
   color: #64748b;
 }
+
+/* ============================================================
+   CHATGPT DALL-E 3 DOT-MATRIX CANVAS & RESULT CARD (PIXEL ACCURATE COMPACT)
+   ============================================================ */
+.chat-dalle-generating-box {
+  width: 100%;
+  max-width: 240px;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  direction: rtl;
+  text-align: right;
+  animation: fadeIn 0.25s ease;
+}
+
+.dalle-gen-header {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #71717a;
+  font-family: var(--font-arabic);
+}
+
+body.theme-light .dalle-gen-header {
+  color: #64748b;
+}
+
+.dalle-dot-matrix-canvas {
+  position: relative;
+  width: 100%;
+  max-width: 240px;
+  height: 240px;
+  aspect-ratio: 1;
+  border-radius: 20px;
+  overflow: hidden;
+  background-color: #000000;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 1.2px, transparent 1.2px);
+  background-size: 13px 13px;
+  background-position: 6.5px 6.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+body.theme-light .dalle-dot-matrix-canvas {
+  background-color: #f1f5f9;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.2) 1.2px, transparent 1.2px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.dalle-dot-wave {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    rgba(56, 189, 248, 0.08) 25%,
+    rgba(99, 102, 241, 0.16) 50%,
+    rgba(56, 189, 248, 0.08) 75%,
+    transparent 100%
+  );
+  background-size: 200% 200%;
+  animation: dalleWaveSweep 2.5s infinite ease-in-out;
+}
+
+@keyframes dalleWaveSweep {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+.dalle-progress-pill {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.3px;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+/* Completed Image Card */
+.chat-dalle-result-card {
+  width: 100%;
+  max-width: 240px;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-dalle-image-frame {
+  position: relative;
+  width: 100%;
+  max-width: 240px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #000000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.chat-dalle-img {
+  width: 100%;
+  max-width: 240px;
+  height: 240px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-dalle-image-frame:hover .chat-dalle-img {
+  transform: scale(1.02);
+}
+
+.dalle-frame-overlay {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 3;
+  direction: ltr; /* Keeps share circle on left, edit pill on right */
+}
+
+.dalle-floating-circle-btn {
+  pointer-events: auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dalle-floating-circle-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.08);
+}
+
+.dalle-floating-circle-btn:active {
+  transform: scale(0.95);
+}
+
+.dalle-floating-pill-btn {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-family: var(--font-arabic);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 12px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dalle-floating-pill-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.05);
+}
+
+.dalle-floating-pill-btn:active {
+  transform: scale(0.95);
+}
+
+.dalle-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 3px 4px;
+  direction: ltr; /* Keeps order: [...] [share] [dislike] [like] [copy] */
+}
+
+.dalle-act-icon-btn {
+  background: transparent;
+  border: none;
+  color: #71717a;
+  padding: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.dalle-act-icon-btn:hover {
+  color: #ffffff;
+  transform: scale(1.12);
+}
+
+.dalle-act-icon-btn:active {
+  transform: scale(0.92);
+}
+
+.dalle-act-icon-btn.active-action {
+  color: #38bdf8;
+}
+
+body.theme-light .dalle-act-icon-btn {
+  color: #64748b;
+}
+
+body.theme-light .dalle-act-icon-btn:hover {
+  color: #0f172a;
+}
+
 
 
 

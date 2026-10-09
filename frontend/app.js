@@ -1150,10 +1150,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (this.isAborted) return;
       this.buffer += textChunk;
       // If the incoming text contains a rich HTML card, reveal immediately without typewriter delay
-      if (textChunk.includes('chat-image-generating-card') || textChunk.includes('chat-image-card-container')) {
+      if (textChunk.includes('chat-dalle-generating-box') || textChunk.includes('chat-dalle-result-card') || textChunk.includes('chat-image-generating-card') || textChunk.includes('chat-image-card-container')) {
         this.revealed = this.buffer;
         this.textElem.innerHTML = safeParseMarkdown(this.revealed);
         if (this.cursorElem) this.textElem.appendChild(this.cursorElem);
+        animateDalleProgress(this.textElem);
         scrollToBottom(true);
         return;
       }
@@ -1170,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
       }
+      stopDalleProgress();
       this.textElem.innerHTML = safeParseMarkdown(newContent);
       if (this.cursorElem) {
         this.textElem.appendChild(this.cursorElem);
@@ -2472,6 +2474,88 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   window.openStudioLightbox = openImageLightbox;
 
+  // --- Real-time ChatGPT DALL-E Progress Percentage Simulation ---
+  let activeDalleTimer = null;
+  function animateDalleProgress(container) {
+    if (activeDalleTimer) clearInterval(activeDalleTimer);
+    const pill = container ? container.querySelector('.dalle-progress-pill') : document.querySelector('.dalle-progress-pill');
+    if (!pill) return;
+    let currentPct = 12;
+    pill.textContent = `${currentPct}%`;
+    activeDalleTimer = setInterval(() => {
+      if (!pill.isConnected) {
+        clearInterval(activeDalleTimer);
+        activeDalleTimer = null;
+        return;
+      }
+      if (currentPct < 94) {
+        const increment = Math.floor(Math.random() * 6) + 3;
+        currentPct = Math.min(currentPct + increment, 96);
+        pill.textContent = `${currentPct}%`;
+      }
+    }, 450);
+  }
+
+  function stopDalleProgress() {
+    if (activeDalleTimer) {
+      clearInterval(activeDalleTimer);
+      activeDalleTimer = null;
+    }
+  }
+
+  // --- ChatGPT DALL-E Image Actions ---
+  window.downloadImageDirect = (url, filename = 'generated_image.png') => {
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('جاري تحميل الصورة');
+  };
+
+  window.copyImageLinkDirect = async (url) => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('تم نسخ رابط الصورة');
+    } catch (e) {
+      showToast('تم النسخ');
+    }
+  };
+
+  window.rateGeneratedImage = (btn, type) => {
+    if (!btn) return;
+    const row = btn.closest('.dalle-actions-row');
+    if (row) {
+      row.querySelectorAll('.dalle-act-icon-btn').forEach(b => b.classList.remove('active-action'));
+    }
+    btn.classList.add('active-action');
+    showToast(type === 'like' ? 'شكراً لتقييمك الإيجابي' : 'تم استلام ملاحظتك');
+  };
+
+  window.shareGeneratedImage = async (url, prompt = '') => {
+    if (!url) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: prompt || 'صورة مولدة بالذكاء الاصطناعي',
+          text: prompt,
+          url: url
+        });
+        return;
+      } catch (e) {}
+    }
+    window.copyImageLinkDirect(url);
+  };
+
+  window.openImageMoreMenu = (btn, url) => {
+    if (!url) return;
+    openImageLightbox(url);
+  };
+
   function closeImageLightbox() {
     if (!imageLightboxModal) return;
     imageLightboxModal.style.display = 'none';
@@ -2527,16 +2611,25 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentStudioUploadedUrl = null;
   let currentGeneratedImageUrl = null;
 
-  function openImageStudio(initialPrompt = '') {
+  function openImageStudio(initialPrompt = '', initialUrl = null) {
     if (!imageStudioModalOverlay) return;
     if (initialPrompt && studioPromptInput) {
       studioPromptInput.value = initialPrompt;
+    }
+    if (initialUrl) {
+      currentStudioUploadedUrl = initialUrl;
+      currentGeneratedImageUrl = initialUrl;
+      if (studioPreviewImg) studioPreviewImg.src = initialUrl;
+      if (studioResultContainer) studioResultContainer.style.display = 'block';
+      if (studioPreviewCard) studioPreviewCard.style.display = 'flex';
+      if (studioLoadingState) studioLoadingState.style.display = 'none';
     }
     imageStudioModalOverlay.classList.add('active');
     setTimeout(() => {
       if (studioPromptInput) studioPromptInput.focus();
     }, 120);
   }
+  window.openImageStudio = openImageStudio;
 
   function closeImageStudio() {
     if (!imageStudioModalOverlay) return;
