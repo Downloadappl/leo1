@@ -28,7 +28,7 @@
   <meta name="twitter:image" content="https://raw.githubusercontent.com/Downloadappl/leo1/main/frontend/assets/preview-card.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 10v6M2 10l10-5 10 5-10 5z'/><path d='M6 12v5c3 3 9 3 12 0v-5'/></svg>">
   
   <!-- Google Fonts: Alexandria & Cairo for exact modern Arabic typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -170,7 +170,13 @@
         <!-- Screen 1: Empty State Hero ("هل أنت مستعد؟") with Typewriter & Dynamic Suggestions -->
         <div class="empty-state-container" id="emptyStateContainer">
           <div class="empty-state-hero">
-            <div class="empty-hero-pill">🎓 الأستاذ ليو — الموجه الأكاديمي</div>
+            <div class="empty-hero-pill">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+              </svg>
+              <span>الأستاذ ليو — الموجه الأكاديمي</span>
+            </div>
             <h1 class="empty-state-title" id="emptyStateTitle">
               <span id="typewriterText">هل أنت مستعد؟</span><span class="typewriter-cursor">|</span>
             </h1>
@@ -180,28 +186,52 @@
           <!-- Quick Interactive Study Suggestions (ChatGPT & DeepSeek Style) -->
           <div class="study-suggestions-grid" id="studySuggestionsGrid">
             <button class="suggestion-card" type="button" data-prompt="اشرح لي مسألة فيزياء أو كيمياء مع ذكر القوانين وخطوات التعويض والناتج النموذجي">
-              <div class="suggestion-card-icon">📐</div>
+              <div class="suggestion-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 2 22 22 22 12 2"/>
+                  <line x1="12" y1="8" x2="12" y2="18"/>
+                </svg>
+              </div>
               <div class="suggestion-card-info">
                 <div class="suggestion-card-title">حل مسألة علمية نموذجية</div>
                 <div class="suggestion-card-desc">مع القوانين والتعويض والوحدات بالتفصيل</div>
               </div>
             </button>
             <button class="suggestion-card" type="button" data-prompt="اشرح لي قاعدة في اللغة العربية مع أمثلة إعرابية تطبيقية من المنهج العراقي">
-              <div class="suggestion-card-icon">📖</div>
+              <div class="suggestion-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                </svg>
+              </div>
               <div class="suggestion-card-info">
                 <div class="suggestion-card-title">شرح قواعد وإعراب</div>
                 <div class="suggestion-card-desc">أمثلة تطبيقية وشواهد وزارية معربة</div>
               </div>
             </button>
             <button class="suggestion-card" type="button" data-prompt="ما هي أهم الأسئلة والتمارين الوزارية المكررة لهذا الموضوع وكيفية الإجابة عنها؟">
-              <div class="suggestion-card-icon">📝</div>
+              <div class="suggestion-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+              </div>
               <div class="suggestion-card-info">
                 <div class="suggestion-card-title">أسئلة وزارية مكررة</div>
                 <div class="suggestion-card-desc">أجوبة نموذجية تطابق مركز الفحص</div>
               </div>
             </button>
             <button class="suggestion-card" type="button" data-prompt="لخص لي هذا الفصل الدراسي في نقاط مكثفة وجداول مقارنة للمراجعة السريعة">
-              <div class="suggestion-card-icon">💡</div>
+              <div class="suggestion-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="9" y1="18" x2="15" y2="18"/>
+                  <line x1="10" y1="22" x2="14" y2="22"/>
+                  <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
+                </svg>
+              </div>
               <div class="suggestion-card-info">
                 <div class="suggestion-card-title">تلخيص ذكي للاختبار</div>
                 <div class="suggestion-card-desc">مفاهيم جوهرية وجداول مقارنة سريعة</div>
@@ -229,9 +259,23 @@
         </div>
         <div class="audio-bar-text" id="audioBarStatusText">الأستاذ ليو يستمع إليك... تحدث الآن</div>
         <div class="audio-bar-actions">
-          <button class="audio-bar-btn audio-pause-btn" id="audioPauseBtn" title="إيقاف مؤقت">⏸</button>
-          <button class="audio-bar-btn audio-confirm-btn" id="audioConfirmBtn" title="إنهاء وإرسال">✓</button>
-          <button class="audio-bar-btn audio-cancel-btn" id="audioCancelBtn" title="إلغاء الاستماع">✕</button>
+          <button class="audio-bar-btn audio-pause-btn" id="audioPauseBtn" title="إيقاف مؤقت">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1"/>
+              <rect x="14" y="4" width="4" height="16" rx="1"/>
+            </svg>
+          </button>
+          <button class="audio-bar-btn audio-confirm-btn" id="audioConfirmBtn" title="إنهاء وإرسال">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+          <button class="audio-bar-btn audio-cancel-btn" id="audioCancelBtn" title="إلغاء الاستماع">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -311,27 +355,27 @@
           <div class="gallery-thumbs-row" id="galleryThumbsRow">
             <div class="gallery-thumb-card" data-title="مسألة فيزياء - دوائر التيار المتناوب">
               <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-1">⚡ فيزياء</div>
+              <div class="thumb-placeholder-art art-1">فيزياء</div>
             </div>
             <div class="gallery-thumb-card" data-title="مخطط الكيمياء - الاتزان الأيوني">
               <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-2">🧪 كيمياء</div>
+              <div class="thumb-placeholder-art art-2">كيمياء</div>
             </div>
             <div class="gallery-thumb-card" data-title="تمارين الرياضيات - مبرهنة رول والقيمة المتوسطة">
               <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-3">📐 رياضيات</div>
+              <div class="thumb-placeholder-art art-3">رياضيات</div>
             </div>
             <div class="gallery-thumb-card" data-title="قواعد اللغة العربية - أسلوب الاستفهام">
               <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-4">📖 قواعد</div>
+              <div class="thumb-placeholder-art art-4">قواعد</div>
             </div>
             <div class="gallery-thumb-card" data-title="أسئلة وزارية مكررة في الأحياء">
               <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-5">📝 وزاريات</div>
+              <div class="thumb-placeholder-art art-5">وزاريات</div>
             </div>
             <div class="gallery-thumb-card" data-title="قواعد اللغة الإنكليزية - قطعه الاستيعاب">
               <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-6">🌐 إنكليزي</div>
+              <div class="thumb-placeholder-art art-6">إنكليزي</div>
             </div>
           </div>
 
@@ -660,11 +704,21 @@
       <div class="auth-glow-orb auth-glow-3"></div>
 
       <div class="auth-modal-card">
-        <button class="auth-close-btn" id="authFullscreenCloseBtn" style="display: none;" title="إغلاق">✕</button>
+        <button class="auth-close-btn" id="authFullscreenCloseBtn" style="display: none;" title="إغلاق">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
 
         <!-- STEP 1: Authentication / Sign-in Mode (Google or Email) -->
         <div class="auth-step-panel active" id="authStep1">
-          <div class="auth-brand-badge">🎓</div>
+          <div class="auth-brand-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+              <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+            </svg>
+          </div>
           <h2 class="auth-card-title">الأستاذ ليو</h2>
           <p class="auth-card-subtitle">المستشار والموجه الأكاديمي لمناهجك الدراسية</p>
 
@@ -716,7 +770,12 @@
 
         <!-- STEP 2: Academic Profile Customization -->
         <div class="auth-step-panel" id="authStep2">
-          <div class="auth-brand-badge">🎓</div>
+          <div class="auth-brand-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+              <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+            </svg>
+          </div>
           <h2 class="auth-card-title">تخصيص ملفك الدراسي</h2>
           <p class="auth-card-subtitle">حدد بياناتك ليقوم الأستاذ ليو بتقديم شروحات مخصصة بدقة لمنهجك</p>
 
@@ -732,11 +791,11 @@
               <div class="gender-radio-group">
                 <label class="gender-radio-label">
                   <input type="radio" name="profGender" value="male" checked>
-                  <span>👨‍🎓 طالب (مذكر)</span>
+                  <span>طالب (مذكر)</span>
                 </label>
                 <label class="gender-radio-label">
                   <input type="radio" name="profGender" value="female">
-                  <span>👩‍🎓 طالبة (مؤنث)</span>
+                  <span>طالبة (مؤنث)</span>
                 </label>
               </div>
             </div>
@@ -773,7 +832,7 @@
           </div>
 
           <button class="auth-primary-btn" id="saveProfileBtn" type="button">
-            <span>إتمام البدء والانتقال إلى الدراسة 🚀</span>
+            <span>إتمام البدء والانتقال إلى الدراسة</span>
           </button>
         </div>
 
@@ -806,7 +865,12 @@
       <div class="custom-modal-content">
         <div class="modal-header">
           <h3 class="modal-title" id="modalTitle">إجراء</h3>
-          <button class="modal-close-btn" id="modalCloseBtn">✕</button>
+          <button class="modal-close-btn" id="modalCloseBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
         <div class="modal-body" id="modalBody"></div>
       </div>
@@ -817,13 +881,23 @@
       <div class="custom-modal-content memory-modal-card">
         <div class="modal-header">
           <div class="login-modal-title-row">
-            <span class="login-badge-icon">🧠</span>
+            <span class="login-badge-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </span>
             <div>
               <h3 class="modal-title">الذاكرة طويلة الأمد — التفضيلات المحفوظة</h3>
               <p class="login-modal-subtitle">يتذكر الأستاذ ليو هذه التفضيلات عبر مختلف المحادثات لاستخدامها فقط عند الحاجة.</p>
             </div>
           </div>
-          <button class="modal-close-btn" id="memoryModalCloseBtn">✕</button>
+          <button class="modal-close-btn" id="memoryModalCloseBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
         <div class="modal-body">
           <!-- Add manual memory input -->
@@ -852,7 +926,12 @@
         <span class="lightbox-zoom-level" id="lightboxZoomLevel">100%</span>
         <button class="lightbox-tool-btn" id="lightboxZoomInBtn" title="تكبير" type="button">+</button>
         <button class="lightbox-tool-btn" id="lightboxResetBtn" title="إعادة التعيين" type="button">⟲</button>
-        <button class="lightbox-tool-btn lightbox-close-btn" id="lightboxCloseBtn" title="إغلاق (Esc)" type="button">✕</button>
+        <button class="lightbox-tool-btn lightbox-close-btn" id="lightboxCloseBtn" title="إغلاق (Esc)" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
       <div class="lightbox-img-wrapper" id="lightboxImgWrapper">
         <img id="lightboxImg" src="" alt="معاينة الصورة المكبرة">

@@ -7,7 +7,7 @@
   
   <meta name="description" content="تسجيل الدخول إلى منصة الأستاذ ليو، المستشار والموجه الأكاديمي لمناهج العراق.">
   <meta name="theme-color" content="#18181b">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 10v6M2 10l10-5 10 5-10 5z'/><path d='M6 12v5c3 3 9 3 12 0v-5'/></svg>">
   
   <!-- Instant Theme Guard to prevent screen flash -->
   <script>
@@ -613,12 +613,29 @@
     <!-- Top Navigation Bar -->
     <header class="login-top-bar">
       <a href="index.html" class="login-brand">
-        <div class="brand-logo-badge">🎓</div>
+        <div class="brand-logo-badge">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          </svg>
+        </div>
         <span>الأستاذ ليو</span>
       </a>
 
       <button id="themeToggleBtn" class="theme-toggle-btn" title="تبديل المظهر (T)">
-        <span id="themeIcon">☀️</span>
+        <span id="themeIcon" style="display: flex; align-items: center;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </span>
         <span id="themeText">الوضع الفاتح</span>
         <span class="theme-shortcut-hint">T</span>
       </button>
@@ -694,7 +711,12 @@
               <label class="auth-field-label">كلمة المرور</label>
               <div class="input-with-eye">
                 <input id="passwordInput" class="auth-input-field" type="password" placeholder="••••••••" required autocomplete="current-password" dir="ltr">
-                <button type="button" class="eye-toggle-btn" id="togglePasswordVisibilityBtn" title="إظهار/إخفاء">👁️</button>
+                <button type="button" class="eye-toggle-btn" id="togglePasswordVisibilityBtn" title="إظهار/إخفاء">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
               </div>
             </div>
 
@@ -731,7 +753,7 @@
         <div id="authStep2" class="auth-step-view">
           
           <div class="auth-header-wrap">
-            <h2 class="auth-header-title">تخصيص ملفك الدراسي 🎒</h2>
+            <h2 class="auth-header-title">تخصيص ملفك الدراسي</h2>
             <p class="auth-header-subtitle">حدد مرحلتك وصفك الدراسي ليقدم لك ليو شرحاً يطابق مناهجك بدقة</p>
           </div>
 
@@ -748,11 +770,17 @@
               <label class="auth-field-label">الجنس</label>
               <div class="gender-pill-group">
                 <div class="gender-pill-option active" data-gender="male" id="genderMale">
-                  <span>👨‍🎓</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
                   <span>طالب</span>
                 </div>
                 <div class="gender-pill-option" data-gender="female" id="genderFemale">
-                  <span>👩‍🎓</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
                   <span>طالبة</span>
                 </div>
               </div>
@@ -781,15 +809,15 @@
             <div class="auth-field">
               <label class="auth-field-label">أسلوب الشرح المفضل</label>
               <select id="learningModeSelect" class="auth-select-field">
-                <option value="شرح مبسط ومباشر" selected>💡 شرح وتلخيص مبسط ومباشر</option>
-                <option value="حل أسئلة وتمارين وزارية">📝 حل تمارين وأسئلة وزارية خطوة بخطوة</option>
-                <option value="تدريس تفاعلي واختبارات">🎯 تدريس تفاعلي واختبارات دورية</option>
+                <option value="شرح مبسط ومباشر" selected>شرح وتلخيص مبسط ومباشر</option>
+                <option value="حل أسئلة وتمارين وزارية">حل تمارين وأسئلة وزارية خطوة بخطوة</option>
+                <option value="تدريس تفاعلي واختبارات">تدريس تفاعلي واختبارات دورية</option>
               </select>
             </div>
 
             <!-- Complete Button -->
             <button id="finishProfileBtn" class="auth-primary-btn" type="button" style="margin-top: 8px;">
-              <span>إتمام التخصيص والبدء 🚀</span>
+              <span>إتمام التخصيص والبدء</span>
             </button>
 
           </div>

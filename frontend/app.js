@@ -570,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chip.innerHTML = `
         <img class="attachment-chip-thumb" src="${att.data}" alt="${att.name}" />
         <span>${att.name.length > 15 ? att.name.substring(0, 12) + '...' : att.name}</span>
-        <button class="attachment-remove-btn" data-index="${index}" title="إزالة">✕</button>
+        <button class="attachment-remove-btn" data-index="${index}" title="إزالة"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       `;
       attachmentPreviewDrawer.appendChild(chip);
     });
@@ -620,7 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function showAudioBar(text, isTTS = false) {
     chatgptAudioBar.style.display = 'flex';
     audioBarStatusText.textContent = text;
-    audioPauseBtn.textContent = '⏸';
+    audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
     isAudioPaused = false;
     if (isTTS) {
       audioConfirmBtn.style.display = 'none'; // only pause and close for TTS
@@ -673,11 +673,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentActiveTTSAudio) {
       if (currentActiveTTSAudio.paused) {
         currentActiveTTSAudio.play();
-        audioPauseBtn.textContent = '⏸';
+        audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
         audioBarStatusText.textContent = 'الأستاذ ليو يواصل القراءة...';
       } else {
         currentActiveTTSAudio.pause();
-        audioPauseBtn.textContent = '▶';
+        audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
         audioBarStatusText.textContent = 'تم إيقاف القراءة مؤقتاً';
       }
       return;
@@ -686,12 +686,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isTTSPlaying && window.speechSynthesis) {
       if (isAudioPaused) {
         window.speechSynthesis.resume();
-        audioPauseBtn.textContent = '⏸';
+        audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
         isAudioPaused = false;
         audioBarStatusText.textContent = 'الأستاذ ليو يواصل القراءة...';
       } else {
         window.speechSynthesis.pause();
-        audioPauseBtn.textContent = '▶';
+        audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
         isAudioPaused = true;
         audioBarStatusText.textContent = 'تم إيقاف القراءة مؤقتاً';
       }
@@ -701,12 +701,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isRecording && speechRec) {
       if (isAudioPaused) {
         speechRec.start();
-        audioPauseBtn.textContent = '⏸';
+        audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
         isAudioPaused = false;
         audioBarStatusText.textContent = 'الأستاذ ليو يستمع إليك...';
       } else {
         speechRec.stop();
-        audioPauseBtn.textContent = '▶';
+        audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
         isAudioPaused = true;
         audioBarStatusText.textContent = 'الاستماع متوقف مؤقتاً';
       }
@@ -909,7 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       item.innerHTML = `
         <div class="chat-title-group">
-          ${conv.pinned ? '<span class="chat-pin-icon" title="مثبتة">📌</span>' : ''}
+          ${conv.pinned ? '<span class="chat-pin-icon" title="مثبتة"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17v5M5 17h14v-2l-3-3V4h1V2H7v2h1v8l-3 3v2z"/></svg></span>' : ''}
           <span class="chat-title">${conv.title || 'محادثة دراسية'}</span>
         </div>
         <div class="chat-actions-group">
@@ -951,7 +951,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pinned: newPinned })
         }).catch(() => {});
-        showToast(newPinned ? 'تم تثبيت المحادثة في الأعلى 📌' : 'تم إلغاء التثبيت');
+        showToast(newPinned ? 'تم تثبيت المحادثة في الأعلى' : 'تم إلغاء التثبيت');
         refreshConversationListOnly();
       };
 
@@ -1427,7 +1427,7 @@ document.addEventListener('DOMContentLoaded', () => {
       isGenerating = false;
       actionPillBtn.classList.remove('generating-mode');
 
-      let errorMsg = '⚠️ حدث خطأ أثناء الاستجابة.';
+      let errorMsg = 'حدث خطأ أثناء الاستجابة.';
       if (!navigator.onLine || (err.message && (err.message.toLowerCase().includes('failed to fetch') || err.message.toLowerCase().includes('network')))) {
         errorMsg = 'لا يوجد اتصال بالإنترنت أو تعذر الوصول إلى الخادم. رسالتك محفوظة.';
       } else {
@@ -1438,10 +1438,10 @@ document.addEventListener('DOMContentLoaded', () => {
       textElem.innerHTML = `
         <div class="stream-error-card">
           <div class="stream-error-content">
-            <span>⚠️</span>
+            <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
             <span>${errorMsg}</span>
           </div>
-          <button class="stream-retry-btn" type="button">🔄 إعادة المحاولة</button>
+          <button class="stream-retry-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>إعادة المحاولة</span></button>
         </div>
       `;
 
@@ -1939,8 +1939,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isUnregistered && effectiveStep === 2) {
       if (stepTitle) stepTitle.textContent = 'تعديل الملف الدراسي والشخصي';
       if (stepSubtitle) stepSubtitle.textContent = 'حدّث اسمك أو مرحلتك وصفك الدراسي ونمط الشرح في أي وقت';
-      if (stepBadge) stepBadge.textContent = 'تعديل البيانات ✏️';
-      if (stepSaveBtn) stepSaveBtn.innerHTML = '<span>حفظ التعديلات الأكاديمية 💾</span>';
+      if (stepBadge) stepBadge.textContent = 'تعديل البيانات';
+      if (stepSaveBtn) stepSaveBtn.innerHTML = '<span>حفظ التعديلات الأكاديمية</span>';
     }
 
     if (!isUnregistered) {
@@ -1994,7 +1994,7 @@ document.addEventListener('DOMContentLoaded', () => {
           localStorage.setItem('leo_student_profile', JSON.stringify(cloudProf));
           updateProfileUI();
           closeProfileModal();
-          showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name} 🎓`);
+          showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name}`);
           showEmptyState();
         } else {
           // New Google account without profile: pre-fill name and advance to Step 2!
@@ -2049,7 +2049,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('leo_student_profile', JSON.stringify(cloudProf));
             updateProfileUI();
             closeProfileModal();
-            showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name} 🎓`);
+            showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name}`);
             showEmptyState();
           } else {
             goToAuthStep(2);
@@ -2137,7 +2137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (authFullscreenCloseBtn) authFullscreenCloseBtn.style.display = 'flex';
     updateProfileUI();
     if (authFullscreenScreen) authFullscreenScreen.classList.remove('active');
-    showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${name} 🎓`);
+    showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${name}`);
     showEmptyState();
   });
 
@@ -2147,7 +2147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextTheme = isCurrentlyLight ? 'dark' : 'light';
     applyAppearance(nextTheme);
     saveSettingsToServer();
-    showToast(nextTheme === 'dark' ? '🌙 تم تفعيل الوضع الداكن (اختصار T)' : '☀️ تم تفعيل الوضع الفاتح (اختصار T)');
+    showToast(nextTheme === 'dark' ? 'تم تفعيل الوضع الداكن (اختصار T)' : 'تم تفعيل الوضع الفاتح (اختصار T)');
   }
 
   document.addEventListener('keydown', (e) => {
@@ -2323,7 +2323,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const memories = await refreshMemoriesUI();
 
     if (!memories || memories.length === 0) {
-      memoryItemsList.innerHTML = '<div class="memory-empty-state">🧠 لا توجد تفضيلات محفوظة بعد. سيتذكر الأستاذ ليو تفضيلاتك تلقائياً أو يمكنك إضافتها يدوياً أعلاه.</div>';
+      memoryItemsList.innerHTML = '<div class="memory-empty-state">لا توجد تفضيلات محفوظة بعد. سيتذكر الأستاذ ليو تفضيلاتك تلقائياً أو يمكنك إضافتها يدوياً أعلاه.</div>';
       return;
     }
 
@@ -2337,7 +2337,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="memory-item-text">${mem.content}</span>
           <span class="memory-item-date">${dateStr ? 'حُفظ في: ' + dateStr : ''}</span>
         </div>
-        <button class="memory-item-del-btn" title="حذف هذا التفضيل" type="button">✕</button>
+        <button class="memory-item-del-btn" title="حذف هذا التفضيل" type="button"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       `;
       card.querySelector('.memory-item-del-btn').onclick = async (e) => {
         e.stopPropagation();
