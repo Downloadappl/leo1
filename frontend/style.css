@@ -3,23 +3,23 @@
    ============================================================ */
 
 :root {
-  --bg-main: #101012;
-  --bg-card: #1c1c20;
-  --bg-card-hover: #242429;
-  --bg-pill: #1e1e22;
-  --bg-input: #121215;
-  --bg-drawer: #141416;
-  --bg-user-bubble: #27272b;
-  --bg-code-block: #151518;
+  --bg-main: #212121;
+  --bg-card: #2f2f2f;
+  --bg-card-hover: #373737;
+  --bg-pill: #2f2f2f;
+  --bg-input: #2f2f2f;
+  --bg-drawer: #171717;
+  --bg-user-bubble: #2f2f2f;
+  --bg-code-block: #18181b;
   
-  --text-primary: #ffffff;
-  --text-secondary: #9ca3af;
-  --text-muted: #71717a;
-  --text-placeholder: #686873;
+  --text-primary: #ececec;
+  --text-secondary: #b4b4b4;
+  --text-muted: #8e8e8e;
+  --text-placeholder: #71717a;
   --text-danger: #ef4444;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-card: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-card: rgba(255, 255, 255, 0.08);
 
   --accent-pink: #d9246a;
   --accent-pink-hover: #e11d48;
@@ -76,20 +76,21 @@ body.mode-contrast {
 /* ============================================================
    LIGHT THEME SYSTEM (Ultra-Modern Academic Aesthetic)
    ============================================================ */
-body.theme-light {
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
-  --bg-pill: #e2e8f0;
+body.theme-light,
+html.theme-light {
+  --bg-main: #ffffff;
+  --bg-card: #f9f9fb;
+  --bg-card-hover: #f1f1f4;
+  --bg-pill: #f4f4f5;
   --bg-input: #ffffff;
-  --bg-drawer: #ffffff;
-  --bg-user-bubble: #e2e8f0;
-  --bg-code-block: #f1f5f9;
+  --bg-drawer: #f9f9fb;
+  --bg-user-bubble: #f4f4f5;
+  --bg-code-block: #f4f4f5;
   
-  --text-primary: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #64748b;
-  --text-placeholder: #94a3b8;
+  --text-primary: #0d0d0d;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --text-placeholder: #a1a1aa;
   --text-danger: #ef4444;
 
   --border-subtle: rgba(0, 0, 0, 0.08);
@@ -98,21 +99,24 @@ body.theme-light {
   --accent-pink: #d9246a;
   --accent-pink-hover: #be123c;
 
-  background-color: #f8fafc !important;
-  color: #0f172a !important;
-}
-
-body.theme-light .app-viewport {
-  background-color: #f8fafc !important;
-}
-
-body.theme-light .sidebar {
   background-color: #ffffff !important;
+  color: #0d0d0d !important;
+}
+
+body.theme-light .app-viewport,
+html.theme-light .app-viewport {
+  background-color: #ffffff !important;
+}
+
+body.theme-light .sidebar,
+html.theme-light .sidebar {
+  background-color: #f9f9fb !important;
   border-left: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
-body.theme-light .main-chat-screen {
-  background-color: #f8fafc !important;
+body.theme-light .main-chat-screen,
+html.theme-light .main-chat-screen {
+  background-color: #ffffff !important;
 }
 
 body.theme-light .chat-input-pill {
@@ -669,10 +673,10 @@ html, body {
 }
 
 .suggestion-card:hover {
-  background: rgba(35, 35, 42, 0.9);
-  border-color: rgba(236, 72, 153, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 12px rgba(236, 72, 153, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
 .suggestion-card:active {
@@ -1052,14 +1056,20 @@ html, body {
   direction: ltr; /* Left: Plus, Center: Textarea, Right: Mic & Send */
   position: relative;
   width: 100%;
-  min-height: 58px;
+  min-height: 56px;
   border-radius: 28px;
   background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
-  padding: 6px 10px;
-  box-shadow: var(--glow-shadow);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 6px 12px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glowing-input-box:focus-within {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.35);
 }
 
 .glowing-input-box.elevated {
@@ -1226,19 +1236,11 @@ html, body {
 }
 
 .glowing-input-box::before {
-  content: '';
-  position: absolute;
-  inset: -1.6px;
-  border-radius: 29.6px;
-  background: var(--glow-gradient);
-  z-index: -1;
-  opacity: 0.95;
-  transition: opacity 0.25s ease;
+  display: none !important;
 }
 
 .glowing-input-box:focus-within::before {
-  opacity: 1;
-  filter: brightness(1.15);
+  display: none !important;
 }
 
 /* Left Plus Button */
@@ -2387,30 +2389,66 @@ body.theme-light .empty-state-subtitle {
   color: #64748b;
 }
 
-body.theme-light .suggestion-card {
-  background: #ffffff;
+body.theme-light .suggestion-card,
+html.theme-light .suggestion-card {
+  background: #f9f9fb;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
-body.theme-light .suggestion-card:hover {
-  background: #f8fafc;
-  border-color: rgba(139, 92, 246, 0.4);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+body.theme-light .suggestion-card:hover,
+html.theme-light .suggestion-card:hover {
+  background: #f1f1f4;
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
-body.theme-light .suggestion-card-title {
-  color: #0f172a;
+body.theme-light .suggestion-card-title,
+html.theme-light .suggestion-card-title {
+  color: #0d0d0d;
 }
 
-body.theme-light .suggestion-card-desc {
-  color: #64748b;
+body.theme-light .suggestion-card-desc,
+html.theme-light .suggestion-card-desc {
+  color: #71717a;
 }
 
-body.theme-light .glowing-input-box {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.12);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.06);
+body.theme-light .glowing-input-box,
+html.theme-light .glowing-input-box {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.theme-light .waveform-pill-btn,
+html.theme-light .waveform-pill-btn {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+body.theme-light .waveform-pill-btn:hover,
+html.theme-light .waveform-pill-btn:hover {
+  background: #27272a !important;
+}
+
+body.theme-light .waveform-pill-btn .wave-bar,
+html.theme-light .waveform-pill-btn .wave-bar {
+  background-color: #ffffff !important;
+}
+
+body.theme-light .input-plus-btn,
+html.theme-light .input-plus-btn,
+body.theme-light .mic-btn,
+html.theme-light .mic-btn {
+  background: #f4f4f5 !important;
+  color: #0d0d0d !important;
+}
+
+body.theme-light .input-plus-btn:hover,
+html.theme-light .input-plus-btn:hover,
+body.theme-light .mic-btn:hover,
+html.theme-light .mic-btn:hover {
+  background: #e4e4e7 !important;
 }
 
 body.theme-light .chat-text-input {

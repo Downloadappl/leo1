@@ -43,6 +43,21 @@
   <script src="marked.min.js"></script>
   <script src="highlight.min.js"></script>
 
+  <!-- Instant Theme Guard to prevent screen flash -->
+  <script>
+    (function(){
+      try {
+        var t = localStorage.getItem('leo_theme');
+        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          t = 'light';
+        }
+        if (t === 'light') {
+          document.documentElement.classList.add('theme-light');
+        }
+      } catch(e){}
+    })();
+  </script>
+
   <!-- Instant Session Guard: If student has not logged in, immediately redirect to login.html -->
   <script>
     try {

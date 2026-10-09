@@ -74,11 +74,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function applyTheme(theme) {
     if (theme === 'light') {
       document.body.classList.add('theme-light');
+      document.documentElement.classList.add('theme-light');
       if (themeIcon) themeIcon.textContent = '🌙';
       if (themeText) themeText.textContent = 'الوضع الداكن';
       localStorage.setItem('leo_theme', 'light');
     } else {
       document.body.classList.remove('theme-light');
+      document.documentElement.classList.remove('theme-light');
       if (themeIcon) themeIcon.textContent = '☀️';
       if (themeText) themeText.textContent = 'الوضع الفاتح';
       localStorage.setItem('leo_theme', 'dark');
