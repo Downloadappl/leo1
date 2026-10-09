@@ -19,6 +19,8 @@ except Exception as e:
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import database
+import base64
+import image_service
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
@@ -787,6 +789,44 @@ class AppHandler(SimpleHTTPRequestHandler):
             self._send_json({"status": "trimmed"})
             return
 
+        # AI Image Generation Service (RIVAL-Suite-Bot engine)
+        if path == '/api/image/generate':
+            prompt = body.get('prompt', '').strip()
+            model = body.get('model', 'flux-schnell')
+            aspect_ratio = body.get('aspect_ratio', 'square_hd')
+            image_url = body.get('image_url')
+            if not prompt and model not in ('rembg', 'bria-rmbg'):
+                self._send_json({'error': 'يرجى تقديم وصف للصورة المطلوب إنشاؤها'}, 400)
+                return
+            try:
+                res = image_service.generate_image(
+                    prompt=prompt,
+                    model=model,
+                    aspect_ratio=aspect_ratio,
+                    image_url=image_url
+                )
+                self._send_json(res, 200)
+            except Exception as e:
+                print(f"[IMAGE GENERATION ERROR] {e}")
+                self._send_json({'error': str(e)}, 500)
+            return
+
+        # Upload image for editing or background removal
+        if path == '/api/image/upload':
+            raw_data = body.get('image_data', '')
+            if not raw_data:
+                self._send_json({'error': 'لا توجد بيانات صورة'}, 400)
+                return
+            try:
+                if ',' in raw_data:
+                    raw_data = raw_data.split(',', 1)[1]
+                img_bytes = base64.b64decode(raw_data)
+                url = image_service.upload_image(img_bytes)
+                self._send_json({'url': url, 'status': 'success'}, 200)
+            except Exception as e:
+                self._send_json({'error': str(e)}, 500)
+            return
+
         # Stream Chat
         if path == '/api/chat':
             conv_id = body.get('conversation_id')
@@ -834,6 +874,63 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             # Save user message immediately to database with stable ID
             database.add_message(conv_id, 'user', user_text, attachments=attachments, msg_id=user_msg_id, user_id=uid)
+
+            # --- Check for Image Generation Intent in Chat ---
+            raw_text = (user_text or "").strip()
+            raw_lower = raw_text.lower()
+            img_triggers = [
+                "ارسم لي ", "ارسم ", "صمم صورة ", "صمم لي صورة ", "أنشئ صورة ", "انشئ صورة ",
+                "توليد صورة ", "ولد صورة ", "رسم صورة ", "/image ", "/draw ", "generate image of ", "draw "
+            ]
+            img_prompt = None
+            for trg in img_triggers:
+                if raw_lower.startswith(trg):
+                    img_prompt = raw_text[len(trg):].strip()
+                    break
+
+            if img_prompt:
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+                self.send_header('Cache-Control', 'no-cache, no-transform')
+                self.send_header('X-Accel-Buffering', 'no')
+                self.send_header('Connection', 'close')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-User-Id, Authorization, X-Requested-With')
+                self.end_headers()
+
+                current_conv_info = database.get_conversation(conv_id, user_id=uid)
+                meta_chunk = json.dumps({
+                    'request_id': req_id,
+                    'conversation_id': conv_id, 
+                    'message_id': user_msg_id,
+                    'assistant_message_id': assistant_msg_id,
+                    'model': 'flux-schnell', 
+                    'title': current_conv_info.get('title', 'إنشاء صورة') if current_conv_info else 'إنشاء صورة'
+                }, ensure_ascii=False)
+                self.wfile.write(f"data: {meta_chunk}\n\n".encode('utf-8'))
+                self.wfile.flush()
+
+                intro = "جاري إنشاء وتصميم الصورة بالذكاء الاصطناعي عبر محرك الرسم فائق الدقة (Flux Turbo)...\n\n"
+                self.wfile.write(f"data: {json.dumps({'content': intro}, ensure_ascii=False)}\n\n".encode('utf-8'))
+                self.wfile.flush()
+
+                try:
+                    gen_res = image_service.generate_image(img_prompt, model="flux-schnell")
+                    img_url = gen_res.get('url')
+                    res_body = f"![{img_prompt}]({img_url})\n\n**تم إنجاز التصميم بنجاح!**\n- **الموضوع:** {img_prompt}\n- **المحرك:** Flux Turbo الذكي\n\nيمكنك النقر على الصورة لتكبيرها، أو فتح استوديو الصور لمزيد من خيارات التعديل وتغيير الأبعاد."
+                except Exception as ex:
+                    res_body = f"عذراً، حدث خطأ أثناء محاولة إنشاء الصورة: {str(ex)}"
+
+                self.wfile.write(f"data: {json.dumps({'content': res_body}, ensure_ascii=False)}\n\n".encode('utf-8'))
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+
+                database.add_message(conv_id, 'assistant', intro + res_body, msg_id=assistant_msg_id, user_id=uid)
+                with ACTIVE_GENERATIONS_LOCK:
+                    cur = ACTIVE_GENERATIONS.get(conv_id)
+                    if cur and cur.get('request_id') == req_id:
+                        ACTIVE_GENERATIONS.pop(conv_id, None)
+                return
 
             # --- LONG-TERM MEMORY: Automatic extraction of user facts/preferences ---
             if user_text:

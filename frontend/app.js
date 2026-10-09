@@ -1643,6 +1643,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     elem.appendChild(cursorElem);
     bindCopyCodeButtons(elem);
+    elem.querySelectorAll('img').forEach(img => {
+      img.classList.add('chat-rendered-image');
+      img.onclick = () => openImageLightbox(img.src);
+    });
   }
 
   function renderMarkdownFinal(elem, markdownText) {
@@ -1652,6 +1656,10 @@ document.addEventListener('DOMContentLoaded', () => {
       elem.textContent = markdownText;
     }
     bindCopyCodeButtons(elem);
+    elem.querySelectorAll('img').forEach(img => {
+      img.classList.add('chat-rendered-image');
+      img.onclick = () => openImageLightbox(img.src);
+    });
   }
 
   function bindCopyCodeButtons(container) {
@@ -2448,10 +2456,271 @@ document.addEventListener('DOMContentLoaded', () => {
   if (lightboxBackdrop) lightboxBackdrop.onclick = closeImageLightbox;
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && imageLightboxModal && imageLightboxModal.style.display === 'flex') {
-      closeImageLightbox();
+    if (e.key === 'Escape') {
+      if (imageLightboxModal && imageLightboxModal.style.display === 'flex') {
+        closeImageLightbox();
+      }
+      if (imageStudioModalOverlay && imageStudioModalOverlay.classList.contains('active')) {
+        closeImageStudio();
+      }
     }
   });
+
+  // ============================================================
+  // AI IMAGE STUDIO CONTROLLER (RIVAL / FAL INTEGRATION)
+  // ============================================================
+  const imageStudioBtn = document.getElementById('imageStudioBtn');
+  const sheetGenerateImgBtn = document.getElementById('sheetGenerateImgBtn');
+  const drawerImageStudioBtn = document.getElementById('drawerImageStudioBtn');
+  const imageStudioModalOverlay = document.getElementById('imageStudioModalOverlay');
+  const imageStudioCloseBtn = document.getElementById('imageStudioCloseBtn');
+  const studioModelSelector = document.getElementById('studioModelSelector');
+  const studioRatioSelector = document.getElementById('studioRatioSelector');
+  const studioPromptInput = document.getElementById('studioPromptInput');
+  const studioSuggestionsTags = document.getElementById('studioSuggestionsTags');
+  const studioUploadBox = document.getElementById('studioUploadBox');
+  const studioFileInput = document.getElementById('studioFileInput');
+  const studioUploadTrigger = document.getElementById('studioUploadTrigger');
+  const studioUploadLabel = document.getElementById('studioUploadLabel');
+  const studioGenerateBtn = document.getElementById('studioGenerateBtn');
+  const studioGenerateBtnText = document.getElementById('studioGenerateBtnText');
+  const studioResultContainer = document.getElementById('studioResultContainer');
+  const studioLoadingState = document.getElementById('studioLoadingState');
+  const studioPreviewCard = document.getElementById('studioPreviewCard');
+  const studioPreviewImg = document.getElementById('studioPreviewImg');
+  const studioActionZoomBtn = document.getElementById('studioActionZoomBtn');
+  const studioActionDownloadBtn = document.getElementById('studioActionDownloadBtn');
+  const studioActionInsertBtn = document.getElementById('studioActionInsertBtn');
+  const studioActionCopyBtn = document.getElementById('studioActionCopyBtn');
+
+  let currentStudioModel = 'flux-schnell';
+  let currentStudioRatio = 'square_hd';
+  let currentStudioUploadedUrl = null;
+  let currentGeneratedImageUrl = null;
+
+  function openImageStudio(initialPrompt = '') {
+    if (!imageStudioModalOverlay) return;
+    if (initialPrompt && studioPromptInput) {
+      studioPromptInput.value = initialPrompt;
+    }
+    imageStudioModalOverlay.classList.add('active');
+    setTimeout(() => {
+      if (studioPromptInput) studioPromptInput.focus();
+    }, 120);
+  }
+
+  function closeImageStudio() {
+    if (!imageStudioModalOverlay) return;
+    imageStudioModalOverlay.classList.remove('active');
+  }
+
+  if (imageStudioBtn) imageStudioBtn.onclick = () => openImageStudio();
+  if (sheetGenerateImgBtn) {
+    sheetGenerateImgBtn.onclick = () => {
+      closeAttachmentActionSheet();
+      openImageStudio();
+    };
+  }
+  if (drawerImageStudioBtn) {
+    drawerImageStudioBtn.onclick = () => {
+      closeSidebarDrawer();
+      openImageStudio();
+    };
+  }
+  if (imageStudioCloseBtn) imageStudioCloseBtn.onclick = closeImageStudio;
+  if (imageStudioModalOverlay) {
+    imageStudioModalOverlay.onclick = (e) => {
+      if (e.target === imageStudioModalOverlay) closeImageStudio();
+    };
+  }
+
+  // Model Selection
+  if (studioModelSelector) {
+    studioModelSelector.querySelectorAll('.studio-segment-btn').forEach(btn => {
+      btn.onclick = () => {
+        studioModelSelector.querySelectorAll('.studio-segment-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentStudioModel = btn.dataset.model || 'flux-schnell';
+
+        if (currentStudioModel === 'rembg') {
+          if (studioUploadBox) studioUploadBox.style.display = 'block';
+          if (studioPromptInput) studioPromptInput.placeholder = 'إزالة الخلفية تلقائياً (يمكنك ترك هذا الحقل فارغاً)...';
+        } else {
+          if (studioUploadBox) studioUploadBox.style.display = 'none';
+          if (studioPromptInput) studioPromptInput.placeholder = 'صف الصورة التي ترغب في إنشائها بالتفصيل...';
+        }
+      };
+    });
+  }
+
+  // Ratio Selection
+  if (studioRatioSelector) {
+    studioRatioSelector.querySelectorAll('.studio-ratio-btn').forEach(btn => {
+      btn.onclick = () => {
+        studioRatioSelector.querySelectorAll('.studio-ratio-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentStudioRatio = btn.dataset.ratio || 'square_hd';
+      };
+    });
+  }
+
+  // Inspiration tags
+  if (studioSuggestionsTags) {
+    studioSuggestionsTags.querySelectorAll('.studio-tag-pill').forEach(btn => {
+      btn.onclick = () => {
+        const p = btn.dataset.prompt;
+        if (p && studioPromptInput) {
+          studioPromptInput.value = p;
+          studioPromptInput.focus();
+        }
+      };
+    });
+  }
+
+  // Upload Trigger for Rembg
+  if (studioUploadTrigger && studioFileInput) {
+    studioUploadTrigger.onclick = () => studioFileInput.click();
+    studioFileInput.onchange = async () => {
+      const file = studioFileInput.files && studioFileInput.files[0];
+      if (!file) return;
+      if (studioUploadLabel) studioUploadLabel.textContent = `جاري رفع: ${file.name}...`;
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const res = await fetch('/api/image/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_data: reader.result })
+          });
+          const data = await res.json();
+          if (data && data.url) {
+            currentStudioUploadedUrl = data.url;
+            if (studioUploadLabel) studioUploadLabel.textContent = `تم رفع الصورة: ${file.name}`;
+            showToast('تم رفع الصورة بنجاح');
+          } else {
+            throw new Error(data.error || 'فشل الرفع');
+          }
+        } catch (err) {
+          if (studioUploadLabel) studioUploadLabel.textContent = 'تعذر رفع الصورة، أعد المحاولة';
+          showToast('فشل رفع الصورة');
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+  }
+
+  // Generate Action
+  if (studioGenerateBtn) {
+    studioGenerateBtn.onclick = async () => {
+      const prompt = studioPromptInput ? studioPromptInput.value.trim() : '';
+      if (!prompt && currentStudioModel !== 'rembg') {
+        showToast('يرجى كتابة وصف للصورة أولاً');
+        if (studioPromptInput) studioPromptInput.focus();
+        return;
+      }
+      if (currentStudioModel === 'rembg' && !currentStudioUploadedUrl) {
+        showToast('يرجى اختيار صورة أولاً لإزالة خلفيتها');
+        return;
+      }
+
+      studioGenerateBtn.disabled = true;
+      if (studioGenerateBtnText) studioGenerateBtnText.textContent = 'جاري التوليد...';
+      if (studioResultContainer) studioResultContainer.style.display = 'block';
+      if (studioLoadingState) studioLoadingState.style.display = 'flex';
+      if (studioPreviewCard) studioPreviewCard.style.display = 'none';
+
+      try {
+        const payload = {
+          prompt: prompt,
+          model: currentStudioModel,
+          aspect_ratio: currentStudioRatio,
+          image_url: currentStudioUploadedUrl
+        };
+
+        const res = await fetch('/api/image/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok && data && data.url) {
+          currentGeneratedImageUrl = data.url;
+          if (studioPreviewImg) studioPreviewImg.src = data.url;
+          if (studioLoadingState) studioLoadingState.style.display = 'none';
+          if (studioPreviewCard) studioPreviewCard.style.display = 'flex';
+          showToast('تم تصميم وتوليد الصورة بنجاح!');
+        } else {
+          throw new Error(data.error || 'فشل توليد الصورة');
+        }
+      } catch (err) {
+        if (studioLoadingState) studioLoadingState.style.display = 'none';
+        showToast(err.message || 'حدث خطأ أثناء التوليد');
+      } finally {
+        studioGenerateBtn.disabled = false;
+        if (studioGenerateBtnText) studioGenerateBtnText.textContent = 'إنشاء وتصميم الصورة';
+      }
+    };
+  }
+
+  // Result Preview Actions
+  if (studioActionZoomBtn) {
+    studioActionZoomBtn.onclick = () => {
+      if (currentGeneratedImageUrl) {
+        openImageLightbox(currentGeneratedImageUrl);
+      }
+    };
+  }
+
+  if (studioActionDownloadBtn) {
+    studioActionDownloadBtn.onclick = () => {
+      if (!currentGeneratedImageUrl) return;
+      const a = document.createElement('a');
+      a.href = currentGeneratedImageUrl;
+      a.target = '_blank';
+      a.download = `leo_generated_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('جاري بدء التحميل');
+    };
+  }
+
+  if (studioActionCopyBtn) {
+    studioActionCopyBtn.onclick = async () => {
+      if (!currentGeneratedImageUrl) return;
+      try {
+        await navigator.clipboard.writeText(currentGeneratedImageUrl);
+        showToast('تم نسخ رابط الصورة');
+      } catch (e) {
+        showToast('تم النسخ');
+      }
+    };
+  }
+
+  if (studioActionInsertBtn) {
+    studioActionInsertBtn.onclick = () => {
+      if (!currentGeneratedImageUrl) return;
+      const promptText = studioPromptInput ? studioPromptInput.value.trim() : 'صورة مولدة بالذكاء الاصطناعي';
+      const modelTitle = currentStudioModel === 'flux-schnell' ? 'Flux Turbo' : currentStudioModel === 'gpt-image-2' ? 'GPT Image 2' : 'إزالة الخلفية';
+      const markdownMsg = `![${promptText}](${currentGeneratedImageUrl})\n\n**تم إنشاء وتصميم الصورة بالذكاء الاصطناعي.**\n- **الموضوع:** ${promptText}\n- **المحرك:** ${modelTitle}`;
+
+      closeImageStudio();
+
+      // Ensure active conversation
+      if (!currentConversationId) {
+        const newConv = createNewConversationLocally('تصميم صورة');
+        currentConversationId = newConv.id;
+        setActiveConversation(newConv.id);
+      }
+
+      // Add to conversation
+      appendAssistantMessage(markdownMsg);
+      saveCurrentConversationMessages();
+      showToast('تم إدراج الصورة في المحادثة');
+    };
+  }
 
   // Report Bug Row
   reportBugRow.onclick = () => {

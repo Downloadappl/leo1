@@ -290,6 +290,13 @@
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
           </button>
+
+          <!-- Left: AI Image Studio Button -->
+          <button class="input-btn input-studio-btn" id="imageStudioBtn" title="استوديو إنشاء وتصميم الصور بالذكاء الاصطناعي" aria-label="إنشاء صورة" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+            </svg>
+          </button>
           <input type="file" id="fileInput" accept="image/*" style="display: none;">
           <input type="file" id="docFileInput" accept="application/pdf,image/*,.doc,.docx,.txt" style="display: none;">
           <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
@@ -379,7 +386,7 @@
             </div>
           </div>
 
-          <!-- Row 2: 3 large action buttons (ملف, الألبوم, كاميرا) exactly like screenshot -->
+          <!-- Row 2: Action buttons (ملف, الألبوم, كاميرا, توليد صورة) -->
           <div class="attachment-actions-trio">
             <button class="sheet-action-tile" id="sheetFileBtn" type="button">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -401,6 +408,12 @@
                 <circle cx="12" cy="13" r="4"></circle>
               </svg>
               <span>كاميرا</span>
+            </button>
+            <button class="sheet-action-tile" id="sheetGenerateImgBtn" type="button">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+              </svg>
+              <span>توليد صورة</span>
             </button>
           </div>
         </div>
@@ -451,6 +464,13 @@
 
       <!-- Navigation Links -->
       <nav class="drawer-nav-list">
+        <button class="drawer-nav-item" id="drawerImageStudioBtn">
+          <span class="nav-label">استوديو إنشاء الصور</span>
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+          </svg>
+        </button>
+
         <button class="drawer-nav-item" id="searchChatsBtn">
           <span class="nav-label">البحث في المحادثات</span>
           <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -914,6 +934,168 @@
           <div class="memory-modal-footer">
             <button class="clear-memories-btn" id="clearAllMemoriesBtn" type="button">مسح جميع الذكريات</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Image Studio Modal (RIVAL / Fal Integration) -->
+    <div class="custom-modal-overlay" id="imageStudioModalOverlay">
+      <div class="custom-modal-content studio-modal-card">
+        <div class="modal-header">
+          <div class="login-modal-title-row">
+            <span class="login-badge-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+              </svg>
+            </span>
+            <div>
+              <h3 class="modal-title">استوديو إنشاء وتصميم الصور</h3>
+              <p class="login-modal-subtitle">محرك الذكاء الاصطناعي فائق الدقة والسرعة (Flux Turbo & GPT Image 2)</p>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="imageStudioCloseBtn" type="button" aria-label="إغلاق">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body studio-modal-body">
+          <!-- Engine / Model Selection Segmented Tabs -->
+          <div class="studio-section-label">محرك التوليد والتصميم</div>
+          <div class="studio-segmented-control" id="studioModelSelector">
+            <button class="studio-segment-btn active" data-model="flux-schnell" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              <span>Flux Turbo (سريع)</span>
+            </button>
+            <button class="studio-segment-btn" data-model="gpt-image-2" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+              </svg>
+              <span>GPT Image 2 (دقيق)</span>
+            </button>
+            <button class="studio-segment-btn" data-model="rembg" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="6" cy="6" r="3"></circle>
+                <circle cx="6" cy="18" r="3"></circle>
+                <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+                <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+                <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+              </svg>
+              <span>إزالة الخلفية</span>
+            </button>
+          </div>
+
+          <!-- Aspect Ratio Selection -->
+          <div class="studio-section-label">أبعاد ومقاس الصورة</div>
+          <div class="studio-ratios-row" id="studioRatioSelector">
+            <button class="studio-ratio-btn active" data-ratio="square_hd" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              </svg>
+              <span>مربع 1:1</span>
+            </button>
+            <button class="studio-ratio-btn" data-ratio="landscape_16_9" type="button">
+              <svg width="16" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+              </svg>
+              <span>أفقي 16:9</span>
+            </button>
+            <button class="studio-ratio-btn" data-ratio="portrait_16_9" type="button">
+              <svg width="12" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2"></rect>
+              </svg>
+              <span>طولي 9:16</span>
+            </button>
+          </div>
+
+          <!-- Prompt Input Area -->
+          <div class="studio-section-label">وصف المشهد أو الصورة المطلوب تصميمها</div>
+          <div class="studio-textarea-wrapper">
+            <textarea id="studioPromptInput" class="studio-prompt-input" rows="3" placeholder="صف الصورة التي ترغب في إنشائها بالتفصيل (مثل: مكتبة مستقبلية مضيئة بالأجهزة الذكية والكتب المعلقة)..." dir="rtl"></textarea>
+          </div>
+
+          <!-- Quick Prompts Inspiration Tags -->
+          <div class="studio-suggestions-tags" id="studioSuggestionsTags">
+            <button class="studio-tag-pill" type="button" data-prompt="مخطط علمي للمجموعة الشمسية بتفاصيل دقيقة وإضاءة كونية">مخطط المجموعة الشمسية</button>
+            <button class="studio-tag-pill" type="button" data-prompt="رسم توضيحي مجسم وثلاثي الأبعاد لخلية نباتية مع بيانات علمية">خلية نباتية مجسمة</button>
+            <button class="studio-tag-pill" type="button" data-prompt="مختبر كيمياء حديث متطور مع أنابيب اختبار مضيئة وتوهج نيون">مختبر كيمياء حديث</button>
+            <button class="studio-tag-pill" type="button" data-prompt="مكتبة جامعية أثرية هادئة تضم آلاف المجلدات ونوافذ شمسية واسعة">مكتبة جامعية أثرية</button>
+          </div>
+
+          <!-- Image Drop / Upload (Shown for Rembg / Edit) -->
+          <div class="studio-upload-box" id="studioUploadBox" style="display: none;">
+            <input type="file" id="studioFileInput" accept="image/*" style="display: none;">
+            <button class="studio-upload-trigger" id="studioUploadTrigger" type="button">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span id="studioUploadLabel">اختر صورة من جهازك لإزالة خلفيتها أو تعديلها</span>
+            </button>
+          </div>
+
+          <!-- Action Button -->
+          <button class="studio-generate-btn" id="studioGenerateBtn" type="button">
+            <svg class="studio-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span id="studioGenerateBtnText">إنشاء وتصميم الصورة</span>
+          </button>
+
+          <!-- Studio Live Result Box -->
+          <div class="studio-result-container" id="studioResultContainer" style="display: none;">
+            <!-- Loading State -->
+            <div class="studio-loading-state" id="studioLoadingState" style="display: none;">
+              <div class="studio-spinner"></div>
+              <span class="studio-loading-text">جاري معالجة وتوليد الصورة الذكية، يرجى الانتظار لحظات...</span>
+            </div>
+
+            <!-- Output Preview -->
+            <div class="studio-preview-card" id="studioPreviewCard" style="display: none;">
+              <div class="studio-preview-img-wrapper">
+                <img id="studioPreviewImg" src="" alt="الصورة الناتجة" class="studio-preview-img">
+              </div>
+              <div class="studio-actions-bar">
+                <button class="studio-action-tool-btn" id="studioActionZoomBtn" title="تكبير ومعاينة" type="button">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="11" y1="8" x2="11" y2="14"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                  </svg>
+                  <span>معاينة</span>
+                </button>
+                <button class="studio-action-tool-btn" id="studioActionDownloadBtn" title="تحميل الصورة" type="button">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>تحميل</span>
+                </button>
+                <button class="studio-action-tool-btn primary" id="studioActionInsertBtn" title="إدراج في المحادثة الحالية" type="button">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                  <span>إرسال للمحادثة</span>
+                </button>
+                <button class="studio-action-tool-btn" id="studioActionCopyBtn" title="نسخ رابط الصورة" type="button">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span>نسخ الرابط</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
