@@ -27,7 +27,7 @@ def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
-        
+
         # Conversations Table with user_id
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS conversations (
@@ -120,6 +120,18 @@ def init_db():
         );
         """)
         
+        # Generated Images Table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS generated_images (
+            id TEXT PRIMARY KEY,
+            user_id TEXT DEFAULT 'default_user',
+            image_url TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            conversation_id TEXT,
+            created_at REAL NOT NULL
+        );
+        """)
+
         # Clean up any legacy dummy placeholder profiles
         try:
             cursor.execute("DELETE FROM student_profiles WHERE name = 'الطالب' OR name = '' OR name IS NULL;")
@@ -628,6 +640,110 @@ def sync_conversations(user_id, conversations_data):
                     VALUES (?, ?, ?, ?, ?, ?)
                     """, (mid, cid, role, content, attachments, m_created_at))
         conn.commit()
+
+# --- Library (Generated Images & Sent Images) ---
+def record_generated_image(user_id, image_url, prompt, conversation_id=None):
+    img_id = f"gen_img_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
+    now = time.time()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO generated_images (id, user_id, image_url, prompt, conversation_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (img_id, user_id, image_url, prompt, conversation_id, now))
+        conn.commit()
+    return {"id": img_id, "user_id": user_id, "image_url": image_url, "prompt": prompt, "conversation_id": conversation_id, "created_at": now}
+
+def get_user_generated_images(user_id="default_user"):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, user_id, image_url, prompt, conversation_id, created_at
+            FROM generated_images
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+        """, (user_id,))
+        rows = cursor.fetchall()
+        results = [dict(r) for r in rows]
+
+        # Scan messages for any historical generated images not yet recorded in table
+        cursor.execute("""
+            SELECT m.id, m.content, m.conversation_id, m.created_at, c.user_id
+            FROM messages m
+            JOIN conversations c ON m.conversation_id = c.id
+            WHERE c.user_id = ? AND m.role = 'assistant' AND (m.content LIKE '%fal.media%' OR m.content LIKE '%data-img-url%' OR m.content LIKE '%chat-dalle%' OR m.content LIKE '%<img%')
+            ORDER BY m.created_at DESC
+        """, (user_id,))
+        msg_rows = cursor.fetchall()
+        existing_urls = {r['image_url'] for r in results}
+
+        for mr in msg_rows:
+            content = mr['content']
+            urls = re.findall(r'https://[^\s\'"<>]+?\.(?:png|jpg|jpeg|webp)', content)
+            if not urls:
+                m_url = re.search(r'data-img-url="([^"]+)"', content)
+                if m_url:
+                    urls = [m_url.group(1)]
+            for u in urls:
+                if u not in existing_urls:
+                    existing_urls.add(u)
+                    alt_match = re.search(r'alt="([^"]*)"', content)
+                    prompt = alt_match.group(1) if alt_match else "صورة منشأة بالذكاء الاصطناعي"
+                    item = {
+                        "id": f"msg_img_{mr['id']}",
+                        "user_id": user_id,
+                        "image_url": u,
+                        "prompt": prompt,
+                        "conversation_id": mr['conversation_id'],
+                        "created_at": mr['created_at']
+                    }
+                    results.append(item)
+                    try:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO generated_images (id, user_id, image_url, prompt, conversation_id, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (item['id'], user_id, u, prompt, mr['conversation_id'], mr['created_at']))
+                    except Exception:
+                        pass
+        conn.commit()
+        results.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+        return results
+
+def get_user_sent_images(user_id="default_user"):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT m.id, m.attachments, m.conversation_id, m.created_at, c.title as conversation_title
+            FROM messages m
+            JOIN conversations c ON m.conversation_id = c.id
+            WHERE c.user_id = ? AND m.role = 'user' AND m.attachments IS NOT NULL AND m.attachments != '[]'
+            ORDER BY m.created_at DESC
+        """, (user_id,))
+        rows = cursor.fetchall()
+        sent_images = []
+        for r in rows:
+            try:
+                atts = json.loads(r['attachments'])
+                if isinstance(atts, list):
+                    for idx, att in enumerate(atts):
+                        if not isinstance(att, dict):
+                            continue
+                        data_url = att.get('data') or att.get('url') or ''
+                        att_type = att.get('type', '')
+                        if (data_url.startswith('data:image/') or
+                            att_type.startswith('image') or
+                            data_url.endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif'))):
+                            sent_images.append({
+                                "id": f"{r['id']}_att_{idx}",
+                                "url": data_url,
+                                "name": att.get('name', 'صورة مرسلة'),
+                                "conversation_id": r['conversation_id'],
+                                "conversation_title": r['conversation_title'],
+                                "created_at": r['created_at']
+                            })
+            except Exception:
+                continue
+        return sent_images
 
 init_db()
 

@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const actionPillBtn = document.getElementById('actionPillBtn');
   const newChatBtn = document.getElementById('newChatBtn');
   const attachBtn = document.getElementById('attachBtn');
+  const imageGenerationModeChip = document.getElementById('imageGenerationModeChip');
+  const imageGenerationModeRemove = document.getElementById('imageGenerationModeRemove');
   const fileInput = document.getElementById('fileInput');
   const attachmentPreviewDrawer = document.getElementById('attachmentPreviewDrawer');
   const micBtn = document.getElementById('micBtn');
@@ -64,11 +66,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function cleanImageMarkup(html) {
+    if (!html || typeof html !== 'string') return html;
+    return html
+      .replace(/<div class="dalle-actions-row"[\s\S]*?<\/div>\s*<\/div>/gi, '</div>')
+      .replace(/<div class="dalle-actions-row"[\s\S]*?<\/div>/gi, '')
+      .replace(/<div class="dalle-frame-overlay"[\s\S]*?<\/div>/gi, '')
+      .replace(/<div class="dalle-gen-header"[\s\S]*?<\/div>/gi, '')
+      .replace(/<div class="chat-dalle-generating-box"[\s\S]*?<\/div>/gi, '');
+  }
+
   function getConversationFromLocalCache(convId) {
     if (!convId) return null;
     try {
       const raw = localStorage.getItem(`leo_conv_${convId}`);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (data && Array.isArray(data.messages)) {
+        data.messages.forEach(m => {
+          if (m && m.content) m.content = cleanImageMarkup(m.content);
+        });
+      }
+      return data;
     } catch (e) {
       return null;
     }
@@ -182,7 +201,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const lightboxZoomInBtn = document.getElementById('lightboxZoomInBtn');
   const lightboxZoomLevel = document.getElementById('lightboxZoomLevel');
   const lightboxResetBtn = document.getElementById('lightboxResetBtn');
+  const lightboxDownloadBtn = document.getElementById('lightboxDownloadBtn');
   const lightboxCloseBtn = document.getElementById('lightboxCloseBtn');
+  let imageGenerationModeEnabled = false;
+  const normalChatPlaceholder = chatTextInput ? chatTextInput.getAttribute('placeholder') : '';
+
+  function setImageGenerationMode(enabled) {
+    imageGenerationModeEnabled = Boolean(enabled);
+    if (imageGenerationModeChip) imageGenerationModeChip.hidden = !imageGenerationModeEnabled;
+    if (chatTextInput) {
+      chatTextInput.placeholder = imageGenerationModeEnabled
+        ? 'صف الصورة التي تريد إنشاءها...'
+        : (normalChatPlaceholder || 'اسأل الأستاذ ليو...');
+      chatTextInput.setAttribute('aria-label', imageGenerationModeEnabled ? 'وصف الصورة المطلوب إنشاؤها' : 'اكتب رسالتك');
+    }
+    const generationChoice = document.getElementById('sheetGenerateImgBtn');
+    if (generationChoice) {
+      generationChoice.classList.toggle('selected', imageGenerationModeEnabled);
+      generationChoice.setAttribute('aria-pressed', String(imageGenerationModeEnabled));
+    }
+  }
+
+  if (imageGenerationModeRemove) {
+    imageGenerationModeRemove.addEventListener('click', () => {
+      setImageGenerationMode(false);
+      if (chatTextInput) chatTextInput.focus();
+    });
+  }
 
   // Modals & Toast
   // Full-Screen Auth & Onboarding Elements (ChatGPT Style)
@@ -315,7 +360,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentConversationId = localStorage.getItem('leo_active_conv_id') || null;
   let selectedModel = localStorage.getItem('leo_selected_model') || 'leo-4o-mini';
   let isGenerating = false;
-  let activeAbortController = null;
   let pendingAttachments = [];
   let isRecording = false;
   let isTTSPlaying = false;
@@ -323,8 +367,27 @@ document.addEventListener('DOMContentLoaded', () => {
   let isAudioPaused = false;
   let viewingArchived = false;
 
-  // Active Smooth Streaming Controller
-  let activeStreamer = null;
+  // Each in-flight response owns its controller and renderer.
+  const activeChatRequests = new Map();
+  let latestActiveRequestId = null;
+
+  function syncActiveChatRequests() {
+    const activeEntries = Array.from(activeChatRequests.entries());
+    const latest = activeEntries.length ? activeEntries[activeEntries.length - 1] : null;
+    latestActiveRequestId = latest ? latest[0] : null;
+    isGenerating = activeChatRequests.size > 0;
+    actionPillBtn.classList.toggle('generating-mode', isGenerating);
+  }
+
+  function registerActiveChatRequest(requestId, controller, lifecycle) {
+    activeChatRequests.set(requestId, { controller, lifecycle });
+    syncActiveChatRequests();
+  }
+
+  function releaseActiveChatRequest(requestId) {
+    if (!activeChatRequests.delete(requestId)) return;
+    syncActiveChatRequests();
+  }
 
   // Student Profile State (Strictly null until authenticated/filled — no dummy data!)
   let studentProfile = null;
@@ -401,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
     autoResizeTextarea();
     const val = chatTextInput.value.trim();
     if (val.length > 0 || pendingAttachments.length > 0) {
-      if (!isGenerating) actionPillBtn.classList.add('send-mode');
+      actionPillBtn.classList.add('send-mode');
     } else {
       if (!isGenerating) actionPillBtn.classList.remove('send-mode');
     }
@@ -412,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        if (!isSubmitting && !isGenerating) {
+        if (!isSubmitting) {
           handleSendPrompt();
         }
       } else {
@@ -429,23 +492,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (clickTime - lastActionPillClick < 350) return; // Prevent accidental rapid double-clicks
     lastActionPillClick = clickTime;
 
-    if (isGenerating) {
-      if (activeStreamer) {
-        activeStreamer.cancel();
-        activeStreamer = null;
+    if (isGenerating && !actionPillBtn.classList.contains('send-mode')) {
+      const request = activeChatRequests.get(latestActiveRequestId);
+      if (request) {
+        request.lifecycle.cancel();
+        request.controller.abort();
+        releaseActiveChatRequest(latestActiveRequestId);
       }
-      if (activeAbortController) {
-        activeAbortController.abort();
-        activeAbortController = null;
-      }
-      isGenerating = false;
-      actionPillBtn.classList.remove('generating-mode');
       showToast('تم إيقاف التوليد');
       return;
     }
 
     if (actionPillBtn.classList.contains('send-mode')) {
-      if (!isSubmitting && !isGenerating) {
+      if (!isSubmitting) {
         handleSendPrompt();
       }
     } else {
@@ -467,6 +526,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Enable an explicit image-creation mode from the existing plus menu.
+  // The selected chip stays in the composer while the prompt is typed.
+  const selectImageCreationMode = () => {
+    setImageGenerationMode(true);
+    if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
+    if (glowingInputBox) glowingInputBox.classList.remove('elevated');
+    if (chatTextInput) chatTextInput.focus();
+  };
 
   // Close attachment panel when clicking outside
   document.addEventListener('click', (e) => {
@@ -877,8 +945,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showEmptyState();
           }
         }
-      } else if (filtered.length > 0) {
-        openConversation(filtered[0].id);
       } else {
         showEmptyState();
       }
@@ -1114,8 +1180,72 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Safe Markdown Parser for Streaming (handles unclosed code blocks gracefully) ---
+  function isImageGenerationIntent(str) {
+    if (!str || typeof str !== 'string') return false;
+    const s = str.trim().toLowerCase();
+
+    // Comprehensive keywords check anywhere in prompt
+    const keywords = [
+      'صمم', 'ارسم', 'انشئ صورة', 'أنشئ صورة', 'انشئ صوره', 'أنشئ صوره',
+      'توليد صورة', 'توليد صوره', 'ولد صورة', 'ولد صوره',
+      'سوي صورة', 'سوي صوره', 'سوي لي صورة', 'سوي لي صوره',
+      'اعمل صورة', 'اعمل صوره', 'اعمل لي صورة', 'اعمل لي صوره',
+      'اريد صورة', 'أريد صورة', 'اريد صوره', 'أريد صوره',
+      'ابغى صورة', 'ابغا صورة', 'ابغى صوره', 'ابغا صوره',
+      'صورة لـ', 'صوره لـ', 'صورة عن', 'صوره عن', 'علم العراق',
+      '/image', '/draw', '/img', 'generate image', 'create image'
+    ];
+    if (keywords.some(k => s.includes(k))) return true;
+
+    const patterns = [
+      /^(ممكن\s+|اريدك\s+|أريدك\s+|لو\s+سمحت\s+|بالله\s+|ياريت\s+|اريد\s+|أريد\s+|يا\s+ليو\s+|استاذ\s+ليو\s+)?(صمم|ارسم|انشئ|أنشئ|سوي|اعمل|توليد|ولد|تخيل|ابغا|ابغى)/i,
+      /(صمم|ارسم|انشئ|أنشئ|توليد)/i
+    ];
+    return patterns.some(p => p.test(s));
+  }
+
+  function createGeneratingPlaceholder(reqId = '') {
+    const template = document.getElementById('imageGenerationCardTemplate');
+    let card;
+    if (template) {
+      card = template.content.firstElementChild.cloneNode(true);
+    } else {
+      card = document.createElement('div');
+      card.className = 'chat-image-generating-placeholder';
+      card.innerHTML = '<div class="gen-placeholder-glow"></div><div class="gen-placeholder-body"><div class="gen-placeholder-visual"><div class="gen-placeholder-pulse-ring"></div></div><div class="gen-placeholder-status">جاري إنشاء الصورة...</div><div class="gen-placeholder-meta">محرك الذكاء الاصطناعي فائق الدقة</div><div class="gen-placeholder-bar"><div class="gen-placeholder-bar-fill"></div></div></div>';
+    }
+    if (reqId) {
+      card.id = `placeholder_${reqId}`;
+      card.dataset.requestId = reqId;
+    }
+    card.setAttribute('role', 'status');
+    card.setAttribute('aria-live', 'polite');
+    return card;
+  }
+
+  function createResponseWaitingIndicator() {
+    const template = document.getElementById('chatResponseWaitingTemplate');
+    if (template) return template.content.firstElementChild.cloneNode(true);
+    const indicator = document.createElement('div');
+    indicator.className = 'chat-response-waiting';
+    indicator.setAttribute('role', 'status');
+    indicator.setAttribute('aria-live', 'polite');
+    indicator.dir = 'rtl';
+    indicator.innerHTML = '<span class="chat-response-waiting-icon" aria-hidden="true"><span class="chat-response-waiting-orbit"></span><span class="chat-response-waiting-spark">✦</span></span><span class="chat-response-waiting-label">جاري تجهيز الرد</span><span class="chat-response-waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+    return indicator;
+  }
+
   function safeParseMarkdown(mdText) {
-    if (!window.marked) return mdText;
+    if (!mdText || typeof mdText !== 'string') return '';
+    const trimmed = mdText.trim();
+    if (trimmed.startsWith('<div class="chat-image-generating-placeholder') ||
+        trimmed.startsWith('<div class="chat-generated-image-card') ||
+        trimmed.startsWith('<div class="chat-image-error-card') ||
+        trimmed.includes('class="chat-image-generating-placeholder"') ||
+        trimmed.includes('class="chat-generated-image-card"')) {
+      return cleanImageMarkup(trimmed);
+    }
+    if (!window.marked) return cleanImageMarkup(mdText);
     try {
       const fenceMatches = mdText.match(/```/g);
       const fenceCount = fenceMatches ? fenceMatches.length : 0;
@@ -1123,12 +1253,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (fenceCount % 2 !== 0) {
         textToParse += '\n```';
       }
-      return marked.parse(textToParse);
+      return cleanImageMarkup(marked.parse(textToParse));
     } catch (e) {
       try {
-        return marked.parse(mdText);
+        return cleanImageMarkup(marked.parse(mdText));
       } catch (e2) {
-        return mdText;
+        return cleanImageMarkup(mdText);
       }
     }
   }
@@ -1140,24 +1270,18 @@ document.addEventListener('DOMContentLoaded', () => {
       this.cursorElem = cursorElem;
       this.onDone = onDone;
       this.buffer = '';
+      this.bufferCharacters = [];
       this.revealed = '';
+      this.revealedCharacterCount = 0;
       this.isNetworkDone = false;
       this.isAborted = false;
       this.rafId = null;
     }
 
     append(textChunk) {
-      if (this.isAborted) return;
+      if (this.isAborted || !textChunk) return;
       this.buffer += textChunk;
-      // If the incoming text contains a rich HTML card, reveal immediately without typewriter delay
-      if (textChunk.includes('chat-dalle-generating-box') || textChunk.includes('chat-dalle-result-card') || textChunk.includes('chat-image-generating-card') || textChunk.includes('chat-image-card-container')) {
-        this.revealed = this.buffer;
-        this.textElem.innerHTML = safeParseMarkdown(this.revealed);
-        if (this.cursorElem) this.textElem.appendChild(this.cursorElem);
-        animateDalleProgress(this.textElem);
-        scrollToBottom(true);
-        return;
-      }
+      this.bufferCharacters.push(...Array.from(textChunk));
       if (!this.rafId) {
         this.run();
       }
@@ -1166,24 +1290,32 @@ document.addEventListener('DOMContentLoaded', () => {
     replace(newContent) {
       if (this.isAborted) return;
       this.buffer = newContent;
+      this.bufferCharacters = Array.from(newContent);
       this.revealed = newContent;
+      this.revealedCharacterCount = this.bufferCharacters.length;
       if (this.rafId) {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
       }
       stopDalleProgress();
       this.textElem.innerHTML = safeParseMarkdown(newContent);
-      if (this.cursorElem) {
-        this.textElem.appendChild(this.cursorElem);
-      }
+      if (this.cursorElem && this.cursorElem.parentNode) this.cursorElem.remove();
       bindCopyCodeButtons(this.textElem);
+      this.textElem.querySelectorAll('img').forEach(img => {
+        img.classList.add('chat-rendered-image');
+        img.loading = 'eager';
+        img.decoding = 'async';
+        img.fetchPriority = 'high';
+        img.draggable = false;
+        img.onclick = () => openImageLightbox(img.src);
+      });
       scrollToBottom(true);
     }
 
-    finish() {
+    finish(preserveRenderedContent = false) {
       this.isNetworkDone = true;
-      if (!this.rafId && this.revealed.length >= this.buffer.length) {
-        this.finalize();
+      if (!this.rafId && this.revealedCharacterCount >= this.bufferCharacters.length) {
+        this.finalize(preserveRenderedContent);
       }
     }
 
@@ -1193,32 +1325,20 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
       }
-      this.finalize();
+      if (this.cursorElem && this.cursorElem.parentNode) this.cursorElem.remove();
+      this.textElem.innerHTML = safeParseMarkdown(this.revealed);
     }
 
     run() {
       const step = () => {
+        this.rafId = null;
         if (this.isAborted) return;
 
-        const remaining = this.buffer.length - this.revealed.length;
-
-        if (remaining > 0) {
-          // Dynamic adaptive typewriter cadence:
-          // Smooth progressive typing stream (chatgpt/claude style)
-          let stepSize = 1;
-          if (remaining > 400) {
-            stepSize = Math.ceil(remaining / 10);
-          } else if (remaining > 180) {
-            stepSize = 6;
-          } else if (remaining > 80) {
-            stepSize = 4;
-          } else if (remaining > 30) {
-            stepSize = 2;
-          } else {
-            stepSize = 1;
-          }
-
-          this.revealed = this.buffer.slice(0, this.revealed.length + stepSize);
+        if (this.revealedCharacterCount < this.bufferCharacters.length) {
+          // Reveal one Unicode character per frame so a large API chunk never
+          // jumps to near-complete text in a single visual update.
+          this.revealed += this.bufferCharacters[this.revealedCharacterCount];
+          this.revealedCharacterCount += 1;
 
           // Render progressive Markdown safely without breaking on partial code blocks
           this.textElem.innerHTML = safeParseMarkdown(this.revealed);
@@ -1233,18 +1353,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // When all incoming characters have been smoothly revealed and stream is finished
-        if (this.isNetworkDone && this.revealed.length >= this.buffer.length) {
+        if (this.isNetworkDone && this.revealedCharacterCount >= this.bufferCharacters.length) {
           this.finalize();
           return;
         }
 
-        this.rafId = requestAnimationFrame(step);
+        if (this.revealedCharacterCount < this.bufferCharacters.length) {
+          this.rafId = requestAnimationFrame(step);
+        }
       };
 
       this.rafId = requestAnimationFrame(step);
     }
 
-    finalize() {
+    finalize(preserveRenderedContent = false) {
       if (this.rafId) {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
@@ -1253,8 +1375,16 @@ document.addEventListener('DOMContentLoaded', () => {
         this.cursorElem.remove();
       }
       const finalText = this.buffer || this.revealed;
-      this.textElem.innerHTML = safeParseMarkdown(finalText);
+      if (!preserveRenderedContent) this.textElem.innerHTML = safeParseMarkdown(finalText);
       bindCopyCodeButtons(this.textElem);
+      this.textElem.querySelectorAll('img').forEach(img => {
+        img.classList.add('chat-rendered-image');
+        img.loading = 'eager';
+        img.decoding = 'async';
+        img.fetchPriority = 'high';
+        img.draggable = false;
+        img.onclick = () => openImageLightbox(img.src);
+      });
       scrollToBottom(true);
       if (this.onDone) {
         this.onDone(finalText);
@@ -1262,14 +1392,206 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Owns the visible state of one assistant reply. Keeping this per message
+  // prevents one request from replacing or completing another request's UI.
+  class ChatResponseLifecycle {
+    constructor({ textElem, cursorElem, imageGenerationRequest, requestId, onDone }) {
+      this.textElem = textElem;
+      this.imageGenerationRequest = imageGenerationRequest;
+      this.requestId = requestId;
+      if (requestId) this.textElem.dataset.responseRequestId = requestId;
+      this.state = imageGenerationRequest ? 'generating-image' : 'waiting';
+      this.networkFinished = false;
+      this.imagePreloader = null;
+      this.imageLoadTimer = null;
+      this.textElem.dataset.responseState = this.state;
+      this.streamer = new SmoothTextStreamer({
+        textElem,
+        cursorElem,
+        onDone: (finalContent) => {
+          if (this.state === 'streaming') this.setState('complete');
+          if (onDone) onDone(finalContent);
+        }
+      });
+
+      this.textElem.replaceChildren(imageGenerationRequest
+        ? createGeneratingPlaceholder(requestId)
+        : createResponseWaitingIndicator());
+      if (cursorElem && cursorElem.parentNode) cursorElem.remove();
+    }
+
+    setState(state) {
+      this.state = state;
+      this.textElem.dataset.responseState = state;
+    }
+
+    receive(content, onImageRetry = null) {
+      if (typeof content !== 'string' || !content || this.state === 'failed' || this.state === 'cancelled' || this.state === 'complete') {
+        return false;
+      }
+
+      if (this.imageGenerationRequest) {
+        const isImageResult = content.includes('chat-generated-image-card');
+        const isImageError = content.includes('chat-image-error-card');
+        if ((!isImageResult && !isImageError) || this.state !== 'generating-image') return false;
+
+        if (isImageError) {
+          this.setState('failed');
+          this.streamer.replace(content);
+          this.bindRetry('.image-retry-btn', onImageRetry);
+          return true;
+        }
+
+        this.setState('loading-image');
+        this.preloadGeneratedImage(content, onImageRetry);
+        return true;
+      }
+
+      if (this.state === 'waiting') {
+        if (!content.trim()) return false;
+        this.setState('streaming');
+        this.textElem.replaceChildren();
+      }
+
+      if (this.state !== 'streaming') return false;
+      // Text responses remain append-only. The server's `replace` flag is
+      // reserved for image result cards, which are handled above.
+      this.streamer.append(content);
+      return true;
+    }
+
+    preloadGeneratedImage(content, onRetry) {
+      const parsedMarkup = document.createElement('template');
+      parsedMarkup.innerHTML = safeParseMarkdown(content);
+      const resultImage = parsedMarkup.content.querySelector('.chat-generated-image-card img, img.chat-generated-image');
+      const imageUrl = resultImage && resultImage.getAttribute('src');
+      if (!imageUrl) {
+        this.showFailure(
+          '<div class="chat-image-error-card"><div class="image-error-text">وصلت الصورة لكن تعذر فتح ملفها. أعد المحاولة.</div><button class="image-retry-btn" type="button">إعادة المحاولة</button></div>',
+          '.image-retry-btn', onRetry
+        );
+        return;
+      }
+
+      const status = this.textElem.querySelector('.gen-placeholder-status');
+      const meta = this.textElem.querySelector('.gen-placeholder-meta');
+      if (status) status.textContent = 'جاري تحميل الصورة...';
+      if (meta) meta.textContent = 'نجهزها للعرض بأعلى جودة';
+      scrollToBottom(true);
+
+      const image = new Image();
+      image.decoding = 'async';
+      image.fetchPriority = 'high';
+      this.imagePreloader = image;
+      this.imageLoadTimer = window.setTimeout(() => {
+        if (this.state === 'loading-image') {
+          this.showFailure(
+            '<div class="chat-image-error-card"><div class="image-error-text">تأخر تحميل الصورة. تحقق من الاتصال ثم أعد المحاولة.</div><button class="image-retry-btn" type="button">إعادة المحاولة</button></div>',
+            '.image-retry-btn', onRetry
+          );
+        }
+      }, 90000);
+
+      image.onload = () => {
+        if (this.state !== 'loading-image') return;
+        const revealImage = () => {
+          if (this.state !== 'loading-image') return;
+          this.clearImagePreload();
+          this.setState('complete');
+          this.streamer.replace(content);
+          this.textElem.querySelector('.chat-generated-image-card')?.classList.add('image-reveal');
+          if (this.networkFinished) this.streamer.finish(true);
+        };
+        if (typeof image.decode === 'function') {
+          image.decode().catch(() => {}).then(revealImage);
+        } else {
+          revealImage();
+        }
+      };
+      image.onerror = () => {
+        if (this.state !== 'loading-image') return;
+        this.showFailure(
+          '<div class="chat-image-error-card"><div class="image-error-text">تعذر تحميل الصورة. تحقق من الاتصال ثم أعد المحاولة.</div><button class="image-retry-btn" type="button">إعادة المحاولة</button></div>',
+          '.image-retry-btn', onRetry
+        );
+      };
+      image.src = imageUrl;
+      if (image.complete && image.naturalWidth > 0) queueMicrotask(() => image.onload && image.onload());
+    }
+
+    clearImagePreload(abort = false) {
+      if (this.imageLoadTimer) {
+        clearTimeout(this.imageLoadTimer);
+        this.imageLoadTimer = null;
+      }
+      if (this.imagePreloader) {
+        this.imagePreloader.onload = null;
+        this.imagePreloader.onerror = null;
+        if (abort) this.imagePreloader.src = 'data:,';
+        this.imagePreloader = null;
+      }
+    }
+
+    finish({ onRetry }) {
+      if (this.state === 'generating-image') {
+        this.showFailure(
+          '<div class="chat-image-error-card"><div class="image-error-text">انتهى الاتصال قبل وصول الصورة. أعد المحاولة.</div><button class="image-retry-btn" type="button">إعادة المحاولة</button></div>',
+          '.image-retry-btn', onRetry
+        );
+      } else if (this.state === 'waiting') {
+        this.showFailure(
+          '<div class="stream-error-card"><div class="stream-error-content"><span>لم يصل رد من الخادم.</span></div><button class="stream-retry-btn" type="button"><span>إعادة المحاولة</span></button></div>',
+          '.stream-retry-btn', onRetry
+        );
+      }
+
+      if (this.state === 'loading-image') {
+        this.networkFinished = true;
+        return;
+      }
+
+      this.streamer.finish(this.imageGenerationRequest);
+    }
+
+    fail(markup, selector, onRetry) {
+      if (this.state === 'cancelled' || this.state === 'complete') return;
+      this.showFailure(markup, selector, onRetry);
+    }
+
+    showFailure(markup, selector, onRetry) {
+      this.clearImagePreload(true);
+      this.setState('failed');
+      this.streamer.replace(markup);
+      this.bindRetry(selector, onRetry);
+      if (this.networkFinished) this.streamer.finish(this.imageGenerationRequest);
+    }
+
+    bindRetry(selector, onRetry) {
+      const retryButton = this.textElem.querySelector(selector);
+      if (retryButton && typeof onRetry === 'function') retryButton.onclick = onRetry;
+    }
+
+    cancel() {
+      if (this.state === 'complete' || this.state === 'failed' || this.state === 'cancelled') return;
+      this.clearImagePreload(true);
+      this.setState('cancelled');
+      this.streamer.cancel();
+    }
+  }
+
   // --- Send Message & Progressive Streaming (Instant Optimistic UI + Deduplication Protection) ---
   let isSubmitting = false;
 
-  async function handleSendPrompt(retryPromptText = null, retryAttachments = null) {
-    if (isSubmitting || isGenerating) return;
+  // Used by the inline image error card. Retrying creates a fresh request
+  // and therefore gets its own placeholder and stream lifecycle.
+  window.retryImagePrompt = (prompt) => handleSendPrompt(prompt, [], true);
+
+  async function handleSendPrompt(retryPromptText = null, retryAttachments = null, forceImageGeneration = false) {
+    if (isSubmitting) return;
 
     const text = (retryPromptText !== null) ? retryPromptText : chatTextInput.value.trim();
     const attachmentsToSend = (retryAttachments !== null) ? retryAttachments : [...pendingAttachments];
+    const imageGenerationRequest = Boolean(forceImageGeneration || (retryPromptText === null && imageGenerationModeEnabled) || isImageGenerationIntent(text));
 
     if (!text && attachmentsToSend.length === 0) return;
 
@@ -1289,6 +1611,7 @@ document.addEventListener('DOMContentLoaded', () => {
       pendingAttachments = [];
       renderAttachmentChips();
       actionPillBtn.classList.remove('send-mode');
+      setImageGenerationMode(false);
     }
     emptyStateContainer.style.display = 'none';
 
@@ -1296,6 +1619,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const userMsgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     const assistantMsgId = 'msg_' + (Date.now() + 2) + '_' + Math.random().toString(36).substring(2, 7);
     const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const conversationAtSend = currentConversationId;
+    let responseConversationId = conversationAtSend;
 
     // Append User Message Immediately (unless it was already in DOM from a retry)
     if (retryPromptText === null) {
@@ -1305,45 +1630,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Prepare Assistant Slot for Streaming
     const { messageRow, textElem, actionsElem, cursorElem } = createAssistantSlot(assistantMsgId);
-    scrollToBottom();
-
-    // Immediately cache optimistic user message into local persistent storage
-    if (currentConversationId) {
-      let cached = getConversationFromLocalCache(currentConversationId) || {
-        id: currentConversationId,
-        title: 'محادثة دراسية',
-        messages: []
-      };
-      cached.messages = cached.messages || [];
-      if (retryPromptText === null) {
-        cached.messages.push({
-          id: userMsgId,
-          role: 'user',
-          content: text,
-          attachments: attachmentsToSend,
-          created_at: Date.now() / 1000
-        });
-      }
-      saveConversationToLocalCache(cached);
-    }
-
-    isGenerating = true;
-    isSubmitting = false;
-    actionPillBtn.classList.add('generating-mode');
-    activeAbortController = new AbortController();
-
-    // Instantiate Smooth Progressive Streamer
-    activeStreamer = new SmoothTextStreamer({
+    const requestAbortController = new AbortController();
+    const requestLifecycle = new ChatResponseLifecycle({
       textElem,
       cursorElem,
+      imageGenerationRequest,
+      requestId,
       onDone: (finalContent) => {
         actionsElem.style.display = 'flex';
         setupMessageToolbar(actionsElem, finalContent, messageRow, assistantMsgId);
-        
+
         // Persist completed assistant message into local persistent storage
-        if (currentConversationId && finalContent) {
-          let cached = getConversationFromLocalCache(currentConversationId) || {
-            id: currentConversationId,
+        if (responseConversationId && finalContent) {
+          let cached = getConversationFromLocalCache(responseConversationId) || {
+            id: responseConversationId,
             title: 'محادثة دراسية',
             messages: []
           };
@@ -1362,22 +1662,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Only refresh the sidebar title and list - NEVER wipe active chat!
         refreshConversationListOnly();
-
-        isGenerating = false;
-        activeAbortController = null;
-        activeStreamer = null;
-        actionPillBtn.classList.remove('generating-mode');
+        releaseActiveChatRequest(requestId);
         scrollToBottom();
       }
     });
+    scrollToBottom();
+
+    // Immediately cache optimistic user message into local persistent storage
+    if (conversationAtSend) {
+      let cached = getConversationFromLocalCache(conversationAtSend) || {
+        id: conversationAtSend,
+        title: 'محادثة دراسية',
+        messages: []
+      };
+      cached.messages = cached.messages || [];
+      if (retryPromptText === null) {
+        cached.messages.push({
+          id: userMsgId,
+          role: 'user',
+          content: text,
+          attachments: attachmentsToSend,
+          created_at: Date.now() / 1000
+        });
+      }
+      saveConversationToLocalCache(cached);
+    }
+
+    isSubmitting = false;
+    registerActiveChatRequest(requestId, requestAbortController, requestLifecycle);
 
     try {
       const payload = {
         request_id: requestId,
-        conversation_id: currentConversationId,
+        conversation_id: responseConversationId,
         message_id: userMsgId,
         assistant_message_id: assistantMsgId,
         content: text,
+        image_generation: imageGenerationRequest,
         attachments: attachmentsToSend,
         model: selectedModel,
         temperature: settingsState.temperature,
@@ -1388,7 +1709,7 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: activeAbortController.signal
+        signal: requestAbortController.signal
       });
 
       if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
@@ -1396,66 +1717,86 @@ document.addEventListener('DOMContentLoaded', () => {
       const reader = resp.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
+      let streamDone = false;
 
-      while (true) {
+      const processStreamLine = (line) => {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) return;
+        const dataContent = trimmed.substring(5).trim();
+        if (dataContent === '[DONE]') {
+          streamDone = true;
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(dataContent);
+          if (parsed.conversation_id) {
+            responseConversationId = parsed.conversation_id;
+            if (currentConversationId === conversationAtSend && currentConversationId !== responseConversationId) {
+              currentConversationId = responseConversationId;
+              localStorage.setItem('leo_active_conv_id', currentConversationId);
+            }
+            // Migrate local draft cache to new conversation ID if needed
+            let cached = getConversationFromLocalCache(responseConversationId) || {
+              id: responseConversationId,
+              title: parsed.title || 'محادثة دراسية',
+              messages: [{
+                id: userMsgId,
+                role: 'user',
+                content: text,
+                attachments: attachmentsToSend,
+                created_at: Date.now() / 1000
+              }]
+            };
+            saveConversationToLocalCache(cached);
+          }
+
+          if (typeof parsed.content === 'string') {
+            requestLifecycle.receive(parsed.content, () => handleSendPrompt(text, attachmentsToSend, imageGenerationRequest));
+          }
+        } catch (parseError) {
+          console.warn('[CHAT STREAM] Ignoring malformed event:', parseError);
+        }
+      };
+
+      while (!streamDone) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          buffer += decoder.decode();
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop();
 
         for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-          const dataContent = trimmed.substring(6).trim();
-
-          if (dataContent === '[DONE]') break;
-
-          try {
-            const parsed = JSON.parse(dataContent);
-            if (parsed.conversation_id && parsed.conversation_id !== currentConversationId) {
-              currentConversationId = parsed.conversation_id;
-              localStorage.setItem('leo_active_conv_id', currentConversationId);
-              // Migrate local draft cache to new conversation ID if needed
-              let cached = getConversationFromLocalCache(currentConversationId) || {
-                id: currentConversationId,
-                title: parsed.title || 'محادثة دراسية',
-                messages: [{
-                  id: userMsgId,
-                  role: 'user',
-                  content: text,
-                  attachments: attachmentsToSend,
-                  created_at: Date.now() / 1000
-                }]
-              };
-              saveConversationToLocalCache(cached);
-            }
-            if (parsed.content) {
-              if (parsed.replace) {
-                activeStreamer.replace(parsed.content);
-              } else {
-                activeStreamer.append(parsed.content);
-              }
-            }
-          } catch (e) {}
+          processStreamLine(line);
+          if (streamDone) break;
         }
       }
 
-      activeStreamer.finish();
+      if (buffer.trim()) processStreamLine(buffer);
+      requestLifecycle.finish({
+        onRetry: imageGenerationRequest
+          ? () => handleSendPrompt(text, attachmentsToSend, true)
+          : () => {
+              messageRow.remove();
+              handleSendPrompt(text, attachmentsToSend, false);
+          }
+      });
+      if (requestLifecycle.state === 'loading-image') {
+        // The generation request is complete; only the browser's image decode remains.
+        releaseActiveChatRequest(requestId);
+      }
 
     } catch (err) {
       isSubmitting = false;
       if (err.name === 'AbortError') {
-        isGenerating = false;
-        activeAbortController = null;
-        activeStreamer = null;
-        actionPillBtn.classList.remove('generating-mode');
+        requestLifecycle.cancel();
+        releaseActiveChatRequest(requestId);
         return;
       }
-
-      isGenerating = false;
-      actionPillBtn.classList.remove('generating-mode');
 
       let errorMsg = 'حدث خطأ أثناء الاستجابة.';
       if (!navigator.onLine || (err.message && (err.message.toLowerCase().includes('failed to fetch') || err.message.toLowerCase().includes('network')))) {
@@ -1465,27 +1806,23 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Keep user message intact and display real inline retry card
-      textElem.innerHTML = `
+      const safeErrorMessage = errorMsg.replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+      const errorMarkup = `
         <div class="stream-error-card">
           <div class="stream-error-content">
             <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
-            <span>${errorMsg}</span>
+            <span>${safeErrorMessage}</span>
           </div>
           <button class="stream-retry-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>إعادة المحاولة</span></button>
         </div>
       `;
-
-      const retryBtn = textElem.querySelector('.stream-retry-btn');
-      if (retryBtn) {
-        retryBtn.onclick = () => {
-          messageRow.remove();
-          handleSendPrompt(text, attachmentsToSend);
-        };
-      }
-
-      if (cursorElem && cursorElem.parentNode) cursorElem.remove();
-      activeAbortController = null;
-      activeStreamer = null;
+      requestLifecycle.fail(errorMarkup, '.stream-retry-btn', () => {
+        messageRow.remove();
+        handleSendPrompt(text, attachmentsToSend, imageGenerationRequest);
+      });
+      releaseActiveChatRequest(requestId);
     }
   }
 
@@ -1675,6 +2012,10 @@ document.addEventListener('DOMContentLoaded', () => {
     bindCopyCodeButtons(elem);
     elem.querySelectorAll('img').forEach(img => {
       img.classList.add('chat-rendered-image');
+      img.loading = 'eager';
+      img.decoding = 'async';
+      img.fetchPriority = 'high';
+      img.draggable = false;
       img.onclick = () => openImageLightbox(img.src);
     });
   }
@@ -1688,6 +2029,10 @@ document.addEventListener('DOMContentLoaded', () => {
     bindCopyCodeButtons(elem);
     elem.querySelectorAll('img').forEach(img => {
       img.classList.add('chat-rendered-image');
+      img.loading = 'eager';
+      img.decoding = 'async';
+      img.fetchPriority = 'high';
+      img.draggable = false;
       img.onclick = () => openImageLightbox(img.src);
     });
   }
@@ -2293,12 +2638,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentAppearanceLabel) currentAppearanceLabel.textContent = modeObj.label;
 
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    if (mode === 'light' || (mode === 'system' && !prefersDark)) {
-      document.body.classList.add('theme-light');
-    } else {
-      document.body.classList.remove('theme-light');
-    }
+    const isLight = mode === 'light' || (mode === 'system' && !prefersDark);
+    document.body.classList.toggle('theme-light', isLight);
+    document.documentElement.classList.toggle('theme-light', isLight);
+    document.documentElement.style.colorScheme = isLight ? 'light' : 'dark';
+    const browserThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (browserThemeColor) browserThemeColor.content = isLight ? '#f8fafc' : '#0d0f17';
+    try { localStorage.setItem('leo_theme', mode); } catch (e) {}
   }
 
   // OS theme change listener
@@ -2459,6 +2805,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Real Image Lightbox Viewer Controls ---
   let currentZoom = 1.0;
+  let currentLightboxImageUrl = '';
 
   function updateLightboxZoom(newZoom) {
     currentZoom = Math.min(Math.max(newZoom, 0.5), 3.0);
@@ -2468,6 +2815,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function openImageLightbox(src) {
     if (!imageLightboxModal || !lightboxImg) return;
+    currentLightboxImageUrl = src || '';
     lightboxImg.src = src;
     updateLightboxZoom(1.0);
     imageLightboxModal.style.display = 'flex';
@@ -2504,34 +2852,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- ChatGPT DALL-E Image Actions ---
-  window.downloadImageDirect = async (url, filename = 'generated_image.png') => {
+  window.downloadImageDirect = (url, filename = 'generated_image.png') => {
     if (!url) return;
     showToast('جاري بدء تنزيل الصورة...');
+    const downloadLink = document.createElement('a');
+    let downloadUrl = url;
     try {
-      const resp = await fetch(url, { mode: 'cors' });
-      if (!resp.ok) throw new Error('Fetch failed');
-      const blob = await resp.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename || `leo_image_${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
-      showToast('تم تحميل الصورة بنجاح');
-    } catch (err) {
-      // Direct anchor trigger as fallback
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.download = filename || `leo_image_${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      showToast('تم بدء تحميل الصورة');
+      const parsedImageUrl = new URL(url, window.location.href);
+      const imageHost = parsedImageUrl.hostname.toLowerCase();
+      const isImageProvider = imageHost === 'fal.media' || imageHost.endsWith('.fal.media') ||
+        imageHost === 'pollinations.ai' || imageHost.endsWith('.pollinations.ai');
+      if (isImageProvider && parsedImageUrl.protocol === 'https:') {
+        downloadUrl = `/api/image/download?url=${encodeURIComponent(parsedImageUrl.href)}`;
+      }
+    } catch (error) {}
+    downloadLink.href = downloadUrl;
+    downloadLink.download = filename || `leo_image_${Date.now()}.png`;
+    if (/^https?:/i.test(downloadUrl) && !downloadUrl.startsWith(window.location.origin)) {
+      downloadLink.target = '_blank';
+      downloadLink.rel = 'noopener noreferrer';
     }
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
   };
+
+  if (lightboxImg) {
+    lightboxImg.draggable = false;
+    lightboxImg.addEventListener('dragstart', (event) => event.preventDefault());
+  }
+
+  document.addEventListener('dragstart', (event) => {
+    if (event.target && event.target.matches && event.target.matches('.chat-generated-image, .chat-rendered-image')) {
+      event.preventDefault();
+    }
+  });
 
   // User explicitly demanded: NO copying link, only download image directly!
   window.copyImageLinkDirect = (url) => {
@@ -2571,12 +2927,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function closeImageLightbox() {
     if (!imageLightboxModal) return;
     imageLightboxModal.style.display = 'none';
+    currentLightboxImageUrl = '';
     if (lightboxImg) lightboxImg.src = '';
   }
 
   if (lightboxZoomInBtn) lightboxZoomInBtn.onclick = () => updateLightboxZoom(currentZoom + 0.25);
   if (lightboxZoomOutBtn) lightboxZoomOutBtn.onclick = () => updateLightboxZoom(currentZoom - 0.25);
   if (lightboxResetBtn) lightboxResetBtn.onclick = () => updateLightboxZoom(1.0);
+  if (lightboxDownloadBtn) {
+    lightboxDownloadBtn.onclick = () => {
+      if (currentLightboxImageUrl && typeof window.downloadImageDirect === 'function') {
+        window.downloadImageDirect(currentLightboxImageUrl, `leo_image_${Date.now()}.png`);
+      }
+    };
+  }
   if (lightboxCloseBtn) lightboxCloseBtn.onclick = closeImageLightbox;
   if (lightboxBackdrop) lightboxBackdrop.onclick = closeImageLightbox;
 
@@ -2592,280 +2956,208 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ============================================================
-  // AI IMAGE STUDIO CONTROLLER (GPT IMAGE 2 / BANANA / REMBG)
+  // LIBRARY CONTROLLER (المكتبة — معرض الصور المنشأة والمرسلة)
   // ============================================================
   const imageStudioBtn = document.getElementById('imageStudioBtn');
   const sheetGenerateImgBtn = document.getElementById('sheetGenerateImgBtn');
   const drawerImageStudioBtn = document.getElementById('drawerImageStudioBtn');
   const imageStudioModalOverlay = document.getElementById('imageStudioModalOverlay');
   const imageStudioCloseBtn = document.getElementById('imageStudioCloseBtn');
-  const studioModelSelector = document.getElementById('studioModelSelector');
-  const studioRatioSelector = document.getElementById('studioRatioSelector');
-  const studioPromptInput = document.getElementById('studioPromptInput');
-  const studioSuggestionsTags = document.getElementById('studioSuggestionsTags');
-  const studioUploadBox = document.getElementById('studioUploadBox');
-  const studioFileInput = document.getElementById('studioFileInput');
-  const studioUploadTrigger = document.getElementById('studioUploadTrigger');
-  const studioUploadLabel = document.getElementById('studioUploadLabel');
-  const studioGenerateBtn = document.getElementById('studioGenerateBtn');
-  const studioGenerateBtnText = document.getElementById('studioGenerateBtnText');
-  const studioResultContainer = document.getElementById('studioResultContainer');
-  const studioLoadingState = document.getElementById('studioLoadingState');
-  const studioPreviewCard = document.getElementById('studioPreviewCard');
-  const studioPreviewImg = document.getElementById('studioPreviewImg');
-  const studioActionZoomBtn = document.getElementById('studioActionZoomBtn');
-  const studioActionDownloadBtn = document.getElementById('studioActionDownloadBtn');
-  const studioActionInsertBtn = document.getElementById('studioActionInsertBtn');
-  const studioActionCopyBtn = document.getElementById('studioActionCopyBtn');
 
-  let currentStudioModel = 'gpt-image-2';
-  let currentStudioRatio = 'square_hd';
-  let currentStudioUploadedUrl = null;
-  let currentGeneratedImageUrl = null;
+  const libTabGeneratedBtn = document.getElementById('libTabGeneratedBtn');
+  const libTabSentBtn = document.getElementById('libTabSentBtn');
+  const libraryGeneratedPanel = document.getElementById('libraryGeneratedPanel');
+  const librarySentPanel = document.getElementById('librarySentPanel');
+  const libraryGeneratedGrid = document.getElementById('libraryGeneratedGrid');
+  const librarySentGrid = document.getElementById('librarySentGrid');
+  const libraryGeneratedLoading = document.getElementById('libraryGeneratedLoading');
+  const librarySentLoading = document.getElementById('librarySentLoading');
+  const libraryGeneratedError = document.getElementById('libraryGeneratedError');
+  const librarySentError = document.getElementById('librarySentError');
+  const libraryGeneratedEmpty = document.getElementById('libraryGeneratedEmpty');
+  const librarySentEmpty = document.getElementById('librarySentEmpty');
+  const libGeneratedCount = document.getElementById('libGeneratedCount');
+  const libSentCount = document.getElementById('libSentCount');
+  const retryGeneratedLibBtn = document.getElementById('retryGeneratedLibBtn');
+  const retrySentLibBtn = document.getElementById('retrySentLibBtn');
 
-  function openImageStudio(initialPrompt = '', initialUrl = null) {
-    if (!imageStudioModalOverlay) return;
-    if (initialPrompt && studioPromptInput) {
-      studioPromptInput.value = initialPrompt;
+  let activeLibTab = 'generated';
+  let cachedGeneratedImages = null;
+  let cachedSentImages = null;
+
+  async function loadLibraryGeneratedImages(force = false) {
+    if (cachedGeneratedImages && !force) {
+      renderLibraryGenerated(cachedGeneratedImages);
+      return;
     }
-    if (initialUrl) {
-      currentStudioUploadedUrl = initialUrl;
-      currentGeneratedImageUrl = initialUrl;
-      if (studioPreviewImg) studioPreviewImg.src = initialUrl;
-      if (studioResultContainer) studioResultContainer.style.display = 'block';
-      if (studioPreviewCard) studioPreviewCard.style.display = 'flex';
-      if (studioLoadingState) studioLoadingState.style.display = 'none';
+    if (libraryGeneratedLoading) libraryGeneratedLoading.style.display = 'flex';
+    if (libraryGeneratedError) libraryGeneratedError.style.display = 'none';
+    if (libraryGeneratedEmpty) libraryGeneratedEmpty.style.display = 'none';
+    if (libraryGeneratedGrid) libraryGeneratedGrid.innerHTML = '';
+
+    try {
+      const res = await fetch('/api/library/generated-images');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const images = await res.json();
+      cachedGeneratedImages = images || [];
+      renderLibraryGenerated(cachedGeneratedImages);
+    } catch (err) {
+      console.warn('Library generated load error:', err);
+      if (libraryGeneratedLoading) libraryGeneratedLoading.style.display = 'none';
+      if (libraryGeneratedError) libraryGeneratedError.style.display = 'flex';
     }
-    imageStudioModalOverlay.classList.add('active');
-    setTimeout(() => {
-      if (studioPromptInput) studioPromptInput.focus();
-    }, 120);
   }
-  window.openImageStudio = openImageStudio;
 
-  function closeImageStudio() {
+  function renderLibraryGenerated(images) {
+    if (libraryGeneratedLoading) libraryGeneratedLoading.style.display = 'none';
+    if (libGeneratedCount) libGeneratedCount.textContent = (images && images.length) || 0;
+    if (!images || images.length === 0) {
+      if (libraryGeneratedEmpty) libraryGeneratedEmpty.style.display = 'flex';
+      if (libraryGeneratedGrid) libraryGeneratedGrid.innerHTML = '';
+      return;
+    }
+    if (libraryGeneratedEmpty) libraryGeneratedEmpty.style.display = 'none';
+    if (!libraryGeneratedGrid) return;
+    libraryGeneratedGrid.innerHTML = '';
+
+    images.forEach(img => {
+      const card = document.createElement('div');
+      card.className = 'library-item-card';
+      const promptText = img.prompt || 'صورة منشأة بالذكاء الاصطناعي';
+      const dateText = img.created_at ? new Date(img.created_at * 1000).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }) : '';
+      card.innerHTML = `
+        <div class="library-item-thumb-wrapper">
+          <img src="${img.image_url}" alt="${promptText}" class="library-item-img" loading="lazy" />
+          <div class="library-item-overlay">
+            <button class="library-overlay-btn zoom-btn" title="معاينة وتكبير" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </button>
+          </div>
+        </div>
+        <div class="library-item-info">
+          <div class="library-item-prompt" title="${promptText}">${promptText}</div>
+          <div class="library-item-date">${dateText}</div>
+        </div>
+      `;
+      card.onclick = () => openImageLightbox(img.image_url);
+      libraryGeneratedGrid.appendChild(card);
+    });
+  }
+
+  async function loadLibrarySentImages(force = false) {
+    if (cachedSentImages && !force) {
+      renderLibrarySent(cachedSentImages);
+      return;
+    }
+    if (librarySentLoading) librarySentLoading.style.display = 'flex';
+    if (librarySentError) librarySentError.style.display = 'none';
+    if (librarySentEmpty) librarySentEmpty.style.display = 'none';
+    if (librarySentGrid) librarySentGrid.innerHTML = '';
+
+    try {
+      const res = await fetch('/api/library/sent-images');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const images = await res.json();
+      cachedSentImages = images || [];
+      renderLibrarySent(cachedSentImages);
+    } catch (err) {
+      console.warn('Library sent load error:', err);
+      if (librarySentLoading) librarySentLoading.style.display = 'none';
+      if (librarySentError) librarySentError.style.display = 'flex';
+    }
+  }
+
+  function renderLibrarySent(images) {
+    if (librarySentLoading) librarySentLoading.style.display = 'none';
+    if (libSentCount) libSentCount.textContent = (images && images.length) || 0;
+    if (!images || images.length === 0) {
+      if (librarySentEmpty) librarySentEmpty.style.display = 'flex';
+      if (librarySentGrid) librarySentGrid.innerHTML = '';
+      return;
+    }
+    if (librarySentEmpty) librarySentEmpty.style.display = 'none';
+    if (!librarySentGrid) return;
+    librarySentGrid.innerHTML = '';
+
+    images.forEach(img => {
+      const card = document.createElement('div');
+      card.className = 'library-item-card';
+      const nameText = img.name || img.conversation_title || 'صورة مرسلة';
+      const dateText = img.created_at ? new Date(img.created_at * 1000).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }) : '';
+      card.innerHTML = `
+        <div class="library-item-thumb-wrapper">
+          <img src="${img.url}" alt="${nameText}" class="library-item-img" loading="lazy" />
+          <div class="library-item-overlay">
+            <button class="library-overlay-btn zoom-btn" title="معاينة وتكبير" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </button>
+          </div>
+        </div>
+        <div class="library-item-info">
+          <div class="library-item-prompt" title="${nameText}">${nameText}</div>
+          <div class="library-item-date">${dateText}</div>
+        </div>
+      `;
+      card.onclick = () => openImageLightbox(img.url);
+      librarySentGrid.appendChild(card);
+    });
+  }
+
+  function switchLibraryTab(tabName) {
+    activeLibTab = tabName;
+    if (tabName === 'generated') {
+      if (libTabGeneratedBtn) libTabGeneratedBtn.classList.add('active');
+      if (libTabSentBtn) libTabSentBtn.classList.remove('active');
+      if (libraryGeneratedPanel) libraryGeneratedPanel.style.display = 'block';
+      if (librarySentPanel) librarySentPanel.style.display = 'none';
+      loadLibraryGeneratedImages();
+    } else {
+      if (libTabSentBtn) libTabSentBtn.classList.add('active');
+      if (libTabGeneratedBtn) libTabGeneratedBtn.classList.remove('active');
+      if (librarySentPanel) librarySentPanel.style.display = 'block';
+      if (libraryGeneratedPanel) libraryGeneratedPanel.style.display = 'none';
+      loadLibrarySentImages();
+    }
+  }
+
+  function openLibraryModal(initialTab = 'generated') {
+    if (!imageStudioModalOverlay) return;
+    imageStudioModalOverlay.classList.add('active');
+    switchLibraryTab(initialTab);
+  }
+  window.openImageStudio = openLibraryModal;
+  window.openLibraryModal = openLibraryModal;
+
+  function closeLibraryModal() {
     if (!imageStudioModalOverlay) return;
     imageStudioModalOverlay.classList.remove('active');
   }
 
-  if (imageStudioBtn) imageStudioBtn.onclick = () => openImageStudio();
-  if (sheetGenerateImgBtn) {
-    sheetGenerateImgBtn.onclick = () => {
-      closeAttachmentActionSheet();
-      openImageStudio();
-    };
-  }
+  if (imageStudioBtn) imageStudioBtn.onclick = () => openLibraryModal('generated');
   if (drawerImageStudioBtn) {
     drawerImageStudioBtn.onclick = () => {
       closeSidebarDrawer();
-      openImageStudio();
+      openLibraryModal('generated');
     };
   }
-  if (imageStudioCloseBtn) imageStudioCloseBtn.onclick = closeImageStudio;
+  if (sheetGenerateImgBtn) {
+    sheetGenerateImgBtn.onclick = selectImageCreationMode;
+  }
+  if (imageStudioCloseBtn) imageStudioCloseBtn.onclick = closeLibraryModal;
   if (imageStudioModalOverlay) {
     imageStudioModalOverlay.onclick = (e) => {
-      if (e.target === imageStudioModalOverlay) closeImageStudio();
+      if (e.target === imageStudioModalOverlay) closeLibraryModal();
     };
   }
+  if (libTabGeneratedBtn) libTabGeneratedBtn.onclick = () => switchLibraryTab('generated');
+  if (libTabSentBtn) libTabSentBtn.onclick = () => switchLibraryTab('sent');
+  if (retryGeneratedLibBtn) retryGeneratedLibBtn.onclick = () => loadLibraryGeneratedImages(true);
+  if (retrySentLibBtn) retrySentLibBtn.onclick = () => loadLibrarySentImages(true);
 
-  // Model Selection
-  if (studioModelSelector) {
-    studioModelSelector.querySelectorAll('.studio-segment-btn').forEach(btn => {
-      btn.onclick = () => {
-        studioModelSelector.querySelectorAll('.studio-segment-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentStudioModel = btn.dataset.model || 'gpt-image-2';
-
-        const genSubtitle = document.getElementById('studioGenSubtitle');
-        if (genSubtitle) {
-          if (currentStudioModel === 'nano-banana') {
-            genSubtitle.textContent = 'يتم الرسم عبر Nano Banana فائق السرعة';
-          } else if (currentStudioModel === 'gpt-image-2') {
-            genSubtitle.textContent = 'يتم الرسم عبر GPT Image 2 بأعلى جودة';
-          } else if (currentStudioModel === 'rembg') {
-            genSubtitle.textContent = 'يتم عزل الخلفية بدقة عالية';
-          }
-        }
-
-        if (currentStudioModel === 'rembg') {
-          if (studioUploadBox) studioUploadBox.style.display = 'block';
-          if (studioPromptInput) studioPromptInput.placeholder = 'إزالة الخلفية تلقائياً (يمكنك ترك هذا الحقل فارغاً)...';
-        } else {
-          if (studioUploadBox) studioUploadBox.style.display = 'none';
-          if (studioPromptInput) studioPromptInput.placeholder = 'صف الصورة التي ترغب في إنشائها بالتفصيل...';
-        }
-      };
-    });
-  }
-
-  // Ratio Selection
-  if (studioRatioSelector) {
-    studioRatioSelector.querySelectorAll('.studio-ratio-btn').forEach(btn => {
-      btn.onclick = () => {
-        studioRatioSelector.querySelectorAll('.studio-ratio-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentStudioRatio = btn.dataset.ratio || 'square_hd';
-      };
-    });
-  }
-
-  // Inspiration tags
-  if (studioSuggestionsTags) {
-    studioSuggestionsTags.querySelectorAll('.studio-tag-pill').forEach(btn => {
-      btn.onclick = () => {
-        const p = btn.dataset.prompt;
-        if (p && studioPromptInput) {
-          studioPromptInput.value = p;
-          studioPromptInput.focus();
-        }
-      };
-    });
-  }
-
-  // Upload Trigger for Rembg
-  if (studioUploadTrigger && studioFileInput) {
-    studioUploadTrigger.onclick = () => studioFileInput.click();
-    studioFileInput.onchange = async () => {
-      const file = studioFileInput.files && studioFileInput.files[0];
-      if (!file) return;
-      if (studioUploadLabel) studioUploadLabel.textContent = `جاري رفع: ${file.name}...`;
-
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const res = await fetch('/api/image/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image_data: reader.result })
-          });
-          const data = await res.json();
-          if (data && data.url) {
-            currentStudioUploadedUrl = data.url;
-            if (studioUploadLabel) studioUploadLabel.textContent = `تم رفع الصورة: ${file.name}`;
-            showToast('تم رفع الصورة بنجاح');
-          } else {
-            throw new Error(data.error || 'فشل الرفع');
-          }
-        } catch (err) {
-          if (studioUploadLabel) studioUploadLabel.textContent = 'تعذر رفع الصورة، أعد المحاولة';
-          showToast('فشل رفع الصورة');
-        }
-      };
-      reader.readAsDataURL(file);
-    };
-  }
-
-  // Generate Action
-  if (studioGenerateBtn) {
-    studioGenerateBtn.onclick = async () => {
-      const prompt = studioPromptInput ? studioPromptInput.value.trim() : '';
-      if (!prompt && currentStudioModel !== 'rembg') {
-        showToast('يرجى كتابة وصف للصورة أولاً');
-        if (studioPromptInput) studioPromptInput.focus();
-        return;
-      }
-      if (currentStudioModel === 'rembg' && !currentStudioUploadedUrl) {
-        showToast('يرجى اختيار صورة أولاً لإزالة خلفيتها');
-        return;
-      }
-
-      studioGenerateBtn.disabled = true;
-      if (studioGenerateBtnText) studioGenerateBtnText.textContent = 'جاري التوليد...';
-      if (studioResultContainer) studioResultContainer.style.display = 'block';
-      if (studioLoadingState) studioLoadingState.style.display = 'flex';
-      if (studioPreviewCard) studioPreviewCard.style.display = 'none';
-
-      try {
-        const payload = {
-          prompt: prompt,
-          model: currentStudioModel,
-          aspect_ratio: currentStudioRatio,
-          image_url: currentStudioUploadedUrl
-        };
-
-        const res = await fetch('/api/image/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (res.ok && data && data.url) {
-          currentGeneratedImageUrl = data.url;
-          if (studioPreviewImg) studioPreviewImg.src = data.url;
-          if (studioLoadingState) studioLoadingState.style.display = 'none';
-          if (studioPreviewCard) studioPreviewCard.style.display = 'flex';
-          showToast('تم تصميم وتوليد الصورة بنجاح!');
-        } else {
-          throw new Error(data.error || 'فشل توليد الصورة');
-        }
-      } catch (err) {
-        if (studioLoadingState) studioLoadingState.style.display = 'none';
-        showToast(err.message || 'حدث خطأ أثناء التوليد');
-      } finally {
-        studioGenerateBtn.disabled = false;
-        if (studioGenerateBtnText) studioGenerateBtnText.textContent = 'إنشاء وتصميم الصورة';
-      }
-    };
-  }
-
-  // Result Preview Actions
-  if (studioActionZoomBtn) {
-    studioActionZoomBtn.onclick = () => {
-      if (currentGeneratedImageUrl) {
-        openImageLightbox(currentGeneratedImageUrl);
-      }
-    };
-  }
-
-  if (studioActionDownloadBtn) {
-    studioActionDownloadBtn.onclick = () => {
-      if (!currentGeneratedImageUrl) return;
-      const a = document.createElement('a');
-      a.href = currentGeneratedImageUrl;
-      a.target = '_blank';
-      a.download = `leo_generated_${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      showToast('جاري بدء التحميل');
-    };
-  }
-
-  if (studioActionCopyBtn) {
-    studioActionCopyBtn.onclick = async () => {
-      if (!currentGeneratedImageUrl) return;
-      try {
-        await navigator.clipboard.writeText(currentGeneratedImageUrl);
-        showToast('تم نسخ رابط الصورة');
-      } catch (e) {
-        showToast('تم النسخ');
-      }
-    };
-  }
-
-  if (studioActionInsertBtn) {
-    studioActionInsertBtn.onclick = () => {
-      if (!currentGeneratedImageUrl) return;
-      const promptText = studioPromptInput ? studioPromptInput.value.trim() : 'صورة مولدة بالذكاء الاصطناعي';
-      const modelTitle = currentStudioModel === 'nano-banana' ? 'Nano Banana' : currentStudioModel === 'gpt-image-2' ? 'GPT Image 2' : 'إزالة الخلفية';
-      const markdownMsg = `![${promptText}](${currentGeneratedImageUrl})\n\n**تم إنشاء وتصميم الصورة بالذكاء الاصطناعي.**\n- **الموضوع:** ${promptText}\n- **المحرك:** ${modelTitle}`;
-
-      closeImageStudio();
-
-      // Ensure active conversation
-      if (!currentConversationId) {
-        const newConv = createNewConversationLocally('تصميم صورة');
-        currentConversationId = newConv.id;
-        setActiveConversation(newConv.id);
-      }
-
-      // Add to conversation
-      appendAssistantMessage(markdownMsg);
-      saveCurrentConversationMessages();
-      showToast('تم إدراج الصورة في المحادثة');
-    };
-  }
+  window.invalidateLibraryCache = () => {
+    cachedGeneratedImages = null;
+    cachedSentImages = null;
+  };
 
   // Report Bug Row
   reportBugRow.onclick = () => {
@@ -2936,19 +3228,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initial Startup & Profile Check ---
   async function startup() {
     try {
-      // 0. Immediate synchronous restore of conversation and sidebar index (0ms latency, prevents screen wipe on refresh!)
-      const cachedActiveConvId = localStorage.getItem('leo_active_conv_id');
+      // Start each site entry in a clean chat while keeping every saved conversation in history.
+      currentConversationId = null;
+      localStorage.removeItem('leo_active_conv_id');
       const cachedIndex = getConversationsIndexFromLocalCache();
       if (cachedIndex && cachedIndex.length > 0) {
         renderRecentConversations(cachedIndex);
       }
-      if (cachedActiveConvId) {
-        const cachedActiveConv = getConversationFromLocalCache(cachedActiveConvId);
-        if (cachedActiveConv && cachedActiveConv.messages && cachedActiveConv.messages.length > 0) {
-          currentConversationId = cachedActiveConvId;
-          renderConversationMessages(cachedActiveConv.messages);
-        }
-      }
+      showEmptyState();
 
       // 1. Immediate localStorage profile cache restore (strictly purge any placeholder 'الطالب')
       const localCachedProf = localStorage.getItem('leo_student_profile');
@@ -3063,7 +3350,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (currentConversationId) {
             const activeCloud = firebaseConvs.find(c => c.id === currentConversationId);
             if (activeCloud && activeCloud.messages && activeCloud.messages.length > 0) {
-              const currentRows = messagesStreamList.querySelectorAll('.message-row');
+              const currentRows = messagesStreamList.querySelectorAll('.user-message-row, .assistant-message-row');
               if (currentRows.length === 0) {
                 renderConversationMessages(activeCloud.messages);
               }

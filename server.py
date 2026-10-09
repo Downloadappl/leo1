@@ -17,7 +17,7 @@ except Exception as e:
     print(f"[EDGE-TTS IMPORT WARNING] {e}")
 
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urljoin, urlparse, parse_qs
 import database
 import base64
 import image_service
@@ -311,7 +311,7 @@ class RewindClient:
             pwd = f"{self._rnd(4)}A1{self._rnd(4)}a"
             ip = f"{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
             user_agent = f"Mozilla/5.0 (Linux; Android {random.randint(10,14)}; {self._rnd(6)}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{random.randint(120,135)}.0.0.0 Mobile Safari/537.36"
-            
+
             headers = {
                 'User-Agent': user_agent,
                 'X-Forwarded-For': ip,
@@ -580,6 +580,15 @@ class AppHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=FRONTEND_DIR, **kwargs)
 
+    def end_headers(self):
+        # Prevent browser caching of HTML, CSS, JS during development and live testing
+        clean_path = self.path.split('?')[0]
+        if clean_path.endswith('.css') or clean_path.endswith('.js') or clean_path.endswith('.html') or clean_path == '/' or clean_path == '':
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+        super().end_headers()
+
     def _send_json(self, data, status=200):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -600,11 +609,92 @@ class AppHandler(SimpleHTTPRequestHandler):
             return query['user_id'][0].strip()
         return 'default_user'
 
+    def _send_generated_image_download(self, remote_url):
+        def is_image_provider_url(candidate):
+            parsed_url = urlparse(candidate)
+            hostname = (parsed_url.hostname or '').lower().rstrip('.')
+            allowed_host = (
+                hostname == 'fal.media' or hostname.endswith('.fal.media') or
+                hostname == 'pollinations.ai' or hostname.endswith('.pollinations.ai')
+            )
+            return parsed_url.scheme == 'https' and allowed_host
+
+        if not is_image_provider_url(remote_url):
+            self._send_json({'error': 'رابط الصورة غير مدعوم للتنزيل'}, 400)
+            return
+
+        remote_response = None
+        response_headers_sent = False
+        try:
+            for _ in range(4):
+                if not is_image_provider_url(remote_url):
+                    raise ValueError('رابط إعادة التوجيه غير مدعوم')
+                remote_response = requests.get(
+                    remote_url,
+                    headers={'User-Agent': 'Mozilla/5.0 Leo Image Download'},
+                    timeout=(20, 90),
+                    stream=True,
+                    allow_redirects=False
+                )
+                if remote_response.status_code in (301, 302, 303, 307, 308):
+                    next_url = remote_response.headers.get('Location')
+                    remote_response.close()
+                    if not next_url:
+                        raise RuntimeError('تعذر الوصول إلى ملف الصورة')
+                    remote_url = urljoin(remote_url, next_url)
+                    continue
+                break
+
+            if remote_response is None or remote_response.is_redirect:
+                raise RuntimeError('تجاوز رابط الصورة عدد التحويلات المسموح')
+            remote_response.raise_for_status()
+            content_type = remote_response.headers.get('Content-Type', '').split(';', 1)[0].strip().lower()
+            if not content_type.startswith('image/'):
+                raise RuntimeError('المصدر لم يُرجع ملف صورة')
+
+            max_image_bytes = 30 * 1024 * 1024
+            declared_length = int(remote_response.headers.get('Content-Length') or 0)
+            if declared_length > max_image_bytes:
+                raise RuntimeError('حجم الصورة أكبر من الحد المسموح للتنزيل')
+            extensions = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'}
+            filename = f"leo_image.{extensions.get(content_type, 'png')}"
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            if declared_length:
+                self.send_header('Content-Length', str(declared_length))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            response_headers_sent = True
+            self.close_connection = True
+            bytes_sent = 0
+            for chunk in remote_response.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                bytes_sent += len(chunk)
+                if bytes_sent > max_image_bytes:
+                    raise RuntimeError('حجم الصورة أكبر من الحد المسموح للتنزيل')
+                self.wfile.write(chunk)
+                self.wfile.flush()
+        except Exception as exc:
+            if response_headers_sent:
+                self.log_error('Image download interrupted: %s', exc)
+            else:
+                self._send_json({'error': f'تعذر تنزيل الصورة: {str(exc)}'}, 502)
+        finally:
+            if remote_response is not None:
+                remote_response.close()
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
         uid = self._get_user_id()
+
+        if path == '/api/image/download':
+            self._send_generated_image_download(query.get('url', [''])[0])
+            return
 
         # List conversations
         if path == '/api/conversations':
@@ -639,6 +729,18 @@ class AppHandler(SimpleHTTPRequestHandler):
         if path == '/api/memories':
             mems = database.get_memories(user_id=uid)
             self._send_json(mems)
+            return
+
+        # Library: Generated Images (الصور المنشأة)
+        if path == '/api/library/generated-images':
+            images = database.get_user_generated_images(user_id=uid)
+            self._send_json(images)
+            return
+
+        # Library: Sent Images (الصور المرسلة)
+        if path == '/api/library/sent-images':
+            images = database.get_user_sent_images(user_id=uid)
+            self._send_json(images)
             return
 
         # Educational Advisory Modes (Realistic Academic Roles)
@@ -689,6 +791,12 @@ class AppHandler(SimpleHTTPRequestHandler):
         elif path == '' or path == '/':
             self.path = '/index.html'
 
+        # Force fresh 200 responses for static files (bypass 304 cache checks)
+        if 'If-Modified-Since' in self.headers:
+            del self.headers['If-Modified-Since']
+        if 'If-None-Match' in self.headers:
+            del self.headers['If-None-Match']
+
         return super().do_GET()
 
     def do_POST(self):
@@ -703,6 +811,11 @@ class AppHandler(SimpleHTTPRequestHandler):
             body = {}
 
         uid = self._get_user_id(body)
+
+        # Image Download Proxy (POST)
+        if path == '/api/image/download':
+            self._send_generated_image_download((body.get('url') or '').strip())
+            return
 
         # Create conversation
         if path == '/api/conversations':
@@ -805,6 +918,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                     aspect_ratio=aspect_ratio,
                     image_url=image_url
                 )
+                if res and res.get('url'):
+                    database.record_generated_image(uid, res.get('url'), prompt or 'تصميم صورة')
                 self._send_json(res, 200)
             except Exception as e:
                 print(f"[IMAGE GENERATION ERROR] {e}")
@@ -831,6 +946,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         if path == '/api/chat':
             conv_id = body.get('conversation_id')
             user_text = body.get('content', '')
+            force_image_generation = body.get('image_generation') is True
             attachments = body.get('attachments', [])
             model = body.get('model', 'leo-4o-mini')
             temperature = float(body.get('temperature', 0.7))
@@ -844,10 +960,12 @@ class AppHandler(SimpleHTTPRequestHandler):
                 conv = database.create_conversation(title=auto_t, model=model, user_id=uid)
                 conv_id = conv['id']
 
+            generation_key = f"{conv_id}:{req_id}"
+
             # In-Flight Concurrency & Deduplication Management
             abort_event = threading.Event()
             with ACTIVE_GENERATIONS_LOCK:
-                old_gen = ACTIVE_GENERATIONS.get(conv_id)
+                old_gen = ACTIVE_GENERATIONS.get(generation_key)
                 if old_gen:
                     # Check for accidental duplicate submission of the exact same request
                     if old_gen.get('request_id') == req_id or (old_gen.get('user_msg') == user_text and time.time() - old_gen.get('timestamp', 0) < 2.5):
@@ -861,11 +979,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                         self.wfile.write(b"data: [DONE]\n\n")
                         return
 
-                    # A new prompt or intentional retry superseded the active generation: signal abort to previous stream
-                    print(f"[CHAT SUPERSEDED] Cancelling previous active stream on conv {conv_id}")
-                    old_gen['abort_event'].set()
-
-                ACTIVE_GENERATIONS[conv_id] = {
+                ACTIVE_GENERATIONS[generation_key] = {
                     'request_id': req_id,
                     'abort_event': abort_event,
                     'user_msg': user_text,
@@ -875,28 +989,62 @@ class AppHandler(SimpleHTTPRequestHandler):
             # Save user message immediately to database with stable ID
             database.add_message(conv_id, 'user', user_text, attachments=attachments, msg_id=user_msg_id, user_id=uid)
 
-            # --- Check for Image Generation Intent in Chat ---
+            # --- Robust Image Generation Intent & Subject Extraction ---
             raw_text = (user_text or "").strip()
             raw_lower = raw_text.lower()
-            img_triggers = [
-                "صمم صورة ", "صمم لي صورة ", "صمم صوره ", "صمم لي صوره ", "صمم صورة",
-                "ارسم لي ", "ارسم ", "ارسم صوره ", "ارسم صورة ",
-                "أنشئ صورة ", "انشئ صورة ", "أنشئ صوره ", "انشئ صوره ",
-                "توليد صورة ", "توليد صوره ", "ولد صورة ", "ولد صوره ",
-                "سوي صورة ", "سوي صوره ", "اعمل صورة ", "اعمل صوره ",
-                "اريد صورة ", "اريد صوره ", "صورة لـ ", "صورة ",
-                "/image ", "/draw ", "generate image of ", "draw "
-            ]
-            img_prompt = None
-            for trg in img_triggers:
-                if raw_lower.startswith(trg):
-                    img_prompt = raw_text[len(trg):].strip()
-                    if not img_prompt:
-                        img_prompt = raw_text.strip()
-                    break
-            if not img_prompt and any(k in raw_lower for k in ["صمم صورة", "ارسم صورة", "انشئ صورة", "علم العراق"]):
-                if "علم العراق" in raw_lower:
-                    img_prompt = "علم العراق"
+
+            def extract_chat_image_prompt(txt):
+                if not txt:
+                    return None
+                t = txt.strip()
+                tl = t.lower()
+
+                # Check slash command prefixes
+                for pfx in ["/image ", "/draw ", "/img "]:
+                    if tl.startswith(pfx):
+                        return t[len(pfx):].strip() or t
+
+                import re
+                patterns = [
+                    # صمم لي صورة ... / صمم لي ... / صمم صورة ...
+                    r'^(?:ممكن\s+|اريدك\s+|أريدك\s+|لو\s+سمحت\s+|بالله\s+|ياريت\s+|اريد\s+|أريد\s+|يا\s+ليو\s+|استاذ\s+ليو\s+)?(?:صمم|ارسم|انشئ|أنشئ|سوي|اعمل|توليد|ولد|تخيل|ابغا|ابغى)\s*(?:لي\s+)?(?:صورة|صوره|لوحة|لوحه|رسمة|رسمه|خريطة|خريطه|بوستر|شعار|تصميم|منظر|مشهد)?\s*(?:لـ|عن|بـ|في|توضح)?\s*(.+)$',
+                    # صمم لي ... (حتى بدون كلمة صورة)
+                    r'^(?:صمم|ارسم|انشئ|أنشئ|سوي|اعمل|ولد|تخيل)\s+لي\s+(.+)$',
+                    # صمم ... / ارسم ...
+                    r'^(?:صمم|ارسم)\s+(.+)$',
+                    # أريد صورة لـ... / اريد صوره ...
+                    r'^(?:اريد|أريد|ابغى|ابغا|احتاج|أحتاج|اعطني|هات)\s+(?:صورة|صوره)\s*(?:لـ|عن|بـ|في)?\s*(.+)$',
+                    # صورة لـ... / صورة عن ...
+                    r'^(?:صورة|صوره)\s+(?:لـ|عن|توضح)\s*(.+)$',
+                    # English prompts
+                    r'^(?:generate|create|draw|make|design)\s+(?:an?\s+)?(?:image|picture|photo|illustration)\s+(?:of\s+)?(.+)$'
+                ]
+                for pat in patterns:
+                    m = re.match(pat, t, re.IGNORECASE)
+                    if m:
+                        cand = m.group(1).strip().rstrip('.?!،؛ ')
+                        if cand and len(cand) >= 2:
+                            return cand
+
+                fallback_triggers = [
+                    "صمم لي صورة", "صمم لي صوره", "صمم صورة", "صمم صوره", "صمم لي", "صمم",
+                    "ارسم لي صورة", "ارسم لي صوره", "ارسم صورة", "ارسم صوره", "ارسم لي", "ارسم",
+                    "أنشئ صورة", "انشئ صورة", "أنشئ صوره", "انشئ صوره", "أنشئ لي", "انشئ لي",
+                    "توليد صورة", "توليد صوره", "ولد صورة", "ولد صوره",
+                    "سوي صورة", "سوي صوره", "سوي لي صورة", "سوي لي صوره",
+                    "اعمل صورة", "اعمل صوره", "اعمل لي صورة", "اعمل لي صوره",
+                    "اريد صورة", "أريد صورة", "اريد صوره", "أريد صوره",
+                    "ابغى صورة", "ابغا صورة", "ابغى صوره", "ابغا صوره",
+                    "صورة لـ", "صوره لـ", "صورة عن", "صوره عن", "علم العراق"
+                ]
+                for trg in fallback_triggers:
+                    if trg in tl:
+                        idx = tl.find(trg)
+                        extracted = t[idx + len(trg):].strip().lstrip('لـ: -').rstrip('.?!،؛ ')
+                        return extracted if (extracted and len(extracted) >= 2) else t
+                return None
+
+            img_prompt = raw_text if force_image_generation else extract_chat_image_prompt(raw_text)
 
             if img_prompt:
                 self.send_response(200)
@@ -909,26 +1057,34 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
 
                 current_conv_info = database.get_conversation(conv_id, user_id=uid)
+                conv_title = f"تصميم: {img_prompt[:32]}"
                 meta_chunk = json.dumps({
                     'request_id': req_id,
                     'conversation_id': conv_id, 
                     'message_id': user_msg_id,
                     'assistant_message_id': assistant_msg_id,
                     'model': 'gpt-image-2', 
-                    'title': current_conv_info.get('title', 'تصميم صورة') if current_conv_info else 'تصميم صورة'
+                    'title': conv_title
                 }, ensure_ascii=False)
                 self.wfile.write(f"data: {meta_chunk}\n\n".encode('utf-8'))
                 self.wfile.flush()
 
-                # Stream exact ChatGPT-style Dot-Matrix Canvas Graphic Placeholder
+                # Stream Modern Animated Placeholder (Minified single-line to avoid Markdown code-block parsing)
                 placeholder_markup = (
-                    f'<div class="chat-dalle-generating-box" id="dalle_{req_id}">\n'
-                    f'  <div class="dalle-gen-header">جاري إنشاء الصورة</div>\n'
-                    f'  <div class="dalle-dot-matrix-canvas">\n'
-                    f'    <div class="dalle-dot-wave"></div>\n'
-                    f'    <div class="dalle-progress-pill" id="prog_{req_id}" data-req="{req_id}">26%</div>\n'
-                    f'  </div>\n'
-                    f'</div>\n\n'
+                    f'<div class="chat-image-generating-placeholder" id="placeholder_{req_id}">'
+                    f'<div class="gen-placeholder-glow"></div>'
+                    f'<div class="gen-placeholder-body">'
+                    f'<div class="gen-placeholder-visual">'
+                    f'<div class="gen-placeholder-pulse-ring"></div>'
+                    f'<svg class="gen-placeholder-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+                    f'<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>'
+                    f'</svg>'
+                    f'</div>'
+                    f'<div class="gen-placeholder-status">جاري إنشاء الصورة...</div>'
+                    f'<div class="gen-placeholder-meta">محرك الذكاء الاصطناعي فائق الدقة</div>'
+                    f'<div class="gen-placeholder-bar"><div class="gen-placeholder-bar-fill"></div></div>'
+                    f'</div>'
+                    f'</div>'
                 )
                 self.wfile.write(f"data: {json.dumps({'content': placeholder_markup}, ensure_ascii=False)}\n\n".encode('utf-8'))
                 self.wfile.flush()
@@ -936,60 +1092,23 @@ class AppHandler(SimpleHTTPRequestHandler):
                 try:
                     gen_res = image_service.generate_image(img_prompt, model="gpt-image-2")
                     img_url = gen_res.get('url')
+
+                    # Persist to Library Database
+                    database.record_generated_image(uid, img_url, img_prompt, conv_id)
+
+                    # Minimal, clean image display without any new extra icons
                     res_body = (
-                        f'<div class="chat-dalle-result-card" data-img-url="{img_url}">\n'
-                        f'  <div class="chat-dalle-image-frame">\n'
-                        f'    <img src="{img_url}" alt="{img_prompt}" class="chat-dalle-img" onclick="openStudioLightbox && openStudioLightbox(\'{img_url}\')" loading="lazy" />\n'
-                        f'    <div class="dalle-frame-overlay">\n'
-                        f'      <button class="dalle-floating-circle-btn" onclick="downloadImageDirect && downloadImageDirect(\'{img_url}\', \'image_{req_id}.png\')" title="تحميل أو مشاركة">\n'
-                        f'        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
-                        f'          <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"></path>\n'
-                        f'          <polyline points="16 6 12 2 8 6"></polyline>\n'
-                        f'          <line x1="12" y1="2" x2="12" y2="15"></line>\n'
-                        f'        </svg>\n'
-                        f'      </button>\n'
-                        f'      <button class="dalle-floating-pill-btn" onclick="openImageStudio && openImageStudio(\'{img_prompt}\', \'{img_url}\')" title="تحرير الصورة">\n'
-                        f'        تحرير\n'
-                        f'      </button>\n'
-                        f'    </div>\n'
-                        f'  </div>\n'
-                        f'  <div class="dalle-actions-row">\n'
-                        f'    <button class="dalle-act-icon-btn" onclick="openImageMoreMenu && openImageMoreMenu(this, \'{img_url}\')" title="المزيد">\n'
-                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">\n'
-                        f'        <circle cx="12" cy="12" r="1"></circle>\n'
-                        f'        <circle cx="19" cy="12" r="1"></circle>\n'
-                        f'        <circle cx="5" cy="12" r="1"></circle>\n'
-                        f'      </svg>\n'
-                        f'    </button>\n'
-                        f'    <button class="dalle-act-icon-btn" onclick="shareGeneratedImage && shareGeneratedImage(\'{img_url}\', \'{img_prompt}\')" title="مشاركة">\n'
-                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
-                        f'        <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"></path>\n'
-                        f'        <polyline points="16 6 12 2 8 6"></polyline>\n'
-                        f'        <line x1="12" y1="2" x2="12" y2="15"></line>\n'
-                        f'      </svg>\n'
-                        f'    </button>\n'
-                        f'    <button class="dalle-act-icon-btn" onclick="rateGeneratedImage && rateGeneratedImage(this, \'dislike\')" title="لم يعجبني">\n'
-                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
-                        f'        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path>\n'
-                        f'      </svg>\n'
-                        f'    </button>\n'
-                        f'    <button class="dalle-act-icon-btn" onclick="rateGeneratedImage && rateGeneratedImage(this, \'like\')" title="أعجبني">\n'
-                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
-                        f'        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>\n'
-                        f'      </svg>\n'
-                        f'    </button>\n'
-                        f'    <button class="dalle-act-icon-btn" onclick="downloadImageDirect && downloadImageDirect(\'{img_url}\', \'leo_image_{req_id}.png\')" title="تحميل الصورة">\n'
-                        f'      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n'
-                        f'        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>\n'
-                        f'        <polyline points="7 10 12 15 17 10"></polyline>\n'
-                        f'        <line x1="12" y1="15" x2="12" y2="3"></line>\n'
-                        f'      </svg>\n'
-                        f'    </button>\n'
-                        f'  </div>\n'
+                        f'<div class="chat-generated-image-card" data-img-url="{img_url}">\n'
+                    f'  <img src="{img_url}" alt="{img_prompt}" class="chat-generated-image" draggable="false" ondragstart="return false" onclick="openImageLightbox && openImageLightbox(\'{img_url}\')" loading="eager" decoding="async" fetchpriority="high" />\n'
                         f'</div>\n\n'
                     )
                 except Exception as ex:
-                    res_body = f"عذراً، حدث خطأ أثناء محاولة إنشاء الصورة: {str(ex)}"
+                    res_body = (
+                        f'<div class="chat-image-error-card">\n'
+                        f'  <div class="image-error-text">عذراً، تعذر إنشاء الصورة حالياً: {str(ex)}</div>\n'
+                        f'  <button class="image-retry-btn" onclick="retryImagePrompt && retryImagePrompt(\'{img_prompt}\')">إعادة المحاولة</button>\n'
+                        f'</div>\n\n'
+                    )
 
                 self.wfile.write(f"data: {json.dumps({'content': res_body, 'replace': True}, ensure_ascii=False)}\n\n".encode('utf-8'))
                 self.wfile.write(b"data: [DONE]\n\n")
@@ -997,9 +1116,9 @@ class AppHandler(SimpleHTTPRequestHandler):
 
                 database.add_message(conv_id, 'assistant', res_body, msg_id=assistant_msg_id, user_id=uid)
                 with ACTIVE_GENERATIONS_LOCK:
-                    cur = ACTIVE_GENERATIONS.get(conv_id)
+                    cur = ACTIVE_GENERATIONS.get(generation_key)
                     if cur and cur.get('request_id') == req_id:
-                        ACTIVE_GENERATIONS.pop(conv_id, None)
+                        ACTIVE_GENERATIONS.pop(generation_key, None)
                 return
 
             # --- LONG-TERM MEMORY: Automatic extraction of user facts/preferences ---
@@ -1099,9 +1218,9 @@ class AppHandler(SimpleHTTPRequestHandler):
             finally:
                 # Clean up in-flight generation registration
                 with ACTIVE_GENERATIONS_LOCK:
-                    cur = ACTIVE_GENERATIONS.get(conv_id)
+                    cur = ACTIVE_GENERATIONS.get(generation_key)
                     if cur and cur.get('request_id') == req_id:
-                        ACTIVE_GENERATIONS.pop(conv_id, None)
+                        ACTIVE_GENERATIONS.pop(generation_key, None)
 
                 complete_text = "".join(full_assistant_reply).strip()
                 if complete_text and (not abort_event.is_set() or len(complete_text) > 15):
@@ -1170,16 +1289,32 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-User-Id, Authorization, X-Requested-With')
         self.end_headers()
 
+class LeoServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def handle_error(self, request, client_address):
+        import sys
+        exc_type, _, _ = sys.exc_info()
+        if exc_type in (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            return
+        super().handle_error(request, client_address)
+
 def run(port=8080):
     server_address = ('', port)
-    httpd = ThreadingHTTPServer(server_address, AppHandler)
+    httpd = LeoServer(server_address, AppHandler)
     print(f"Professor Leo Server running at http://localhost:{port}")
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        httpd.server_close()
+    while True:
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            break
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            continue
+        except Exception as e:
+            print(f"Server notice: {e}")
+            continue
+    httpd.server_close()
 
 if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080

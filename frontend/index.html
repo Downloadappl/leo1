@@ -37,7 +37,7 @@
   
   <!-- Highlight.js syntax highlighting theme -->
   <link rel="stylesheet" href="highlight-dark.min.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261009_v22">
 
   <!-- Local Offline-Capable Markdown & Syntax Highlight Libraries -->
   <script src="marked.min.js"></script>
@@ -48,10 +48,8 @@
     (function(){
       try {
         var t = localStorage.getItem('leo_theme');
-        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-          t = 'light';
-        }
-        if (t === 'light') {
+        var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        if (t === 'light' || (t === 'system' && prefersLight)) {
           document.documentElement.classList.add('theme-light');
         }
       } catch(e){}
@@ -76,6 +74,11 @@
   </script>
 </head>
 <body class="theme-blue-pink">
+  <script>
+    if (document.documentElement.classList.contains('theme-light')) {
+      document.body.classList.add('theme-light');
+    }
+  </script>
 
   <div class="app-viewport">
 
@@ -242,6 +245,31 @@
 
         <!-- Screen 2: Dynamic Messages Stream List -->
         <div class="messages-stream-list" id="messagesStreamList"></div>
+        <!-- Source card cloned into the active assistant message by app.js. -->
+        <template id="imageGenerationCardTemplate">
+          <div class="chat-image-generating-placeholder">
+            <div class="gen-placeholder-glow"></div>
+            <div class="gen-placeholder-body">
+              <div class="gen-placeholder-visual"><div class="gen-placeholder-pulse-ring"></div></div>
+              <div class="gen-placeholder-status">جاري إنشاء الصورة...</div>
+              <div class="gen-placeholder-meta">محرك الذكاء الاصطناعي فائق الدقة</div>
+              <div class="gen-placeholder-bar"><div class="gen-placeholder-bar-fill"></div></div>
+            </div>
+          </div>
+        </template>
+        <template id="chatResponseWaitingTemplate">
+          <div class="chat-response-waiting" role="status" aria-live="polite" dir="rtl">
+            <span class="chat-response-waiting-icon" aria-hidden="true">
+              <span class="chat-response-waiting-orbit"></span>
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 2.5 14.65 9.35 21.5 12l-6.85 2.65L12 21.5l-2.65-6.85L2.5 12l6.85-2.65L12 2.5Z" />
+                <path d="m19 2 .85 2.15L22 5l-2.15.85L19 8l-.85-2.15L16 5l2.15-.85L19 2Z" />
+              </svg>
+            </span>
+            <span class="chat-response-waiting-label">جاري تجهيز الرد</span>
+            <span class="chat-response-waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          </div>
+        </template>
 
       </section>
 
@@ -303,6 +331,14 @@
 
           <!-- Middle: Prompt Composer Textarea (RTL text) -->
           <div class="input-field-wrapper">
+            <span class="image-generation-mode-chip" id="imageGenerationModeChip" hidden dir="rtl">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.64 5.64l2.12 2.12m8.48 8.48 2.12 2.12m0-12.72-2.12 2.12m-8.48 8.48-2.12 2.12" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+              <span>إنشاء صور</span>
+              <button class="image-generation-mode-remove" id="imageGenerationModeRemove" type="button" aria-label="إلغاء وضع إنشاء الصور" title="إلغاء">×</button>
+            </span>
             <textarea 
               class="chat-text-input" 
               id="chatTextInput" 
@@ -413,7 +449,7 @@
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
               </svg>
-              <span>توليد صورة</span>
+              <span>إنشاء صور</span>
             </button>
           </div>
         </div>
@@ -938,19 +974,21 @@
       </div>
     </div>
 
-    <!-- AI Image Studio Modal (RIVAL / Fal Integration) -->
+    <!-- Dedicated Library Modal (المكتبة — معرض الصور المنشأة والمرسلة) -->
     <div class="custom-modal-overlay" id="imageStudioModalOverlay">
-      <div class="custom-modal-content studio-modal-card">
-        <div class="modal-header">
+      <div class="custom-modal-content library-modal-card">
+        <div class="modal-header library-modal-header">
           <div class="login-modal-title-row">
             <span class="login-badge-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
               </svg>
             </span>
             <div>
-              <h3 class="modal-title">استوديو إنشاء وتصميم الصور</h3>
-              <p class="login-modal-subtitle">محرك الذكاء الاصطناعي فائق الدقة والسرعة (Flux Turbo & GPT Image 2)</p>
+              <h3 class="modal-title">المكتبة</h3>
+              <p class="login-modal-subtitle">معرض الصور المنشأة بالذكاء الاصطناعي والمرفقات المرسلة</p>
             </div>
           </div>
           <button class="modal-close-btn" id="imageStudioCloseBtn" type="button" aria-label="إغلاق">
@@ -961,147 +999,82 @@
           </button>
         </div>
 
-        <div class="modal-body studio-modal-body">
-          <!-- Engine / Model Selection Segmented Tabs -->
-          <div class="studio-section-label">محرك التوليد والتصميم</div>
-          <div class="studio-segmented-control" id="studioModelSelector">
-            <button class="studio-segment-btn active" data-model="gpt-image-2" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-              </svg>
-              <span>GPT Image 2 (عالي الدقة)</span>
-            </button>
-            <button class="studio-segment-btn" data-model="nano-banana" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-              </svg>
-              <span>Nano Banana (بانانا)</span>
-            </button>
-            <button class="studio-segment-btn" data-model="rembg" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="6" cy="6" r="3"></circle>
-                <circle cx="6" cy="18" r="3"></circle>
-                <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
-                <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
-                <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
-              </svg>
-              <span>إزالة الخلفية</span>
-            </button>
-          </div>
-
-          <!-- Aspect Ratio Selection -->
-          <div class="studio-section-label">أبعاد ومقاس الصورة</div>
-          <div class="studio-ratios-row" id="studioRatioSelector">
-            <button class="studio-ratio-btn active" data-ratio="square_hd" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-              </svg>
-              <span>مربع 1:1</span>
-            </button>
-            <button class="studio-ratio-btn" data-ratio="landscape_16_9" type="button">
-              <svg width="16" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-              </svg>
-              <span>أفقي 16:9</span>
-            </button>
-            <button class="studio-ratio-btn" data-ratio="portrait_16_9" type="button">
-              <svg width="12" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="5" y="2" width="14" height="20" rx="2"></rect>
-              </svg>
-              <span>طولي 9:16</span>
-            </button>
-          </div>
-
-          <!-- Prompt Input Area -->
-          <div class="studio-section-label">وصف المشهد أو الصورة المطلوب تصميمها</div>
-          <div class="studio-textarea-wrapper">
-            <textarea id="studioPromptInput" class="studio-prompt-input" rows="3" placeholder="صف الصورة التي ترغب في إنشائها بالتفصيل (مثل: مكتبة مستقبلية مضيئة بالأجهزة الذكية والكتب المعلقة)..." dir="rtl"></textarea>
-          </div>
-
-          <!-- Quick Prompts Inspiration Tags -->
-          <div class="studio-suggestions-tags" id="studioSuggestionsTags">
-            <button class="studio-tag-pill" type="button" data-prompt="مخطط علمي للمجموعة الشمسية بتفاصيل دقيقة وإضاءة كونية">مخطط المجموعة الشمسية</button>
-            <button class="studio-tag-pill" type="button" data-prompt="رسم توضيحي مجسم وثلاثي الأبعاد لخلية نباتية مع بيانات علمية">خلية نباتية مجسمة</button>
-            <button class="studio-tag-pill" type="button" data-prompt="مختبر كيمياء حديث متطور مع أنابيب اختبار مضيئة وتوهج نيون">مختبر كيمياء حديث</button>
-            <button class="studio-tag-pill" type="button" data-prompt="مكتبة جامعية أثرية هادئة تضم آلاف المجلدات ونوافذ شمسية واسعة">مكتبة جامعية أثرية</button>
-          </div>
-
-          <!-- Image Drop / Upload (Shown for Rembg / Edit) -->
-          <div class="studio-upload-box" id="studioUploadBox" style="display: none;">
-            <input type="file" id="studioFileInput" accept="image/*" style="display: none;">
-            <button class="studio-upload-trigger" id="studioUploadTrigger" type="button">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-              <span id="studioUploadLabel">اختر صورة من جهازك لإزالة خلفيتها أو تعديلها</span>
-            </button>
-          </div>
-
-          <!-- Action Button -->
-          <button class="studio-generate-btn" id="studioGenerateBtn" type="button">
-            <svg class="studio-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Library Segmented Navigation Tabs -->
+        <div class="library-tabs-bar">
+          <button class="library-tab-btn active" id="libTabGeneratedBtn" data-tab="generated" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
             </svg>
-            <span id="studioGenerateBtnText">إنشاء وتصميم الصورة</span>
+            <span>الصور المنشأة</span>
+            <span class="lib-count-badge" id="libGeneratedCount">0</span>
           </button>
+          <button class="library-tab-btn" id="libTabSentBtn" data-tab="sent" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>الصور المرسلة</span>
+            <span class="lib-count-badge" id="libSentCount">0</span>
+          </button>
+        </div>
 
-          <!-- Studio Live Result Box -->
-          <div class="studio-result-container" id="studioResultContainer" style="display: none;">
-            <!-- Loading State: ChatGPT Style Animated Graphic -->
-            <div class="studio-loading-state" id="studioLoadingState" style="display: none;">
-              <div class="chat-image-generating-card in-studio">
-                <div class="generating-shimmer-bg"></div>
-                <div class="generating-center-content">
-                  <div class="generating-icon-orbit">
-                    <svg class="generating-sparkle-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-                    </svg>
-                  </div>
-                  <span class="generating-title">جاري تصميم وإنشاء الصورة بالذكاء الاصطناعي...</span>
-                  <span class="generating-subtitle" id="studioLoadingSubtitle">محرك GPT Image 2 عالي الدقة</span>
-                  <div class="generating-pulse-dots">
-                    <span></span><span></span><span></span>
-                  </div>
-                </div>
-              </div>
+        <div class="modal-body library-modal-body">
+          <!-- Tab 1: Generated Images ("الصور المنشأة") -->
+          <div class="library-tab-panel" id="libraryGeneratedPanel">
+            <!-- Loading State -->
+            <div class="library-loading" id="libraryGeneratedLoading" style="display: none;">
+              <div class="library-spinner"></div>
+              <span>جاري تحميل الصور المنشأة...</span>
             </div>
-
-            <!-- Output Preview -->
-            <div class="studio-preview-card" id="studioPreviewCard" style="display: none;">
-              <div class="studio-preview-img-wrapper">
-                <img id="studioPreviewImg" src="" alt="الصورة الناتجة" class="studio-preview-img">
-              </div>
-              <div class="studio-actions-bar">
-                <button class="studio-action-tool-btn" id="studioActionZoomBtn" title="تكبير ومعاينة" type="button">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    <line x1="11" y1="8" x2="11" y2="14"></line>
-                    <line x1="8" y1="11" x2="14" y2="11"></line>
-                  </svg>
-                  <span>معاينة</span>
-                </button>
-                <button class="studio-action-tool-btn" id="studioActionDownloadBtn" title="تحميل الصورة" type="button">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                  <span>تحميل</span>
-                </button>
-                <button class="studio-action-tool-btn primary" id="studioActionInsertBtn" title="إدراج في المحادثة الحالية" type="button">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                  </svg>
-                  <span>إرسال للمحادثة</span>
-                </button>
-              </div>
+            <!-- Error State -->
+            <div class="library-error" id="libraryGeneratedError" style="display: none;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              <span>تعذر تحميل الصور المنشأة، يرجى المحاولة مرة أخرى</span>
+              <button class="library-retry-btn" id="retryGeneratedLibBtn" type="button">إعادة المحاولة</button>
             </div>
+            <!-- Empty State -->
+            <div class="library-empty" id="libraryGeneratedEmpty" style="display: none;">
+              <div class="lib-empty-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                </svg>
+              </div>
+              <div class="lib-empty-title">لا توجد صور منشأة حتى الآن</div>
+              <div class="lib-empty-desc">اطلب من الأستاذ ليو في المحادثة إنشاء أو تصميم أي صورة (مثال: "صمم صورة علم العراق") لتظهر هنا تلقائياً في مكتبتك.</div>
+            </div>
+            <!-- Responsive Gallery Grid -->
+            <div class="library-grid" id="libraryGeneratedGrid"></div>
           </div>
 
+          <!-- Tab 2: Sent Images ("الصور المرسلة") -->
+          <div class="library-tab-panel" id="librarySentPanel" style="display: none;">
+            <!-- Loading State -->
+            <div class="library-loading" id="librarySentLoading" style="display: none;">
+              <div class="library-spinner"></div>
+              <span>جاري تحميل الصور المرسلة...</span>
+            </div>
+            <!-- Error State -->
+            <div class="library-error" id="librarySentError" style="display: none;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              <span>تعذر تحميل الصور المرسلة، يرجى المحاولة مرة أخرى</span>
+              <button class="library-retry-btn" id="retrySentLibBtn" type="button">إعادة المحاولة</button>
+            </div>
+            <!-- Empty State -->
+            <div class="library-empty" id="librarySentEmpty" style="display: none;">
+              <div class="lib-empty-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+              </div>
+              <div class="lib-empty-title">لم تقم بإرسال أي صور بعد</div>
+              <div class="lib-empty-desc">عندما تقوم بإرفاق أو إرسال صور أو واجبات دراسية في المحادثة، ستُحفظ هنا تلقائياً لسهولة الرجوع إليها.</div>
+            </div>
+            <!-- Responsive Gallery Grid -->
+            <div class="library-grid" id="librarySentGrid"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1114,6 +1087,12 @@
         <span class="lightbox-zoom-level" id="lightboxZoomLevel">100%</span>
         <button class="lightbox-tool-btn" id="lightboxZoomInBtn" title="تكبير" type="button">+</button>
         <button class="lightbox-tool-btn" id="lightboxResetBtn" title="إعادة التعيين" type="button">⟲</button>
+        <button class="lightbox-tool-btn lightbox-download-btn" id="lightboxDownloadBtn" title="تنزيل الصورة" aria-label="تنزيل الصورة" type="button">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <path d="m7 10 5 5 5-5M12 15V3" />
+          </svg>
+        </button>
         <button class="lightbox-tool-btn lightbox-close-btn" id="lightboxCloseBtn" title="إغلاق (Esc)" type="button">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1133,6 +1112,6 @@
 
   <!-- Firebase Cloud Integration Module -->
   <script type="module" src="firebase-service.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20261009_v29"></script>
 </body>
 </html>
