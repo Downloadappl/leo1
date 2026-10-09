@@ -2504,26 +2504,38 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- ChatGPT DALL-E Image Actions ---
-  window.downloadImageDirect = (url, filename = 'generated_image.png') => {
+  window.downloadImageDirect = async (url, filename = 'generated_image.png') => {
     if (!url) return;
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast('جاري تحميل الصورة');
+    showToast('جاري بدء تنزيل الصورة...');
+    try {
+      const resp = await fetch(url, { mode: 'cors' });
+      if (!resp.ok) throw new Error('Fetch failed');
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename || `leo_image_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+      showToast('تم تحميل الصورة بنجاح');
+    } catch (err) {
+      // Direct anchor trigger as fallback
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.download = filename || `leo_image_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('تم بدء تحميل الصورة');
+    }
   };
 
-  window.copyImageLinkDirect = async (url) => {
-    if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast('تم نسخ رابط الصورة');
-    } catch (e) {
-      showToast('تم النسخ');
-    }
+  // User explicitly demanded: NO copying link, only download image directly!
+  window.copyImageLinkDirect = (url) => {
+    window.downloadImageDirect(url);
   };
 
   window.rateGeneratedImage = (btn, type) => {
