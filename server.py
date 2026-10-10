@@ -464,6 +464,279 @@ class RewindClient:
     def _rnd(self, k=8):
         return ''.join(random.choices(string.ascii_letters + string.digits, k=k))
 
+    def _stream_official_deepseek(self, messages, model_name, has_images, temperature, abort_event, user_id=None):
+        """Stream through DeepSeek's documented API when an official key is configured."""
+        api_key = os.environ.get('DEEPSEEK_API_KEY', '').strip()
+        if not api_key:
+            raise ChatGenerationError("مفتاح DeepSeek الرسمي غير مضبوط على الخادم.")
+
+        if model_name not in ('deepseek-flash', 'deepseek-v4-pro'):
+            raise ChatGenerationError("اختر نموذج DeepSeek من قائمة النماذج لاستخدام واجهته الرسمية.")
+        # Flash supports image input. Pro is text-only, so keep the user's
+        # request working by selecting Flash when attachments are present.
+        selected_model = 'deepseek-flash' if has_images else model_name
+
+        # The official API uses snake_case for image content, while the current
+        # Rewind adapter accepts its own camelCase imageUrl representation.
+        normalized_messages = []
+        for message in messages:
+            normalized = dict(message)
+            content = normalized.get('content')
+            if isinstance(content, list):
+                normalized_parts = []
+                for part in content:
+                    normalized_part = dict(part) if isinstance(part, dict) else part
+                    if isinstance(normalized_part, dict) and normalized_part.get('type') == 'image_url':
+                        image_value = normalized_part.pop('imageUrl', None)
+                        if image_value is not None and 'image_url' not in normalized_part:
+                            normalized_part['image_url'] = image_value
+                    normalized_parts.append(normalized_part)
+                normalized['content'] = normalized_parts
+            normalized_messages.append(normalized)
+
+        thinking_enabled = selected_model == 'deepseek-v4-pro'
+        payload = {
+            'model': selected_model,
+            'messages': normalized_messages,
+            'stream': True,
+            'thinking': {'type': 'enabled' if thinking_enabled else 'disabled'},
+        }
+        if thinking_enabled:
+            payload['reasoning_effort'] = 'high'
+        else:
+            payload['temperature'] = temperature
+        if user_id:
+            payload['user_id'] = hashlib.sha256(str(user_id).encode('utf-8')).hexdigest()[:32]
+
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Accept': 'text/event-stream',
+            'Content-Type': 'application/json',
+        }
+        retryable_statuses = {408, 425, 429, 500, 502, 503, 504}
+        response = None
+        session = requests.Session()
+        try:
+            for attempt in range(4):
+                if abort_event and abort_event.is_set():
+                    return
+                try:
+                    response = session.post(
+                        'https://api.deepseek.com/chat/completions',
+                        json=payload,
+                        headers=headers,
+                        stream=True,
+                        timeout=(10, 90),
+                    )
+                except requests.RequestException as request_error:
+                    if attempt < 3:
+                        time.sleep(min(0.8 * (2 ** attempt), 6.0))
+                        continue
+                    raise ChatGenerationError("تعذر الاتصال بواجهة DeepSeek الرسمية بعد عدة محاولات.") from request_error
+
+                if response.status_code in retryable_statuses and attempt < 3:
+                    retry_after = response.headers.get('Retry-After', '')
+                    response.close()
+                    try:
+                        delay = min(max(float(retry_after), 0.5), 8.0)
+                    except (TypeError, ValueError):
+                        delay = min(0.8 * (2 ** attempt), 6.0)
+                    if abort_event and abort_event.wait(delay):
+                        return
+                    continue
+                if response.status_code != 200:
+                    status = response.status_code
+                    try:
+                        error_body = response.text[:240].replace('\n', ' ').strip()
+                    except Exception:
+                        error_body = ''
+                    print(f"[DEEPSEEK API STATUS {status}] {error_body}")
+                    if status == 401:
+                        raise ChatGenerationError("رفض DeepSeek المفتاح الرسمي. راجع DEEPSEEK_API_KEY في إعدادات Vercel.")
+                    if status == 429:
+                        raise ChatGenerationError("وصل حساب DeepSeek إلى حد التزامن أو الطلبات. أعد المحاولة بعد قليل.")
+                    raise ChatGenerationError(f"رفضت واجهة DeepSeek الطلب (HTTP {status}). أعد المحاولة بعد قليل.")
+                break
+
+            if response is None or response.status_code != 200:
+                raise ChatGenerationError("تعذر بدء الرد من واجهة DeepSeek الرسمية.")
+
+            yielded_content = False
+            stream_completed = False
+            try:
+                for line in response.iter_lines(chunk_size=1, decode_unicode=True):
+                    if abort_event and abort_event.is_set():
+                        return
+                    if isinstance(line, bytes):
+                        line = line.decode('utf-8', errors='replace')
+                    if not line or not line.startswith('data:'):
+                        continue
+                    event_data = line[5:].strip()
+                    if event_data == '[DONE]':
+                        stream_completed = True
+                        break
+                    try:
+                        event = json.loads(event_data)
+                        choices = event.get('choices') or []
+                        delta = choices[0].get('delta', {}) if choices else {}
+                        content = delta.get('content')
+                        if isinstance(content, str) and content:
+                            yielded_content = True
+                            yield content
+                    except (ValueError, TypeError, IndexError, KeyError):
+                        continue
+            except requests.RequestException as stream_error:
+                if abort_event and abort_event.is_set():
+                    return
+                raise ChatGenerationError("انقطع بث DeepSeek قبل اكتمال الرد. أعد المحاولة.") from stream_error
+
+            if not stream_completed:
+                raise ChatGenerationError("انتهى اتصال DeepSeek قبل اكتمال الرد. أعد المحاولة.")
+            if not yielded_content:
+                raise ChatGenerationError("لم يصل محتوى من DeepSeek. أعد المحاولة.")
+        finally:
+            if response is not None:
+                response.close()
+            session.close()
+
+    def _stream_reverse_deepseek(self, messages, model_name, abort_event):
+        """Stream via reverse-engineered DeepSeek Web API with PoW solving."""
+        try:
+            import deepseek_provider
+        except Exception as imp_err:
+            raise ChatGenerationError(f"تعذر تحميل وحدة مزود DeepSeek: {imp_err}")
+
+        system_prompt = ""
+        conversation_turns = []
+        for m in messages:
+            role = m.get('role')
+            content = m.get('content')
+            if isinstance(content, list):
+                content = ' '.join(str(p.get('text', '')) for p in content if isinstance(p, dict))
+            else:
+                content = str(content or '')
+
+            if role == 'system':
+                system_prompt = content
+            elif role == 'user':
+                conversation_turns.append(f"الطالب: {content}")
+            elif role == 'assistant':
+                conversation_turns.append(f"الأستاذ ليو: {content}")
+
+        if len(conversation_turns) == 1 and conversation_turns[0].startswith("الطالب: "):
+            prompt = conversation_turns[0][len("الطالب: "):]
+        else:
+            prompt = "\n\n".join(conversation_turns) if conversation_turns else (messages[-1].get('content', '') if messages else '')
+
+        if model_name in ('deepseek-r1', 'leo-o1'):
+            ds_model = 'expert'
+            thinking = True
+        elif model_name == 'deepseek-v3.2':
+            ds_model = 'expert'
+            thinking = False
+        elif model_name == 'deepseek-v4-pro':
+            ds_model = 'default'
+            thinking = True
+        else:
+            ds_model = 'default'
+            thinking = False
+
+        try:
+            ds_client = deepseek_provider.DeepSeekChatClient()
+            in_think = False
+            think_opened = False
+            for chunk_type, text in ds_client.stream_completion(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model=ds_model,
+                thinking=thinking,
+                abort_event=abort_event
+            ):
+                if abort_event and abort_event.is_set():
+                    return
+                if chunk_type == 'think':
+                    if not think_opened:
+                        yield "> 💭 **تفكير واستدلال DeepSeek:**\n> "
+                        think_opened = True
+                        in_think = True
+                    yield text.replace('\n', '\n> ')
+                else:
+                    if in_think:
+                        yield "\n\n---\n\n"
+                        in_think = False
+                    yield text
+        except Exception as err:
+            raise ChatGenerationError(str(err))
+
+    def _stream_reverse_deepseek(self, messages, model_name, abort_event):
+        """Stream via reverse-engineered DeepSeek Web API with PoW solving."""
+        try:
+            import deepseek_provider
+        except Exception as imp_err:
+            raise ChatGenerationError(f"تعذر تحميل وحدة مزود DeepSeek: {imp_err}")
+
+        system_prompt = ""
+        conversation_turns = []
+        for m in messages:
+            role = m.get('role')
+            content = m.get('content')
+            if isinstance(content, list):
+                content = ' '.join(str(p.get('text', '')) for p in content if isinstance(p, dict))
+            else:
+                content = str(content or '')
+
+            if role == 'system':
+                system_prompt = content
+            elif role == 'user':
+                conversation_turns.append(f"الطالب: {content}")
+            elif role == 'assistant':
+                conversation_turns.append(f"الأستاذ ليو: {content}")
+
+        if len(conversation_turns) == 1 and conversation_turns[0].startswith("الطالب: "):
+            prompt = conversation_turns[0][len("الطالب: "):]
+        else:
+            prompt = "\n\n".join(conversation_turns) if conversation_turns else (messages[-1].get('content', '') if messages else '')
+
+        if model_name in ('deepseek-r1', 'leo-o1'):
+            ds_model = 'expert'
+            thinking = True
+        elif model_name == 'deepseek-v3.2':
+            ds_model = 'expert'
+            thinking = False
+        elif model_name == 'deepseek-v4-pro':
+            ds_model = 'default'
+            thinking = True
+        else:
+            ds_model = 'default'
+            thinking = False
+
+        try:
+            ds_client = deepseek_provider.DeepSeekChatClient()
+            in_think = False
+            think_opened = False
+            for chunk_type, text in ds_client.stream_completion(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model=ds_model,
+                thinking=thinking,
+                abort_event=abort_event
+            ):
+                if abort_event and abort_event.is_set():
+                    return
+                if chunk_type == 'think':
+                    if not think_opened:
+                        yield "> 💭 **تفكير واستدلال DeepSeek:**\n> "
+                        think_opened = True
+                        in_think = True
+                    yield text.replace('\n', '\n> ')
+                else:
+                    if in_think:
+                        yield "\n\n---\n\n"
+                        in_think = False
+                    yield text
+        except Exception as err:
+            raise ChatGenerationError(str(err))
+
     def authenticate(self):
         with self.lock:
             email = f"{self._rnd(6)}@gmail.com"
@@ -494,8 +767,27 @@ class RewindClient:
                 print(f"[AUTH ERROR] {e}")
             return False
 
-    def stream_chat(self, messages, model_name="leo-4o-mini", has_images=False, temperature=0.7, relevant_memories=None, abort_event=None):
+    def stream_chat(self, messages, model_name="leo-4o-mini", has_images=False, temperature=0.7, relevant_memories=None, abort_event=None, user_id=None):
         if abort_event and abort_event.is_set():
+            return
+
+        if model_name in ('deepseek-flash', 'deepseek-v4-pro', 'deepseek-r1', 'deepseek-v3.2'):
+            api_key = os.environ.get('DEEPSEEK_API_KEY', '').strip()
+            if api_key:
+                yield from self._stream_official_deepseek(
+                    messages,
+                    model_name=model_name,
+                    has_images=has_images,
+                    temperature=temperature,
+                    abort_event=abort_event,
+                    user_id=user_id,
+                )
+            else:
+                yield from self._stream_reverse_deepseek(
+                    messages,
+                    model_name=model_name,
+                    abort_event=abort_event
+                )
             return
 
         if not self.access_token:
@@ -847,6 +1139,27 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "desc": "أكاديمي متخصص في التلخيص المنهجي والمقارنات العلمية والأبحاث الموسعة",
                     "badge": "أكاديمي",
                     "vision": True
+                },
+                {
+                    "id": "deepseek-flash",
+                    "name": "DeepSeek Flash",
+                    "desc": "نموذج DeepSeek الرسمي السريع مع دعم تحليل الصور",
+                    "badge": "سريع",
+                    "vision": True
+                },
+                {
+                    "id": "deepseek-v4-pro",
+                    "name": "DeepSeek V4 Pro",
+                    "desc": "نموذج DeepSeek الرسمي للاستدلال المتقدم والتفكير العميق",
+                    "badge": "متقدم",
+                    "vision": False
+                },
+                {
+                    "id": "deepseek-r1",
+                    "name": "DeepSeek R1",
+                    "desc": "النموذج الاستدلالي الخارق (Reasoner) لحل أعقد المسائل الأكاديمية والمنطقية",
+                    "badge": "استدلال R1",
+                    "vision": False
                 }
             ]
             self._send_json(models_list)
@@ -1334,7 +1647,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                     has_images=has_images,
                     temperature=temperature,
                     relevant_memories=relevant_memories,
-                    abort_event=abort_event
+                    abort_event=abort_event,
+                    user_id=uid
                 ):
                     if abort_event.is_set():
                         break
