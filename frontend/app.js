@@ -396,7 +396,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- State Variables ---
-  let currentConversationId = localStorage.getItem('leo_active_conv_id') || null;
+  const ACTIVE_CONVERSATION_SESSION_KEY = 'leo_session_active_conv_id';
+  const isPageReload = (() => {
+    try {
+      const navigation = performance.getEntriesByType('navigation')[0];
+      return navigation ? navigation.type === 'reload' : false;
+    } catch (e) {
+      return false;
+    }
+  })();
+  let currentConversationId = (() => {
+    if (!isPageReload) return null;
+    try {
+      return sessionStorage.getItem(ACTIVE_CONVERSATION_SESSION_KEY) || null;
+    } catch (e) {
+      return null;
+    }
+  })();
+
+  function persistActiveConversationId(conversationId) {
+    currentConversationId = conversationId || null;
+    try {
+      if (currentConversationId) {
+        sessionStorage.setItem(ACTIVE_CONVERSATION_SESSION_KEY, currentConversationId);
+      } else {
+        sessionStorage.removeItem(ACTIVE_CONVERSATION_SESSION_KEY);
+      }
+    } catch (e) {
+      // Keep the active conversation usable when browser storage is unavailable.
+    }
+  }
   let selectedModel = localStorage.getItem('leo_selected_model') || 'leo-4o-mini';
   let isGenerating = false;
   let pendingAttachments = [];
@@ -969,18 +998,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const exists = convs.find(c => c.id === currentConversationId);
         if (exists) {
           openConversation(currentConversationId);
-        } else if (filtered.length > 0) {
-          const localDraft = getConversationFromLocalCache(currentConversationId);
-          if (localDraft && localDraft.messages && localDraft.messages.length > 0) {
-            renderConversationMessages(localDraft.messages);
-          } else {
-            openConversation(filtered[0].id);
-          }
         } else {
           const localDraft = getConversationFromLocalCache(currentConversationId);
           if (localDraft && localDraft.messages && localDraft.messages.length > 0) {
             renderConversationMessages(localDraft.messages);
           } else {
+            persistActiveConversationId(null);
             showEmptyState();
           }
         }
@@ -1115,8 +1138,7 @@ document.addEventListener('DOMContentLoaded', () => {
             removeConversationFromLocalCache(conv.id);
             showToast('تم حذف المحادثة');
             if (currentConversationId === conv.id) {
-              currentConversationId = null;
-              localStorage.removeItem('leo_active_conv_id');
+              persistActiveConversationId(null);
               showEmptyState();
             }
             refreshConversationListOnly();
@@ -1145,8 +1167,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function openConversation(convId) {
-    currentConversationId = convId;
-    localStorage.setItem('leo_active_conv_id', convId);
+    persistActiveConversationId(convId);
 
     document.querySelectorAll('.chat-history-item').forEach(el => {
       el.classList.toggle('active', el.dataset.id === convId);
@@ -1797,8 +1818,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (parsed.conversation_id) {
             responseConversationId = parsed.conversation_id;
             if (currentConversationId === conversationAtSend && currentConversationId !== responseConversationId) {
-              currentConversationId = responseConversationId;
-              localStorage.setItem('leo_active_conv_id', currentConversationId);
+              persistActiveConversationId(responseConversationId);
             }
             // Migrate local draft cache to new conversation ID if needed
             let cached = getConversationFromLocalCache(responseConversationId) || {
@@ -2239,8 +2259,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- New Chat Handlers ---
   function createNewChat() {
-    currentConversationId = null;
-    localStorage.removeItem('leo_active_conv_id');
+    persistActiveConversationId(null);
     showEmptyState();
     closeSidebar();
     chatTextInput.value = '';
@@ -3034,8 +3053,7 @@ document.addEventListener('DOMContentLoaded', () => {
         danger: true,
         onConfirm: async () => {
           await fetch('/api/conversations/clear', { method: 'POST' });
-          currentConversationId = null;
-          localStorage.removeItem('leo_active_conv_id');
+          persistActiveConversationId(null);
           showEmptyState();
           loadConversationHistory();
           showToast('تم مسح سجل المحادثات بنجاح');
@@ -3469,9 +3487,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Initial Startup & Profile Check ---
   async function startup() {
     try {
-      // Start each site entry in a clean chat while keeping every saved conversation in history.
-      currentConversationId = null;
-      localStorage.removeItem('leo_active_conv_id');
+      // Reloads restore this tab's active conversation; a new page visit starts a clean chat.
+      if (!isPageReload) persistActiveConversationId(null);
       const cachedIndex = getConversationsIndexFromLocalCache();
       if (cachedIndex && cachedIndex.length > 0) {
         renderRecentConversations(cachedIndex);
