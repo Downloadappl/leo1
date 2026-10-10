@@ -27,6 +27,7 @@ def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
+        cursor.execute("CREATE TABLE IF NOT EXISTS system_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
 
         # Conversations Table with user_id
         cursor.execute("""
@@ -142,6 +143,18 @@ def init_db():
             cursor.execute("DELETE FROM student_profiles WHERE name = 'الطالب' OR name = '' OR name IS NULL;")
         except:
             pass
+
+        # One-time launch reset: clear local/server-side user records after the cloud reset.
+        reset_epoch = 'leo_launch_reset_20261010_v1'
+        current_epoch = cursor.execute("SELECT value FROM system_metadata WHERE key = 'data_reset_epoch'").fetchone()
+        if not current_epoch or current_epoch['value'] != reset_epoch:
+            for table in ('messages', 'conversations', 'settings', 'student_profiles', 'feedback', 'long_term_memories', 'generated_images'):
+                cursor.execute(f'DELETE FROM {table}')
+            cursor.execute(
+                "INSERT INTO system_metadata (key, value) VALUES ('data_reset_epoch', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (reset_epoch,)
+            )
         
         conn.commit()
 

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <script src="data-reset.js?v=leo_launch_reset_20261010_v1"></script>
   <title>الأستاذ ليو — المستشار والموجه الأكاديمي</title>
   
   <!-- Primary Meta Tags -->
@@ -313,7 +314,7 @@
         <div class="glowing-input-box" id="glowingInputBox">
           
           <!-- Left: Plus Attachment Button -->
-          <button class="input-btn input-plus-btn" id="attachBtn" title="إرفاق صورة أو مستند" aria-label="إرفاق صورة">
+          <button class="input-btn input-plus-btn" id="attachBtn" title="إرفاق صورة أو ملف" aria-label="إرفاق صورة أو ملف">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -327,7 +328,7 @@
             </svg>
           </button>
           <input type="file" id="fileInput" accept="image/*" style="display: none;">
-          <input type="file" id="docFileInput" accept="application/pdf,image/*,.doc,.docx,.txt" style="display: none;">
+          <input type="file" id="docFileInput" accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12,application/vnd.openxmlformats-officedocument.presentationml.presentation,.pdf,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.html,.htm,.css,.js,.jsx,.mjs,.cjs,.ts,.tsx,.py,.pyw,.java,.c,.h,.cc,.cpp,.hpp,.cs,.go,.rs,.php,.rb,.swift,.kt,.kts,.sh,.bash,.zsh,.sql,.yaml,.yml,.toml,.ini,.cfg,.conf,.log,.diff,.patch,.env,.vue,.svelte,.ipynb,.r,.m,.scala,.pl,.lua,.ps1,.bat,.docx,.xlsx,.xlsm,.pptx,.rtf" style="display: none;">
           <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
 
           <!-- Middle: Prompt Composer Textarea (RTL text) -->
@@ -1132,6 +1133,6 @@
   <!-- Firebase Cloud Integration Module -->
   <script src="form-controls.js?v=20261010_5"></script>
   <script type="module" src="firebase-service.js"></script>
-  <script src="app.js?v=20261010_student_profile_context"></script>
+  <script src="app.js?v=20261010_file_support"></script>
 </body>
 </html>

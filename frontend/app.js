@@ -66,6 +66,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function attachmentsForCache(attachments = []) {
+    return attachments.map(att => {
+      const isImage = att.kind === 'image' || (att.type || '').startsWith('image/') || (att.data || '').startsWith('data:image/');
+      return isImage ? att : { name: att.name, type: att.type, size: att.size, kind: 'document' };
+    });
+  }
+
+  function applyAttachmentUpdates(updates, messageId, conversationId, attachments) {
+    if (!Array.isArray(updates) || !updates.length) return;
+    updates.forEach(update => {
+      const index = Number.isInteger(update._index)
+        ? update._index
+        : attachments.findIndex(att => att.name === update.name && att.type === update.type);
+      if (index >= 0) {
+        const attachment = { ...update };
+        delete attachment._index;
+        attachments[index] = attachment;
+      }
+    });
+    const cached = getConversationFromLocalCache(conversationId);
+    const userMessage = cached?.messages?.find(message => message.id === messageId);
+    if (userMessage) {
+      userMessage.attachments = attachmentsForCache(attachments);
+      saveConversationToLocalCache(cached);
+    }
+  }
+
   function cleanImageMarkup(html) {
     if (!html || typeof html !== 'string') return html;
     return html
@@ -664,12 +691,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function handleFileSelected(file) {
     if (!file) return;
+    const totalBytes = pendingAttachments.reduce((sum, item) => sum + (item.size || 0), 0);
+    if (pendingAttachments.length >= 8) { showToast('يمكنك إرفاق 8 ملفات كحد أقصى في الرسالة'); return; }
+    if (file.size > 2_500_000 || totalBytes + file.size > 2_500_000) { showToast('يجب ألا يتجاوز مجموع الملفات 2.5 ميغابايت'); return; }
+    const isImage = file.type.startsWith('image/');
     const reader = new FileReader();
     reader.onload = (evt) => {
       pendingAttachments.push({
         name: file.name,
-        type: file.type || 'image/jpeg',
+        type: file.type || (isImage ? 'image/jpeg' : 'application/octet-stream'),
         size: file.size,
+        kind: isImage ? 'image' : 'document',
         data: evt.target.result
       });
       renderAttachmentChips();
@@ -705,11 +737,17 @@ document.addEventListener('DOMContentLoaded', () => {
     pendingAttachments.forEach((att, index) => {
       const chip = document.createElement('div');
       chip.className = 'attachment-chip';
-      chip.innerHTML = `
-        <img class="attachment-chip-thumb" src="${att.data}" alt="${att.name}" />
-        <span>${att.name.length > 15 ? att.name.substring(0, 12) + '...' : att.name}</span>
-        <button class="attachment-remove-btn" data-index="${index}" title="إزالة"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      `;
+      if (att.kind === 'image' || (att.type || '').startsWith('image/')) {
+        const thumb = document.createElement('img');
+        thumb.className = 'attachment-chip-thumb'; thumb.src = att.data; thumb.alt = att.name; chip.appendChild(thumb);
+      } else {
+        const badge = document.createElement('span'); badge.className = 'attachment-chip-file-icon';
+        badge.textContent = (att.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase(); chip.appendChild(badge);
+      }
+      const label = document.createElement('span'); label.textContent = att.name.length > 28 ? att.name.substring(0, 25) + '...' : att.name; chip.appendChild(label);
+      const remove = document.createElement('button'); remove.className = 'attachment-remove-btn'; remove.dataset.index = index; remove.title = 'إزالة';
+      remove.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>';
+      chip.appendChild(remove);
       attachmentPreviewDrawer.appendChild(chip);
     });
 
@@ -1745,7 +1783,7 @@ document.addEventListener('DOMContentLoaded', () => {
           id: userMsgId,
           role: 'user',
           content: text,
-          attachments: attachmentsToSend,
+          attachments: attachmentsForCache(attachmentsToSend),
           created_at: Date.now() / 1000
         });
       }
@@ -1809,6 +1847,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
+          if (Array.isArray(parsed.attachment_updates)) {
+            applyAttachmentUpdates(parsed.attachment_updates, userMsgId, parsed.conversation_id || responseConversationId, attachmentsToSend);
+          }
           if (Array.isArray(parsed.memory_updates)) {
             await Promise.all(parsed.memory_updates.map(async memory => {
               upsertLongTermMemoryCache(memory);
@@ -1833,11 +1874,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: userMsgId,
                 role: 'user',
                 content: text,
-                attachments: attachmentsToSend,
+                attachments: attachmentsForCache(attachmentsToSend),
                 created_at: Date.now() / 1000
               }]
             };
             saveConversationToLocalCache(cached);
+            if (Array.isArray(parsed.attachment_updates)) {
+              applyAttachmentUpdates(parsed.attachment_updates, userMsgId, responseConversationId, attachmentsToSend);
+            }
           }
 
           if (typeof parsed.content === 'string') {
@@ -1925,6 +1969,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (attachments && attachments.length > 0) {
       attachments.forEach(att => {
+        if (!(att.kind === 'image' || (att.type || '').startsWith('image/') || (att.data || '').startsWith('data:image/'))) {
+          const card = document.createElement('div');
+          card.className = 'user-attached-file';
+          const badge = document.createElement('span');
+          badge.className = 'attachment-chip-file-icon';
+          badge.textContent = (att.name || 'FILE').split('.').pop().slice(0, 4).toUpperCase();
+          const filename = document.createElement('span');
+          filename.textContent = att.name || 'ملف مرفق';
+          card.append(badge, filename);
+          row.appendChild(card);
+          return;
+        }
         const img = document.createElement('img');
         img.className = 'user-attached-image';
         img.src = att.data || att.url;
