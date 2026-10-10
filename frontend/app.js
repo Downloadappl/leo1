@@ -489,9 +489,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   let selectedModel = localStorage.getItem('leo_selected_model');
-  if (!selectedModel || selectedModel === 'leo-4o-mini') {
-    selectedModel = 'deepseek-flash';
-    localStorage.setItem('leo_selected_model', 'deepseek-flash');
+  if (!selectedModel || selectedModel === 'leo-4o-mini' || selectedModel === 'deepseek-flash') {
+    selectedModel = 'leo-academic';
+    localStorage.setItem('leo_selected_model', 'leo-academic');
   }
   let isGenerating = false;
   let pendingAttachments = [];
