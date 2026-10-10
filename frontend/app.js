@@ -1435,10 +1435,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.isAborted) return;
 
         if (this.revealedCharacterCount < this.bufferCharacters.length) {
-          // Reveal one Unicode character per frame so a large API chunk never
-          // jumps to near-complete text in a single visual update.
-          this.revealed += this.bufferCharacters[this.revealedCharacterCount];
-          this.revealedCharacterCount += 1;
+          // Reveal a small batch per frame: the earlier one-character limit
+          // capped the visible stream at roughly 60 characters per second.
+          // A short batch keeps the motion smooth while catching up promptly.
+          const pendingCharacters = this.bufferCharacters.length - this.revealedCharacterCount;
+          const charactersThisFrame = Math.min(5, Math.max(3, Math.ceil(pendingCharacters / 18)));
+          const nextCharacterCount = Math.min(
+            this.bufferCharacters.length,
+            this.revealedCharacterCount + charactersThisFrame
+          );
+          this.revealed += this.bufferCharacters.slice(this.revealedCharacterCount, nextCharacterCount).join('');
+          this.revealedCharacterCount = nextCharacterCount;
 
           // Render progressive Markdown safely without breaking on partial code blocks
           this.textElem.innerHTML = safeParseMarkdown(this.revealed);

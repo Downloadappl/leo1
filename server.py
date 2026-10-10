@@ -593,7 +593,9 @@ class RewindClient:
             has_yielded = False
             stream_completed = False
             try:
-                for line in resp.iter_lines(decode_unicode=True):
+                # Use a tiny read size so requests does not hold short SSE token
+                # events until its default 512-byte buffer fills.
+                for line in resp.iter_lines(chunk_size=1, decode_unicode=True):
                     if abort_event and abort_event.is_set():
                         return
                     if not line:
