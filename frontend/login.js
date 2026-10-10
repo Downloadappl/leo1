@@ -495,9 +495,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const studyMode = learningModeSelect ? learningModeSelect.value : 'standard';
       let university = '';
       if (stage === 'university') {
-        university = universityInput ? universityInput.value.trim() : '';
+        university = window.LeoUniversityPicker && universityInput
+          ? window.LeoUniversityPicker.getValue(universityInput)
+          : '';
         if (!university) {
-          showAlert('يرجى كتابة أو اختيار اسم الجامعة أو المعهد.');
+          window.LeoUniversityPicker?.setError(universityInput, 'اختر جامعة أو معهدًا من القائمة التي تضم ٧٦ خيارًا.');
           universityInput && universityInput.focus();
           return;
         }

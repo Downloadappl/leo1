@@ -605,7 +605,7 @@
       text-decoration: underline;
     }
   </style>
-  <link rel="stylesheet" href="university-picker.css?v=20261010_2">
+  <link rel="stylesheet" href="university-picker.css?v=20261010_3">
 </head>
 <body>
 
@@ -816,11 +816,12 @@
                       <img data-university-selected-image alt="" hidden>
                       <span data-university-selected-fallback aria-hidden="true"></span>
                     </span>
-                    <input id="universityInput" class="university-picker-input auth-input-field" data-university-input type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loginUniversityOptions" placeholder="اكتب للبحث عن الجامعة أو المعهد" autocomplete="off" dir="rtl">
+                    <input id="universityInput" class="university-picker-input auth-input-field" data-university-input type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loginUniversityOptions" placeholder="ابحث واختر من قائمة الجامعات والمعاهد" autocomplete="off" dir="rtl">
                     <button class="university-picker-toggle" data-university-toggle type="button" aria-label="عرض قائمة الجامعات والمعاهد" aria-expanded="false" tabindex="-1">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                     </button>
                   </div>
+                  <div class="university-picker-error" data-university-error role="alert" hidden></div>
                   <div class="university-picker-menu" id="loginUniversityOptions" data-university-menu role="listbox" aria-labelledby="universityLabel" hidden></div>
                 </div>
               </div>
@@ -855,9 +856,9 @@
   </div>
 
   <!-- Firebase Integration -->
-  <script src="form-controls.js?v=20261010_3"></script>
+  <script src="form-controls.js?v=20261010_5"></script>
   <script type="module" src="firebase-service.js"></script>
   <!-- Login App Logic -->
-  <script type="module" src="login.js?v=20261010_university_picker"></script>
+  <script type="module" src="login.js?v=20261010_university_restrict76"></script>
 </body>
 </html>

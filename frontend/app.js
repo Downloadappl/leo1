@@ -2568,10 +2568,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const gender = genderRadio ? genderRadio.value : 'male';
     const stage = profStageSelect.value;
     const grade_sub = profGradeSubSelect.value;
-    let university = profUniversityInput ? profUniversityInput.value.trim() : '';
+    let university = profUniversityInput && window.LeoUniversityPicker
+      ? window.LeoUniversityPicker.getValue(profUniversityInput)
+      : '';
     if (stage === 'university') {
       if (!university) {
-        showToast('يرجى اختيار الجامعة أو المعهد');
+        window.LeoUniversityPicker?.setError(profUniversityInput, 'اختر جامعة أو معهدًا من القائمة التي تضم ٧٦ خيارًا.');
+        showToast('يرجى اختيار جامعة أو معهد من القائمة التي تضم ٧٦ خياراً');
         profUniversityInput && profUniversityInput.focus();
         return;
       }

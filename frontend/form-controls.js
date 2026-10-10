@@ -123,21 +123,33 @@
     const selectedLogo = root.querySelector('[data-university-selected-logo]');
     const selectedImage = root.querySelector('[data-university-selected-image]');
     const selectedFallback = root.querySelector('[data-university-selected-fallback]');
+    const errorMessage = root.querySelector('[data-university-error]');
     if (!input || !menu || !control || !toggle) return;
 
     let universities = [];
+    let universitiesLoaded = false;
     let closeMenu = null;
     let activeIndex = -1;
 
     const optionButtons = () => Array.from(menu.querySelectorAll('[data-university-option]'));
+    const findUniversity = value => {
+      const normalized = normalizeSearchText(value);
+      return normalized ? universities.find(item => normalizeSearchText(item.name) === normalized) || null : null;
+    };
     const syncExpanded = expanded => {
       input.setAttribute('aria-expanded', String(expanded));
       toggle.setAttribute('aria-expanded', String(expanded));
     };
+    const setError = message => {
+      if (errorMessage) {
+        errorMessage.textContent = message || '';
+        errorMessage.hidden = !message;
+      }
+      input.setAttribute('aria-invalid', String(Boolean(message)));
+    };
 
     const updateSelectedLogo = () => {
-      const current = normalizeSearchText(input.value);
-      const match = universities.find(item => normalizeSearchText(item.name) === current);
+      const match = findUniversity(input.value);
       selectedLogo.hidden = !match;
       if (!match) {
         selectedImage.hidden = true;
@@ -162,7 +174,9 @@
     };
 
     const selectUniversity = (name, dispatch = true) => {
-      input.value = name;
+      const match = findUniversity(name);
+      input.value = match ? match.name : '';
+      setError('');
       updateSelectedLogo();
       if (dispatch) {
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -174,22 +188,20 @@
       syncExpanded(false);
     };
 
-    const createOption = (university, index, isCustom = false) => {
+    const createOption = (university, index) => {
       const option = document.createElement('button');
       option.type = 'button';
-      option.className = `university-picker-option${isCustom ? ' university-picker-option-custom' : ''}`;
+      option.className = 'university-picker-option';
       option.setAttribute('role', 'option');
       option.setAttribute('aria-selected', String(normalizeSearchText(input.value) === normalizeSearchText(university.name)));
       option.tabIndex = -1;
       option.dataset.universityOption = 'true';
       option.dataset.optionIndex = String(index);
-      if (!isCustom) {
-        option.appendChild(makeLogo(university.image_url, university.name, 'university-picker-option-logo', index >= 8));
-      }
+      option.appendChild(makeLogo(university.image_url, university.name, 'university-picker-option-logo', index >= 8));
 
       const name = document.createElement('span');
       name.className = 'university-picker-option-name';
-      name.textContent = isCustom ? `استخدام الاسم المكتوب: ${university.name}` : university.name;
+      name.textContent = university.name;
       option.appendChild(name);
       option.addEventListener('pointerdown', event => event.preventDefault());
       option.addEventListener('click', () => selectUniversity(university.name));
@@ -215,17 +227,14 @@
 
       const header = document.createElement('div');
       header.className = 'university-picker-menu-header';
-      header.textContent = query ? `${matches.length} جامعة أو معهد` : `${universities.length} جامعة ومعهد — اكتب للبحث`;
+      header.textContent = query ? `${matches.length} جامعة أو معهد` : `اختر من الجامعات والمعاهد الـ٧٦ — اكتب للبحث`;
       menu.appendChild(header);
 
       matches.forEach((item, index) => menu.appendChild(createOption(item, index)));
-      const exactMatch = universities.some(item => normalizeSearchText(item.name) === query);
-      if (query && !exactMatch) {
-        menu.appendChild(createOption({ name: input.value.trim(), image_url: '' }, matches.length, true));
-      } else if (!matches.length) {
+      if (!matches.length) {
         const empty = document.createElement('div');
         empty.className = 'university-picker-empty';
-        empty.textContent = 'اكتب اسم الجامعة أو المعهد لإضافته';
+        empty.textContent = 'لا توجد نتائج ضمن الجامعات والمعاهد الـ٧٦';
         menu.appendChild(empty);
       }
     };
@@ -252,6 +261,7 @@
       if (!closeMenu) openMenu();
     });
     input.addEventListener('input', () => {
+      setError('');
       updateSelectedLogo();
       if (!closeMenu) openMenu();
       else renderOptions();
@@ -292,9 +302,19 @@
     updateSelectedLogo();
     root.dataset.universityPickerReady = 'true';
     return {
-      setValue: value => selectUniversity(value || '', false),
+      setValue(value) {
+        if (!universitiesLoaded) {
+          input.value = value || '';
+          updateSelectedLogo();
+          return;
+        }
+        selectUniversity(value || '', false);
+      },
+      setError,
+      getValue: () => findUniversity(input.value)?.name || '',
       setUniversities(items) {
         universities = items;
+        universitiesLoaded = true;
         updateSelectedLogo();
         if (closeMenu) renderOptions();
       }
@@ -495,6 +515,16 @@
         const entry = root._leoUniversityPicker;
         target.value = value || '';
         if (entry) entry.setValue(target.value);
+      },
+      getValue(input) {
+        const target = typeof input === 'string' ? document.getElementById(input) : input;
+        const root = target?.closest('[data-university-picker]');
+        return root?._leoUniversityPicker?.getValue() || '';
+      },
+      setError(input, message) {
+        const target = typeof input === 'string' ? document.getElementById(input) : input;
+        const root = target?.closest('[data-university-picker]');
+        root?._leoUniversityPicker?.setError(message);
       }
     };
   };
