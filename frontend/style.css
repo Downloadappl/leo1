@@ -242,10 +242,13 @@ html, body {
 
 /* App Viewport Container: Full Screen Modern Web App (ChatGPT & DeepSeek Style) */
 .app-viewport {
-  position: relative;
+  position: fixed;
+  top: var(--leo-visual-viewport-top, 0px);
+  left: 0;
   width: 100vw;
   max-width: 100%;
-  height: 100dvh;
+  height: var(--leo-visual-viewport-height, 100vh);
+  height: var(--leo-visual-viewport-height, 100dvh);
   margin: 0;
   background-color: var(--bg-main);
   box-shadow: none;
@@ -263,20 +266,23 @@ html, body {
   position: relative;
   width: 100%;
   height: 100%;
+  min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overflow: clip;
   background-color: var(--bg-main);
 }
 
 /* Top Header (Strict LTR layout) */
 .app-header {
   direction: ltr;
-  height: 64px;
+  height: calc(64px + env(safe-area-inset-top, 0px));
   width: 100%;
   max-width: 880px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: env(safe-area-inset-top, 0px) 20px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -560,12 +566,16 @@ html, body {
    ============================================================ */
 .chat-content-area {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px 16px 20px 16px;
   display: flex;
   flex-direction: column;
   position: relative;
+  overscroll-behavior-y: contain;
+  overflow-anchor: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
@@ -735,6 +745,8 @@ html, body {
   flex-direction: column;
   gap: 22px;
   width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   max-width: 860px;
   margin: 0 auto;
 }
@@ -1196,11 +1208,12 @@ body.theme-light .chat-response-waiting-dots i { background: #6366f1; }
    BOTTOM GLOWING INPUT BAR (Strict LTR layout)
    ============================================================ */
 .input-section-container {
-  padding: 0 20px 20px 20px;
+  padding: 0 20px calc(16px + env(safe-area-inset-bottom, 0px));
   width: 100%;
   max-width: 860px;
   margin: 0 auto;
   flex-shrink: 0;
+  min-width: 0;
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -1494,6 +1507,8 @@ body.theme-light .image-generation-mode-remove { color: #1d4ed8; }
 
 .chat-text-input {
   width: 100%;
+  min-width: 0;
+  min-height: 36px;
   background: transparent;
   border: none;
   outline: none;
@@ -1506,6 +1521,8 @@ body.theme-light .image-generation-mode-remove { color: #1d4ed8; }
   resize: none;
   line-height: 1.45;
   max-height: 130px;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
   padding: 6px 0;
 }
 
@@ -5063,6 +5080,10 @@ body.theme-light .lib-empty-desc {
   .sheet-action-tile { padding: 12px 8px; }
   .input-field-wrapper { gap: 6px; padding-inline: 8px; }
   .image-generation-mode-chip { max-width: 128px; gap: 5px; font-size: 11px; }
+  .app-header { padding-left: 12px; padding-right: 12px; }
+  .input-section-container { padding-left: 10px; padding-right: 10px; }
+  .attachment-preview-drawer { padding-left: 10px; padding-right: 10px; }
+  .glowing-input-box { padding-left: 8px; padding-right: 8px; }
 }
 
 /* ============================================================
