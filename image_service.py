@@ -14,6 +14,7 @@ import urllib.parse
 import urllib.error
 import ssl
 import http.cookiejar
+import threading
 from typing import Optional, Dict, Any
 
 PICAI_BASE = "https://picai.com"
@@ -26,6 +27,10 @@ MODELS = {
     "gpt-image-2-edit": "gpt-image-2-edit",
     "rembg": "rembg"
 }
+
+# Bound simultaneous image jobs on each warm server instance. The provider also
+# has its own queue; this prevents a burst of local requests overwhelming it.
+IMAGE_SEMAPHORE = threading.BoundedSemaphore(value=2)
 
 def _create_opener():
     ctx = ssl.create_default_context()
@@ -110,18 +115,14 @@ def generate_image(
 
     # 1. Nano Banana Generation
     if model == "nano-banana":
-        try:
-            img_url = _generate_nano_banana(prompt, aspect_ratio=aspect_ratio)
-            return {
-                "status": "success",
-                "url": img_url,
-                "model": "nano-banana",
-                "prompt": prompt,
-                "aspect_ratio": aspect_ratio
-            }
-        except Exception as e:
-            # Fallback to GPT Image 2 if Banana is unreachable
-            return generate_image(prompt, model="gpt-image-2", aspect_ratio=aspect_ratio, image_url=image_url, timeout=timeout)
+        img_url = _generate_nano_banana(prompt, aspect_ratio=aspect_ratio)
+        return {
+            "status": "success",
+            "url": img_url,
+            "model": "nano-banana",
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio
+        }
 
     # 2. GPT Image 2 / Fal PicAI Generation
     payload_input: Dict[str, Any] = {
@@ -140,29 +141,35 @@ def generate_image(
     picai_model_id = "rembg" if model == "rembg" else "gpt-image-2"
 
     try:
-        run_req = urllib.request.Request(
-            f"{PICAI_BASE}/api/fal/run",
-            data=json.dumps({"modelId": picai_model_id, "input": payload_input}).encode('utf-8'),
-            headers={"Content-Type": "application/json"}
-        )
-        with opener.open(run_req, timeout=25) as res:
-            if res.status != 200:
-                raise RuntimeError(f"خطأ في خادم GPT Image: الرمز {res.status}")
-            run_data = json.loads(res.read().decode('utf-8'))
-    except Exception as e:
-        # Seamless fallback to Nano Banana if PicAI queue is busy
-        if model != "rembg":
+        run_data = None
+        for attempt in range(3):
+            run_req = urllib.request.Request(
+                f"{PICAI_BASE}/api/fal/run",
+                data=json.dumps({"modelId": picai_model_id, "input": payload_input}).encode('utf-8'),
+                headers={"Content-Type": "application/json"}
+            )
             try:
-                img_url = _generate_nano_banana(prompt, aspect_ratio=aspect_ratio)
-                return {
-                    "status": "success",
-                    "url": img_url,
-                    "model": "nano-banana",
-                    "prompt": prompt,
-                    "aspect_ratio": aspect_ratio
-                }
-            except Exception:
-                pass
+                with opener.open(run_req, timeout=25) as res:
+                    if res.status != 200:
+                        raise RuntimeError(f"خطأ في خادم GPT Image: الرمز {res.status}")
+                    run_data = json.loads(res.read().decode('utf-8'))
+                break
+            except urllib.error.HTTPError as http_err:
+                if http_err.code not in (408, 425, 429, 500, 502, 503, 504) or attempt == 2:
+                    raise
+                try:
+                    wait_time = min(float(http_err.headers.get('Retry-After', 0)), 4.0)
+                except (TypeError, ValueError):
+                    wait_time = 0
+                http_err.close()
+                time.sleep(wait_time or (0.7 * (attempt + 1)))
+            except (urllib.error.URLError, TimeoutError):
+                if attempt == 2:
+                    raise
+                time.sleep(0.7 * (attempt + 1))
+        if run_data is None:
+            raise RuntimeError("تعذر بدء مهمة إنشاء الصورة")
+    except Exception as e:
         raise RuntimeError(f"تعذر بدء إنشاء الصورة: {str(e)}")
 
     job_id = run_data.get("jobId")
@@ -200,18 +207,28 @@ def generate_image(
         except (urllib.error.URLError, TimeoutError):
             continue
 
-    # If timed out, fallback to Nano Banana
-    if model != "rembg":
-        try:
-            img_url = _generate_nano_banana(prompt, aspect_ratio=aspect_ratio)
-            return {
-                "status": "success",
-                "url": img_url,
-                "model": "nano-banana",
-                "prompt": prompt,
-                "aspect_ratio": aspect_ratio
-            }
-        except Exception:
-            pass
-
     raise TimeoutError("استغرق إنشاء الصورة وقتاً أطول من المعتاد، يرجى المحاولة مرة أخرى")
+
+
+_generate_image_unthrottled = generate_image
+
+def generate_image(
+    prompt: str,
+    model: str = "gpt-image-2",
+    aspect_ratio: str = "square_hd",
+    image_url: Optional[str] = None,
+    timeout: int = 90
+) -> Dict[str, Any]:
+    """Queue image work briefly to avoid bursting the shared image provider."""
+    if not IMAGE_SEMAPHORE.acquire(blocking=True, timeout=90.0):
+        raise RuntimeError("مولد الصور مشغول بطلبات أخرى. بقي طلبك محفوظاً؛ أعد المحاولة بعد قليل.")
+    try:
+        return _generate_image_unthrottled(
+            prompt,
+            model=model,
+            aspect_ratio=aspect_ratio,
+            image_url=image_url,
+            timeout=timeout
+        )
+    finally:
+        IMAGE_SEMAPHORE.release()

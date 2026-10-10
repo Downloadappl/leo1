@@ -441,8 +441,10 @@ MODEL_MAP = {
 
 VISION_MODELS = {"leo-4o-pro", "leo-vision", "leo-academic", "gemini-2.5-flash", "gpt-5"}
 
-# Upstream Concurrency Limiter: allows smooth parallel requests without excessive delay
-MODEL_SEMAPHORE = threading.BoundedSemaphore(value=12)
+# Keep concurrency for the shared upstream identity bounded per warm instance.
+# Vercel scales instances horizontally; a high per-instance burst used to send
+# many simultaneous requests through the same upstream account.
+MODEL_SEMAPHORE = threading.BoundedSemaphore(value=2)
 
 # In-Flight Request Tracker: maps conversation_id -> {request_id, abort_event, user_msg, timestamp}
 ACTIVE_GENERATIONS = {}
@@ -513,13 +515,13 @@ class RewindClient:
             'temperature': temperature
         }
 
-        # Concurrency Limiter check (wait up to 4 seconds for a model slot)
-        acquired = MODEL_SEMAPHORE.acquire(blocking=True, timeout=4.0)
+        # Queue briefly instead of failing immediately when this instance is busy.
+        acquired = MODEL_SEMAPHORE.acquire(blocking=True, timeout=30.0)
         if not acquired:
-            raise ChatGenerationError("الخدمة مشغولة حالياً بطلبات أخرى. حاول مجدداً بعد قليل.")
+            raise ChatGenerationError("هناك طلبات كثيرة الآن. بقي طلبك محفوظاً؛ أعد المحاولة بعد قليل.")
         resp = None
         try:
-            max_retries = 2
+            max_retries = 3
             for attempt in range(max_retries + 1):
                 if abort_event and abort_event.is_set():
                     return
@@ -537,7 +539,7 @@ class RewindClient:
                         json=payload,
                         headers=headers,
                         stream=True,
-                        timeout=18
+                        timeout=(10, 45)
                     )
                 except Exception as req_err:
                     print(f"[REQUEST EXCEPTION attempt {attempt}] {req_err}")
@@ -559,33 +561,38 @@ class RewindClient:
                             json=payload,
                             headers=headers,
                             stream=True,
-                            timeout=18
+                            timeout=(10, 45)
                         )
                     except Exception as req_err:
                         raise ChatGenerationError("تعذر الوصول إلى خدمة الذكاء الاصطناعي. حاول مجدداً.") from req_err
 
                 # Rate Limiting & Temporary Overload Backoff (429, 502, 503, 504)
-                if resp.status_code in [429, 502, 503, 504]:
+                if resp.status_code in [408, 425, 429, 500, 502, 503, 504, 520, 522, 524]:
                     print(f"[API STATUS {resp.status_code} attempt {attempt}] Rate limit or temporary provider overload.")
                     if attempt < max_retries:
                         retry_after = resp.headers.get('Retry-After')
                         try:
-                            wait_time = float(retry_after) if retry_after else (1.2 * (2 ** attempt))
+                            wait_time = float(retry_after) if retry_after else (0.8 * (2 ** attempt))
                         except Exception:
-                            wait_time = 1.2 * (2 ** attempt)
-                        wait_time = min(wait_time, 3.5)
+                            wait_time = 0.8 * (2 ** attempt)
+                        wait_time = min(max(wait_time, 0.5), 8.0)
                         resp.close()
                         if abort_event and abort_event.wait(timeout=wait_time):
                             return
                         continue
                     else:
-                        raise ChatGenerationError("توجد ضغوط مؤقتة على خدمة الرد. انتظر قليلاً ثم أعد المحاولة.")
+                        raise ChatGenerationError("مزود الرد مزدحم حالياً ولم يقبل الطلب بعد عدة محاولات. أعد المحاولة بعد قليل.")
 
                 if resp.status_code == 200:
                     break
                 else:
-                    print(f"[STATUS ERROR {resp.status_code}] {resp.text[:120]}")
-                    raise ChatGenerationError("لم تتمكن خدمة الذكاء الاصطناعي من معالجة الطلب. أعد المحاولة بعد قليل.")
+                    provider_error = resp.text[:240].replace("\\n", " ").strip()
+                    print(f"[UPSTREAM STATUS {resp.status_code}] {provider_error}")
+                    if resp.status_code in (401, 403):
+                        raise ChatGenerationError("رفض مزود الذكاء الاصطناعي الاتصال. تعذر توثيق الخدمة حالياً.")
+                    if resp.status_code == 400:
+                        raise ChatGenerationError("رفض مزود الذكاء الاصطناعي صيغة الطلب. أعد صياغة الرسالة أو أزل المرفق.")
+                    raise ChatGenerationError(f"تعذر بدء الرد من المزود (HTTP {resp.status_code}). أعد المحاولة بعد قليل.")
 
             if not resp or resp.status_code != 200:
                 raise ChatGenerationError("تعذر بدء إنشاء الرد. حاول مجدداً.")
