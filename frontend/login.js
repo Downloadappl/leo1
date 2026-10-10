@@ -201,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (stage === 'university' ? idx === 0 : idx === grades.length - 1) opt.selected = true;
       gradeSelect.appendChild(opt);
     });
+    if (window.LeoDropdowns) window.LeoDropdowns.refresh(gradeSelect);
   }
 
   function syncUniversityFields() {

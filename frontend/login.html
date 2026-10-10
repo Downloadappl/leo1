@@ -605,6 +605,7 @@
       text-decoration: underline;
     }
   </style>
+  <link rel="stylesheet" href="university-picker.css?v=20261010_2">
 </head>
 <body>
 
@@ -808,39 +809,20 @@
 
             <div id="universityFields" style="display: none; gap: 10px; flex-direction: column;">
               <div class="auth-field">
-                <label class="auth-field-label" for="universityInput">الجامعة أو المعهد</label>
-                <input id="universityInput" class="auth-input-field" type="text" list="iraqiUniversitySuggestions" placeholder="اكتب أو ابحث عن اسم الجامعة أو المعهد" autocomplete="organization">
-                <datalist id="iraqiUniversitySuggestions">
-                  <option value="جامعة بغداد"></option>
-                  <option value="الجامعة المستنصرية"></option>
-                  <option value="جامعة النهرين"></option>
-                  <option value="جامعة البصرة"></option>
-                  <option value="جامعة الموصل"></option>
-                  <option value="جامعة الكوفة"></option>
-                  <option value="جامعة كربلاء"></option>
-                  <option value="جامعة بابل"></option>
-                  <option value="جامعة تكريت"></option>
-                  <option value="جامعة الأنبار"></option>
-                  <option value="جامعة ديالى"></option>
-                  <option value="جامعة القادسية"></option>
-                  <option value="جامعة واسط"></option>
-                  <option value="جامعة ذي قار"></option>
-                  <option value="جامعة ميسان"></option>
-                  <option value="جامعة المثنى"></option>
-                  <option value="جامعة كركوك"></option>
-                  <option value="جامعة سامراء"></option>
-                  <option value="جامعة الفلوجة"></option>
-                  <option value="جامعة الحمدانية"></option>
-                  <option value="جامعة تلعفر"></option>
-                  <option value="الجامعة التقنية الوسطى"></option>
-                  <option value="الجامعة التقنية الشمالية"></option>
-                  <option value="الجامعة التقنية الجنوبية"></option>
-                  <option value="جامعة الإمام جعفر الصادق"></option>
-                  <option value="جامعة البيان"></option>
-                  <option value="جامعة المستقبل"></option>
-                  <option value="جامعة الكفيل"></option>
-                  <option value="جامعة وارث الأنبياء"></option>
-                </datalist>
+                <label id="universityLabel" class="auth-field-label" for="universityInput">الجامعة أو المعهد</label>
+                <div class="university-picker" data-university-picker>
+                  <div class="university-picker-control">
+                    <span class="university-picker-selected-logo" data-university-selected-logo hidden>
+                      <img data-university-selected-image alt="" hidden>
+                      <span data-university-selected-fallback aria-hidden="true"></span>
+                    </span>
+                    <input id="universityInput" class="university-picker-input auth-input-field" data-university-input type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loginUniversityOptions" placeholder="اكتب للبحث عن الجامعة أو المعهد" autocomplete="off" dir="rtl">
+                    <button class="university-picker-toggle" data-university-toggle type="button" aria-label="عرض قائمة الجامعات والمعاهد" aria-expanded="false" tabindex="-1">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+                    </button>
+                  </div>
+                  <div class="university-picker-menu" id="loginUniversityOptions" data-university-menu role="listbox" aria-labelledby="universityLabel" hidden></div>
+                </div>
               </div>
               <div class="auth-field">
                 <label class="auth-field-label" for="specializationInput">الكلية أو القسم / التخصص</label>
@@ -873,8 +855,9 @@
   </div>
 
   <!-- Firebase Integration -->
+  <script src="form-controls.js?v=20261010_3"></script>
   <script type="module" src="firebase-service.js"></script>
   <!-- Login App Logic -->
-  <script type="module" src="login.js"></script>
+  <script type="module" src="login.js?v=20261010_university_picker"></script>
 </body>
 </html>

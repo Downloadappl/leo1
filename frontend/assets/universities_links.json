@@ -1,0 +1,306 @@
+[
+  {
+    "name": "جامعة بغداد",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/2b4451c8aa954badaa2e3a85f31c76d9.png"
+  },
+  {
+    "name": "جامعة الموصل",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/mosul.png"
+  },
+  {
+    "name": "جامعة البصرة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/basra.jpg"
+  },
+  {
+    "name": "الجامعة المستنصرية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/mustansiriyah.png"
+  },
+  {
+    "name": "الجامعة التكنولوجية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/technology.png"
+  },
+  {
+    "name": "جامعة الكوفة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/kufa.png"
+  },
+  {
+    "name": "جامعة تكريت",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/Tikrit.png"
+  },
+  {
+    "name": "جامعة القادسية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/qadisiyah.png"
+  },
+  {
+    "name": "جامعة الانبار",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/anbar.png"
+  },
+  {
+    "name": "جامعة بابل",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/babylon.png"
+  },
+  {
+    "name": "جامعة ديالى",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/diyala.png"
+  },
+  {
+    "name": "جامعة كربلاء",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/kerbala.png"
+  },
+  {
+    "name": "جامعة ذي قار",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/thiqar.jpg"
+  },
+  {
+    "name": "جامعة كركوك",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/kirkuk.jpg"
+  },
+  {
+    "name": "جامعة واسط",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/wasit.png"
+  },
+  {
+    "name": "جامعة النهرين",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/nahrain.png"
+  },
+  {
+    "name": "الجامعة العراقية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/iraqia.png"
+  },
+  {
+    "name": "جامعة ميسان",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/misan.png"
+  },
+  {
+    "name": "جامعة المثنى",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/muthanna.png"
+  },
+  {
+    "name": "جامعة سامراء",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/Samarra.png"
+  },
+  {
+    "name": "جامعة سومر",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/sumer.jpg"
+  },
+  {
+    "name": "جامعة القاسم الخضراء",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/qasim.png"
+  },
+  {
+    "name": "جامعة نينوى",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/ninevah.png"
+  },
+  {
+    "name": "جامعة الحمدانية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/hamdaniya.jpg"
+  },
+  {
+    "name": "جامعة تلعفر",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/telafer.png"
+  },
+  {
+    "name": "جامعة الفلوجة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/fallujah.png"
+  },
+  {
+    "name": "جامعة تكنولوجيا المعلومات والاتصالات",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/uoitc.png"
+  },
+  {
+    "name": "جامعة الكرخ للعلوم",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/kus.png"
+  },
+  {
+    "name": "الجامعة التقنية الشمالية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/ntu.jpg"
+  },
+  {
+    "name": "الجامعة التقنية الوسطى",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/mtu.png"
+  },
+  {
+    "name": "جامعة الفرات الاوسط التقنية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/furat.png"
+  },
+  {
+    "name": "الجامعة التقنية الجنوبية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/stu.png"
+  },
+  {
+    "name": "كلية الامام الكاظم عليه السلام",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/kadhum.png"
+  },
+  {
+    "name": "جامعة جابر بن حيان للعلوم الطبية والصيدلانية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/jabiryan.png"
+  },
+  {
+    "name": "كلية الإمام الأعظم الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/adham.jpeg"
+  },
+  {
+    "name": "كلية المنصور الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/mansour.png"
+  },
+  {
+    "name": "جامعة التراث",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/Turath.png"
+  },
+  {
+    "name": "كلية المامون الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/mamoun.png"
+  },
+  {
+    "name": "جامعة المعارف",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/maarif.png"
+  },
+  {
+    "name": "جامعة شط العرب",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/arab.png"
+  },
+  {
+    "name": "جامعة الحدباء",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/hadba.png"
+  },
+  {
+    "name": "كلية اليرموك الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/yarmok.png"
+  },
+  {
+    "name": "الجامعة الاسلامية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/iu.png"
+  },
+  {
+    "name": "جامعة الكفيل",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/kafeel.jpg"
+  },
+  {
+    "name": "كلية السلام الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/alsalam.png"
+  },
+  {
+    "name": "كلية مدينة العلم الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/maden.png"
+  },
+  {
+    "name": "جامعة الشيخ الطوسي",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/toosi.png"
+  },
+  {
+    "name": "جامعة الامام جعفرالصادق ع",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/ijsu.jpg"
+  },
+  {
+    "name": "كلية الامال الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/amal.jpg"
+  },
+  {
+    "name": "جامعة الحلة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/hilla.png"
+  },
+  {
+    "name": "كلية الحسين ع الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/hussain.png"
+  },
+  {
+    "name": "جامعة المستقبل",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/mus.png"
+  },
+  {
+    "name": "كلية الامام الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/alimam.jpg"
+  },
+  {
+    "name": "جامعة رابرین",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/uor.png"
+  },
+  {
+    "name": "جامعة الكوت",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/kut.png"
+  },
+  {
+    "name": "كلية الفارابي الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/farabi.png"
+  },
+  {
+    "name": "جامعة الفراهيدي",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/farahidi.jpg"
+  },
+  {
+    "name": "جامعة الكتاب",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/alkitab.jpg"
+  },
+  {
+    "name": "جامعة الكنوز",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/ff1a46e2724b4e8d8fbc06a4b1b885ee.png"
+  },
+  {
+    "name": "جامعة النور",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/noor.png"
+  },
+  {
+    "name": "جامعة النسور",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/c3c8c819c0a24e2fbbbe2ad9c23a501a.png"
+  },
+  {
+    "name": "كلية الزهراوي الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/zahrawi.png"
+  },
+  {
+    "name": "جامعة جرمو",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/charmo.png"
+  },
+  {
+    "name": "جامعة الهادي",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/hadi.png"
+  },
+  {
+    "name": "جامعة اوروك الاهلية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/uruk.png"
+  },
+  {
+    "name": "جامعة البيان",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/bayan.png"
+  },
+  {
+    "name": "جامعة العميد",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/Alameed.png"
+  },
+  {
+    "name": "جامعة العين العراقية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/ayen.png"
+  },
+  {
+    "name": "جامعة آشور",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/au.png"
+  },
+  {
+    "name": "جامعة وارث الانبياء  عليه السلام",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/wo.jpg"
+  },
+  {
+    "name": "جامعة الزهراء  عليها السلام  للبنات",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/zahraa.png"
+  },
+  {
+    "name": "كلية الهدى الجامعة",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/63f6af0fbb164c7cb5c6cb5cf4221454.jpg"
+  },
+  {
+    "name": "جامعة المعقل",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/maaqal.png"
+  },
+  {
+    "name": "الجامعة الامريكية",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/AUIB.png"
+  },
+  {
+    "name": "جامعة الشعب",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/Shaab.png"
+  },
+  {
+    "name": "معهد عشتار الطبي الاهلي",
+    "image_url": "https://studyiniraq.mohesr.gov.iq/StudyInIraq/Images/2766fea5886940679d569860c02d3d72.png"
+  }
+]

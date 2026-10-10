@@ -2322,6 +2322,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (selectedGrade && selectedGrade === g.id) opt.selected = true;
       profGradeSubSelect.appendChild(opt);
     });
+    if (window.LeoDropdowns) window.LeoDropdowns.refresh(profGradeSubSelect);
 
     if (stageKey === 'university') {
       profSpecializationWrapper.style.display = 'flex';
@@ -2333,7 +2334,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function selectStudentUniversity(university = '') {
-    if (profUniversityInput) profUniversityInput.value = university || '';
+    if (!profUniversityInput) return;
+    if (window.LeoUniversityPicker) window.LeoUniversityPicker.setValue(profUniversityInput, university || '');
+    else profUniversityInput.value = university || '';
   }
 
   profStageSelect.addEventListener('change', () => {
@@ -2404,16 +2407,21 @@ document.addEventListener('DOMContentLoaded', () => {
       
       studentProfile = normalizeStudentProfile(studentProfile);
       profStageSelect.value = studentProfile.stage || 'preparatory';
+      if (window.LeoDropdowns) window.LeoDropdowns.refresh(profStageSelect);
       populateGradeSelect(profStageSelect.value, studentProfile.grade_sub);
       selectStudentUniversity(studentProfile.university);
       if (profSpecializationInput) profSpecializationInput.value = studentProfile.specialization || '';
-      if (profStudyModeSelect && studentProfile.studyMode) profStudyModeSelect.value = studentProfile.studyMode;
+      if (profStudyModeSelect && studentProfile.studyMode) {
+        profStudyModeSelect.value = studentProfile.studyMode;
+        if (window.LeoDropdowns) window.LeoDropdowns.refresh(profStudyModeSelect);
+      }
       goToAuthStep(effectiveStep);
     } else {
       profNameInput.value = '';
       const defaultMaleRadio = document.querySelector('input[name="profGender"][value="male"]');
       if (defaultMaleRadio) defaultMaleRadio.checked = true;
       profStageSelect.value = 'preparatory';
+      if (window.LeoDropdowns) window.LeoDropdowns.refresh(profStageSelect);
       populateGradeSelect('preparatory', 'sixth_scientific');
       selectStudentUniversity('');
       if (profSpecializationInput) profSpecializationInput.value = '';
