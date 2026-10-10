@@ -37,7 +37,7 @@ def init_db():
             title TEXT NOT NULL,
             created_at REAL NOT NULL,
             updated_at REAL NOT NULL,
-            model TEXT DEFAULT 'leo-4o-mini',
+            model TEXT DEFAULT 'leo-academic',
             pinned INTEGER DEFAULT 0,
             archived INTEGER DEFAULT 0
         );
@@ -246,7 +246,7 @@ def get_conversation(conv_id, user_id=None):
         conv_dict['messages'] = messages_list
         return conv_dict
 
-def create_conversation(title="محادثة جديدة", model="leo-4o-mini", conv_id=None, user_id="default_user"):
+def create_conversation(title="محادثة جديدة", model="leo-academic", conv_id=None, user_id="default_user"):
     if not conv_id:
         conv_id = f"conv_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
     now = time.time()
@@ -327,7 +327,7 @@ def add_message(conv_id, role, content, attachments=None, msg_id=None, user_id="
             cursor.execute("""
                 INSERT INTO conversations (id, user_id, title, created_at, updated_at, model, pinned, archived)
                 VALUES (?, ?, ?, ?, ?, ?, 0, 0)
-            """, (conv_id, user_id, auto_title, now, now, "leo-4o-mini"))
+            """, (conv_id, user_id, auto_title, now, now, "leo-academic"))
         else:
             curr_title = row['title']
             # If default title, generate smart title from first user message
@@ -683,7 +683,7 @@ def sync_conversations(user_id, conversations_data):
             if not cid:
                 continue
             title = c.get('title', 'محادثة دراسية')
-            model = c.get('model', 'leo-4o-mini')
+            model = c.get('model', 'leo-academic')
             created_at = c.get('created_at', time.time())
             updated_at = c.get('updated_at', time.time())
             pinned = 1 if c.get('pinned') else 0
