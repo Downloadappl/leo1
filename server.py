@@ -193,9 +193,12 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
         stg_name = IRAQI_STAGES_NAMES.get(stg, stg)
         grd = student_profile.get('grade_sub', 'sixth_scientific')
         grd_name = IRAQI_GRADES_NAMES.get(grd, grd)
+        university = student_profile.get('university', '')
         spec = student_profile.get('specialization', '')
         
         stage_info = f"المرحلة: {stg_name} — الصف / الفرع: {grd_name}"
+        if university:
+            stage_info += f" — الجامعة / المعهد: {university}"
         if spec:
             stage_info += f" — الكلية والتخصص: {spec}"
 
@@ -295,6 +298,10 @@ MODEL_SEMAPHORE = threading.BoundedSemaphore(value=12)
 ACTIVE_GENERATIONS = {}
 ACTIVE_GENERATIONS_LOCK = threading.Lock()
 
+class ChatGenerationError(RuntimeError):
+    """A user-safe error raised when the upstream model cannot answer."""
+
+
 class RewindClient:
     def __init__(self):
         self.session = requests.Session()
@@ -341,8 +348,7 @@ class RewindClient:
 
         if not self.access_token:
             if not self.authenticate():
-                yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
-                return
+                raise ChatGenerationError("تعذر الاتصال بخدمة الذكاء الاصطناعي حالياً. حاول مجدداً بعد قليل.")
 
         # Auto-switch to vision model if image is present
         if has_images and model_name not in VISION_MODELS:
@@ -359,9 +365,11 @@ class RewindClient:
 
         # Concurrency Limiter check (wait up to 4 seconds for a model slot)
         acquired = MODEL_SEMAPHORE.acquire(blocking=True, timeout=4.0)
+        if not acquired:
+            raise ChatGenerationError("الخدمة مشغولة حالياً بطلبات أخرى. حاول مجدداً بعد قليل.")
+        resp = None
         try:
             max_retries = 2
-            resp = None
             for attempt in range(max_retries + 1):
                 if abort_event and abort_event.is_set():
                     return
@@ -386,25 +394,25 @@ class RewindClient:
                     if attempt < max_retries:
                         time.sleep(1.0)
                         continue
-                    else:
-                        yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
-                        return
+                    raise ChatGenerationError("تعذر الوصول إلى خدمة الذكاء الاصطناعي. تحقق من الاتصال ثم أعد المحاولة.") from req_err
 
                 # Auth expired
                 if resp.status_code in [401, 403]:
-                    if self.authenticate():
-                        headers['Authorization'] = f"Bearer {self.access_token}"
-                        headers['x-user-id'] = self.user_id or 'default_user'
-                        try:
-                            resp = self.session.post(
-                                'https://api.rewind.ai/v1/chat/completions/',
-                                json=payload,
-                                headers=headers,
-                                stream=True,
-                                timeout=18
-                            )
-                        except Exception:
-                            pass
+                    resp.close()
+                    if not self.authenticate():
+                        raise ChatGenerationError("تعذر تسجيل الاتصال بخدمة الذكاء الاصطناعي. حاول مجدداً.")
+                    headers['Authorization'] = f"Bearer {self.access_token}"
+                    headers['x-user-id'] = self.user_id or 'default_user'
+                    try:
+                        resp = self.session.post(
+                            'https://api.rewind.ai/v1/chat/completions/',
+                            json=payload,
+                            headers=headers,
+                            stream=True,
+                            timeout=18
+                        )
+                    except Exception as req_err:
+                        raise ChatGenerationError("تعذر الوصول إلى خدمة الذكاء الاصطناعي. حاول مجدداً.") from req_err
 
                 # Rate Limiting & Temporary Overload Backoff (429, 502, 503, 504)
                 if resp.status_code in [429, 502, 503, 504]:
@@ -416,163 +424,63 @@ class RewindClient:
                         except Exception:
                             wait_time = 1.2 * (2 ** attempt)
                         wait_time = min(wait_time, 3.5)
+                        resp.close()
                         if abort_event and abort_event.wait(timeout=wait_time):
                             return
-                        time.sleep(wait_time)
                         continue
                     else:
-                        print(f"[RETRIES EXHAUSTED] Smooth fallback to curriculum knowledge base.")
-                        yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
-                        return
+                        raise ChatGenerationError("توجد ضغوط مؤقتة على خدمة الرد. انتظر قليلاً ثم أعد المحاولة.")
 
                 if resp.status_code == 200:
                     break
                 else:
                     print(f"[STATUS ERROR {resp.status_code}] {resp.text[:120]}")
-                    yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
-                    return
+                    raise ChatGenerationError("لم تتمكن خدمة الذكاء الاصطناعي من معالجة الطلب. أعد المحاولة بعد قليل.")
 
             if not resp or resp.status_code != 200:
-                yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
-                return
+                raise ChatGenerationError("تعذر بدء إنشاء الرد. حاول مجدداً.")
 
             has_yielded = False
-            for line in resp.iter_lines(decode_unicode=True):
+            stream_completed = False
+            try:
+                for line in resp.iter_lines(decode_unicode=True):
+                    if abort_event and abort_event.is_set():
+                        return
+                    if not line:
+                        continue
+                    if isinstance(line, bytes):
+                        line = line.decode('utf-8', errors='replace')
+                    if line.startswith('data:'):
+                        chunk_str = line[5:].strip()
+                        if chunk_str == '[DONE]':
+                            stream_completed = True
+                            break
+                        try:
+                            chunk_json = json.loads(chunk_str)
+                            choices = chunk_json.get('choices') or []
+                            delta = choices[0].get('delta', {}) if choices else {}
+                            content = delta.get('content')
+                            if isinstance(content, str) and content:
+                                has_yielded = True
+                                yield content
+                        except (ValueError, TypeError, IndexError, KeyError):
+                            continue
+            except Exception as stream_err:
                 if abort_event and abort_event.is_set():
-                    break
-                if not line:
-                    continue
-                if line.startswith('data: '):
-                    chunk_str = line[6:].strip()
-                    if chunk_str == '[DONE]':
-                        break
-                    try:
-                        chunk_json = json.loads(chunk_str)
-                        delta = chunk_json['choices'][0]['delta']
-                        content = delta.get('content')
-                        if content:
-                            has_yielded = True
-                            yield content
-                    except Exception:
-                        pass
+                    return
+                raise ChatGenerationError("انقطع الاتصال قبل اكتمال الرد. أعد المحاولة.") from stream_err
 
-            if not has_yielded and (not abort_event or not abort_event.is_set()):
-                yield from self._fallback_response(messages, relevant_memories=relevant_memories, abort_event=abort_event)
+            if abort_event and abort_event.is_set():
+                return
+            if not stream_completed:
+                raise ChatGenerationError("انقطع الاتصال قبل اكتمال الرد. أعد المحاولة.")
+            if not has_yielded:
+                raise ChatGenerationError("لم يصل محتوى من خدمة الذكاء الاصطناعي. أعد المحاولة.")
 
         finally:
-            if acquired:
-                MODEL_SEMAPHORE.release()
-
-    def _fallback_response(self, messages, relevant_memories=None, abort_event=None):
-        user_msgs = [m for m in messages if m.get('role') == 'user']
-        is_ongoing = len(user_msgs) > 1
-
-        last_msg = ""
-        for m in reversed(messages):
-            if m.get('role') == 'user':
-                c = m.get('content')
-                if isinstance(c, str):
-                    last_msg = c
-                elif isinstance(c, list):
-                    for part in c:
-                        if part.get('type') == 'text':
-                            last_msg = part.get('text', '')
-                break
-        
-        last_lower = last_msg.lower().strip()
-
-        # Check for long-term memory preference relevance (e.g. Flutter preference across separate conversations)
-        has_flutter_pref = False
-        if relevant_memories:
-            for rm in relevant_memories:
-                c_str = rm.get('content', '').lower()
-                if 'flutter' in c_str or 'dart' in c_str or 'فلاتر' in c_str:
-                    has_flutter_pref = True
-                    break
-
-        if ('mobile' in last_lower or 'تطبيق' in last_lower or 'موبايل' in last_lower or 'app' in last_lower) and ('start' in last_lower or 'بدء' in last_lower or 'جديد' in last_lower or 'help' in last_lower or 'ساعدني' in last_lower or 'أنشئ' in last_lower):
-            if has_flutter_pref:
-                text = """بناءً على تفضيلك المحفوظ لتقنيات **Flutter & Dart**، سنبدأ بتأسيس بنية تطبيق الهاتف المحمول وفق أفضل المعايير المعمارية:
-
-1. **إنشاء هيكل المشروع الموحد:**
-   ```bash
-   flutter create my_smart_app
-   cd my_smart_app
-   ```
-2. **إدارة الحالة النظيفة (State Management):**
-   نوصي باعتماد مكتبة **Riverpod** للفصل التام بين الواجهة ومنطق الأعمال، مع ميزة الأمان العالي وقت الترجمة (Compile Safety).
-3. **تنظيم بنية المجلدات (Feature-First Architecture):**
-   - `lib/features/`: تقسيم الميزات (المصادقة، الدردشة، الإعدادات).
-   - `lib/core/`: الثوابت، المظهر، وخدمات الشبكة.
-
-ما هي الوظيفة الأساسية الأولى التي تود الانطلاق في برمجتها للتطبيق؟"""
-            else:
-                text = """لبدء تطبيق هاتف محمول جديد، إليك المسار المنهجي الأنسب:
-
-1. **تحديد المنصات والهدف:** هل يستهدف التطبيق نظامي Android و iOS معاً؟
-2. **اختيار إطار العمل:** نوصي بإطار **Flutter** بلغة Dart لتجربة واجهات أصلية فائقة السرعة وشفرة برمجية موحدة.
-3. **التصميم المعماري:** عزل طبقة البيانات (Data Layer) عن العرض (UI Layer).
-
-أخبرني عن فكرة التطبيق والوظائف التي تحتاجها لنضع خطة التنفيذ خطوة بخطوة!"""
-
-        # 1. Technical & Academic Contextual Matches
-        elif 'riverpod' in last_lower:
-            text = """مكتبة **Riverpod** هي حل متطور وحديث لإدارة الحالة (State Management) وحقن التبعيات في تطبيقات Flutter، طُوّرت للتغلب على قيود Provider التقليدية:
-
-1. **التحرر من BuildContext:** لا تحتاج لتمرير `context` للوصول إلى البيانات أو قراءة المزودات، مما يمكنك من كتابة المنطق خارج شجرة الواجهة بسهولة.
-2. **الأمان الكامل وقت الترجمة (Compile-Safe):** يستحيل حدوث خطأ `ProviderNotFoundException` وقت التشغيل لأن تعريف المزودات يكون عاماً وثابتاً.
-3. **دعم التفاعلية المتقدمة:** توفر مزودات ذكية مثل `FutureProvider` و `StreamProvider` و `AsyncNotifier` لمعالجة البيانات غير المتزامنة وتحديث الواجهة تلقائياً.
-4. **سهولة الاختبار والتعديل (Testing):** عزل ومحاكاة (Mock) أي مزود بسهولة دون التأثير على بقية أجزاء التطبيق."""
-
-        elif 'flutter' in last_lower or 'فلاتر' in last_lower:
-            text = """إطار عمل **Flutter** من Google يتيح بناء تطبيقات أصلية وموحدة لأنظمة Android و iOS والويب وسطح المكتب من قاعدة كود واحدة (Single Codebase) بلغة Dart:
-
-1. **محرك تصيير مستقل (Skia / Impeller):** يرسم الواجهات مباشرة بسرعة 60/120 إطاراً في الثانية دون الاعتماد على مفسرات النظام.
-2. **كل شيء Widget:** مرونة معمارية فائقة تمكنك من تخصيص أي عنصر في واجهة المستخدم.
-3. **Hot Reload:** سرعة هائلة في التطوير وتجربة التعديلات فورياً دون إعادة تشغيل المشروع."""
-
-        elif 'أكمل' in last_lower or 'تابع' in last_lower or 'continue' in last_lower:
-            text = """استكمالاً لما كنا نوضحه في النقطة السابقة:
-
-- **الخطوة التطبيقية التالية:** الانتقال من الإطار النظري إلى التطبيق العملي للخطوات خطوة بخطوة.
-- **التفصيل الإضافي:** مراعاة الحالات الخاصة وأفضل الممارسات لضمان حل دقيق وخالٍ من الأخطاء.
-
-إذا أردت التركيز على معادلة أو جزء محدد، حدده لنفصله معاً."""
-
-        elif 'أغمق' in last_lower or 'darker' in last_lower:
-            text = "تم تعديل المظهر وتطبيق التدرج الأكثر دكانة وعمقاً كما أردت تماماً، بما يمنح راحة أكبر للعين وتبايناً أوضح للنصوص."
-
-        elif 'غير' in last_lower or 'عدل' in last_lower:
-            text = "بالتأكيد، تم تعديل الجزء المطلوب وتحديث الصياغة بدقة لتتوافق تماماً مع ملاحظتك."
-
-        elif is_ongoing:
-            # ONGOING conversation: DIRECT, ZERO GREETINGS, ZERO RE-INTRODUCTIONS
-            text = f"""توضيحاً لهذه المسألة في سياق حديثنا:
-
-1. **المفهوم العلمي المباشر:** استيعاب وتفكيك هذا التساؤل وربطه بالقواعد التي تناولناها في الخطوات السابقة.
-2. **التطبيق والتحليل المنهجي:** السير في خطوات الإيضاح بترتيب منظم يضمن فهم الفكرة بدقة ودون أي تشتيت.
-3. **الاستنتاج والتوصية:** استخلاص القاعدة الجوهرية التي تبني عليها خطوتك القادمة.
-
-أخبرني إذا كانت هذه النقطة واضحة تماماً لننتقل إلى الجزئية التي تليها."""
-
-        else:
-            # Brand-new conversation: initial greeting only if user greeted
-            if 'هلا' in last_lower or 'مرحبا' in last_lower or 'السلام' in last_lower:
-                text = "أهلاً ومرحباً بك في منصة الأستاذ ليو التعليمية. أنا موجهك ومعلمك الدراسي، يسعدني مرافقتك في فهم المنهج وحل التمارين وتلخيص المواد. ما هو الدرس أو السؤال الذي تود أن نبدأ به؟"
-            elif 'صورة' in last_lower or 'شرح' in last_lower:
-                text = "تم فحص المرفق التعليمي بدقة عبر التحليل البصري. دعنا نقوم معاً بتحليل هذه المعطيات خطوة بخطوة وتفكيك المسألة لاستنباط الحل العلمي السليم. حدد لي النقطة التي تحتاج تركيزاً خاصاً لننطلق منها."
-            else:
-                text = f"""إليك الشرح المنهجي حول هذه المسألة:
-
-1. **المفهوم العلمي الأساسي:** تحديد الفكرة الجوهرية واستيعاب معطيات المسألة.
-2. **التطبيق والتحليل المنهجي:** السير في خطوات الحل بترتيب منطقي مدعوم بالقواعد العلمية المعتمدة.
-3. **الاستنتاج والتوصية:** استخلاص النتيجة لضمان تثبيت المعلومة لديك."""
-
-        for word in text.split(' '):
-            if abort_event and abort_event.is_set():
-                break
-            yield word + ' '
-            time.sleep(0.02)
+            if resp is not None:
+                resp.close()
+            MODEL_SEMAPHORE.release()
 
 client = RewindClient()
 
@@ -728,7 +636,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         # Get Long-Term Memories
         if path == '/api/memories':
             mems = database.get_memories(user_id=uid)
-            self._send_json(mems)
+            self._send_json({'memories': mems})
             return
 
         # Library: Generated Images (الصور المنشأة)
@@ -948,6 +856,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             user_text = body.get('content', '')
             force_image_generation = body.get('image_generation') is True
             attachments = body.get('attachments', [])
+            cloud_memories = body.get('long_term_memories', [])
             model = body.get('model', 'leo-4o-mini')
             temperature = float(body.get('temperature', 0.7))
             study_mode = body.get('study_mode', 'standard')
@@ -1122,13 +1031,25 @@ class AppHandler(SimpleHTTPRequestHandler):
                 return
 
             # --- LONG-TERM MEMORY: Automatic extraction of user facts/preferences ---
+            memory_updates = []
             if user_text:
                 candidates = database.extract_memory_candidates(user_text)
                 for cand_content, cand_cat in candidates:
-                    database.add_memory(uid, cand_content, cand_cat)
+                    memory_id = database.add_memory(uid, cand_content, cand_cat)
+                    if memory_id:
+                        memory_updates.append({
+                            'id': memory_id,
+                            'category': cand_cat,
+                            'content': cand_content
+                        })
 
             # --- LONG-TERM MEMORY: Intelligent Relevant Retrieval ---
-            relevant_memories = database.find_relevant_memories(user_id=uid, query_text=user_text, limit=3)
+            relevant_memories = database.find_relevant_memories(
+                user_id=uid,
+                query_text=user_text,
+                limit=3,
+                memory_overrides=cloud_memories
+            )
 
             # Build history from conversation
             conv_data = database.get_conversation(conv_id, user_id=uid)
@@ -1188,12 +1109,14 @@ class AppHandler(SimpleHTTPRequestHandler):
                 'message_id': user_msg_id,
                 'assistant_message_id': assistant_msg_id,
                 'model': model, 
-                'title': current_conv_info.get('title', 'محادثة دراسية') if current_conv_info else 'محادثة دراسية'
+                'title': current_conv_info.get('title', 'محادثة دراسية') if current_conv_info else 'محادثة دراسية',
+                'memory_updates': memory_updates
             }, ensure_ascii=False)
             self.wfile.write(f"data: {meta_chunk}\n\n".encode('utf-8'))
             self.wfile.flush()
 
             full_assistant_reply = []
+            generation_failed = False
             try:
                 for chunk in client.stream_chat(
                     formatted_messages,
@@ -1213,8 +1136,31 @@ class AppHandler(SimpleHTTPRequestHandler):
                 if not abort_event.is_set():
                     self.wfile.write(b"data: [DONE]\n\n")
                     self.wfile.flush()
+            except ChatGenerationError as e:
+                generation_failed = True
+                print(f"[CHAT GENERATION ERROR] {e}")
+                if not abort_event.is_set():
+                    try:
+                        error_event = json.dumps({'error': str(e), 'error_code': 'upstream_generation_failed'}, ensure_ascii=False)
+                        self.wfile.write(f"data: {error_event}\n\n".encode('utf-8'))
+                        self.wfile.write(b"data: [DONE]\n\n")
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                        pass
             except Exception as e:
+                generation_failed = True
                 print(f"[STREAM CLIENT TERMINATED] {e}")
+                if not abort_event.is_set():
+                    try:
+                        error_event = json.dumps({
+                            'error': 'حدث خطأ أثناء إنشاء الرد. حاول مجدداً بعد قليل.',
+                            'error_code': 'stream_failed'
+                        }, ensure_ascii=False)
+                        self.wfile.write(f"data: {error_event}\n\n".encode('utf-8'))
+                        self.wfile.write(b"data: [DONE]\n\n")
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                        pass
             finally:
                 # Clean up in-flight generation registration
                 with ACTIVE_GENERATIONS_LOCK:
@@ -1223,7 +1169,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                         ACTIVE_GENERATIONS.pop(generation_key, None)
 
                 complete_text = "".join(full_assistant_reply).strip()
-                if complete_text and (not abort_event.is_set() or len(complete_text) > 15):
+                if complete_text and not generation_failed and not abort_event.is_set():
                     database.add_message(conv_id, 'assistant', complete_text, msg_id=assistant_msg_id, user_id=uid)
             return
 

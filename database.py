@@ -91,11 +91,16 @@ def init_db():
             gender TEXT NOT NULL, -- 'male' or 'female'
             stage TEXT NOT NULL,  -- 'primary', 'middle', 'preparatory', 'university'
             grade_sub TEXT NOT NULL, -- e.g. 'sixth_scientific', 'first_stage'
+            university TEXT DEFAULT '',
             specialization TEXT DEFAULT '',
             created_at REAL NOT NULL,
             updated_at REAL NOT NULL
         );
         """)
+        try:
+            cursor.execute("ALTER TABLE student_profiles ADD COLUMN university TEXT DEFAULT '';")
+        except Exception:
+            pass
 
         # Feedback Table
         cursor.execute("""
@@ -374,21 +379,23 @@ def save_student_profile(user_id, profile_data):
     gender = profile_data.get('gender', 'male')
     stage = profile_data.get('stage', 'preparatory')
     grade_sub = profile_data.get('grade_sub', 'sixth_scientific')
-    specialization = profile_data.get('specialization', '').strip()
+    university = str(profile_data.get('university') or '').strip()
+    specialization = str(profile_data.get('specialization') or '').strip()
 
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO student_profiles (user_id, name, gender, stage, grade_sub, specialization, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO student_profiles (user_id, name, gender, stage, grade_sub, university, specialization, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
                 name = excluded.name,
                 gender = excluded.gender,
                 stage = excluded.stage,
                 grade_sub = excluded.grade_sub,
+                university = excluded.university,
                 specialization = excluded.specialization,
                 updated_at = excluded.updated_at
-        """, (user_id, name, gender, stage, grade_sub, specialization, now, now))
+        """, (user_id, name, gender, stage, grade_sub, university, specialization, now, now))
         conn.commit()
     return get_student_profile(user_id)
 
@@ -431,9 +438,11 @@ COMMON_STOP_WORDS = {
     'في', 'من', 'على', 'إلى', 'عن', 'مع', 'هذا', 'هذه', 'تلك', 'ذلك', 'هل', 'ما',
     'ماذا', 'كيف', 'أين', 'متى', 'لماذا', 'كم', 'يا', 'أنا', 'هو', 'هي', 'هم', 'نحن',
     'أن', 'إن', 'كان', 'يكون', 'سوف', 'قد', 'ثم', 'أو', 'لا', 'لم', 'لن', 'بل',
+    'تذكر', 'احفظ', 'المستخدم', 'يفضل', 'معلومة', 'لي', 'اني', 'إنني', 'أنني',
     'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for',
     'with', 'and', 'or', 'of', 'by', 'it', 'this', 'that', 'i', 'my', 'me', 'you',
-    'we', 'he', 'she', 'they', 'do', 'does', 'did', 'have', 'has', 'had', 'what', 'how'
+    'we', 'he', 'she', 'they', 'do', 'does', 'did', 'have', 'has', 'had', 'what', 'how',
+    'remember', 'please', 'save'
 }
 
 def extract_keywords(text):
@@ -500,7 +509,7 @@ def clear_all_memories(user_id="default_user"):
         conn.commit()
     return True
 
-def find_relevant_memories(user_id, query_text, limit=4):
+def find_relevant_memories(user_id, query_text, limit=4, memory_overrides=None):
     """
     Intelligent Memory Retrieval:
     Analyzes the user's current query and returns ONLY relevant memories.
@@ -514,6 +523,29 @@ def find_relevant_memories(user_id, query_text, limit=4):
         return []
 
     memories = get_memories(user_id=user_id)
+    # Firebase memories are supplied by the browser so serverless deployments
+    # can use durable user data even when their local SQLite database resets.
+    seen_content = {str(m.get('content', '')).strip().casefold() for m in memories}
+    if isinstance(memory_overrides, list):
+        for item in memory_overrides[:100]:
+            if isinstance(item, str):
+                item = {'content': item}
+            if not isinstance(item, dict):
+                continue
+            content = item.get('content')
+            if not isinstance(content, str):
+                continue
+            content = content.strip()[:500]
+            normalized = content.casefold()
+            if len(content) < 3 or normalized in seen_content:
+                continue
+            seen_content.add(normalized)
+            memories.append({
+                'id': str(item.get('id') or '')[:120],
+                'category': str(item.get('category') or 'preference')[:40],
+                'content': content,
+                'keywords': str(item.get('keywords') or '')[:500]
+            })
     if not memories:
         return []
 
@@ -563,6 +595,27 @@ def extract_memory_candidates(user_text):
     text = user_text.strip()
     candidates = []
 
+    # A direct request to remember something should not depend on a narrow
+    # preference keyword; save the fact the user explicitly identified.
+    explicit_memory = re.search(
+        r"(?:تذكر(?:ي)?|تذكّر(?:ي)?|احفظ(?:ي)?|سجل(?:ي)?|خلي\s+ببالك|لا\s+تنس(?:ى|ي)|remember|keep\s+in\s+mind|save\s+this)"
+        r"\s*(?:لي\s*)?(?:(?:أنني|انني|أني|اني|إنني|أن|ان|إن|بأن|that\s+I|that)\s*)?(.+)",
+        text,
+        re.IGNORECASE
+    )
+    if explicit_memory:
+        phrase = re.sub(r"\s+", " ", explicit_memory.group(1)).strip(" \t\r\n:،.!؟?؛")
+        if 4 <= len(phrase) <= 180:
+            preference = re.match(
+                r"(?:(?:أنا|I)\s+)?(?:أفضل(?:\s+استخدام)?|أحب(?:\s+أن)?|أفضل\s+دائماً|i\s+prefer|i\s+like\s+to\s+use)\s+(.+)",
+                phrase,
+                re.IGNORECASE
+            )
+            if preference:
+                preference_detail = preference.group(1).strip(' .،؛')
+                return [(f"يفضل المستخدم: {preference_detail}.", 'preference')]
+            return [(f"معلومة يطلب المستخدم تذكرها: {phrase}.", "fact")]
+
     # Regex patterns for explicit preferences and personal background
     patterns = [
         # Preferences (English & Arabic)
@@ -570,7 +623,8 @@ def extract_memory_candidates(user_text):
         (r"(?:أفضل استخدام|أفضل دائماً|أفضل|أحب أن استخدم|إطاري المفضل هو|لغتي المفضلة هي)\s+([^.?!,;\n]+)", "preference"),
         # Technical choices
         (r"(?:i am using|my projects? (?:are|is) built with|working on a project in)\s+([^.?!,;\n]+)", "tech_stack"),
-        (r"(?:مشروعي مبني بـ|أعمل على مشروع بـ|أستخدم في مشروعي)\s+([^.?!,;\n]+)", "tech_stack"),
+        (r"(?:مشروعي مبني بـ|أعمل على مشروع بـ|أستخدم في مشروعي|أستخدم|أستعمل)\s+([^.?!,;\n]+)", "tech_stack"),
+        (r"(?:أنا أدرس في|أدرس في|جامعتي هي|my university is|i study at)\s+([^.?!,;\n]+)", "profile"),
         # Learning goals & Exam dates
         (r"(?:امتحاني (?:الوزاري|النهائي|القادم)|أنا أستعد لامتحان)\s+([^.?!,;\n]+)", "curriculum"),
         (r"(?:i am preparing for|my exam is)\s+([^.?!,;\n]+)", "goal"),
@@ -591,6 +645,8 @@ def extract_memory_candidates(user_text):
                     cleaned_memory = f"التقنيات المستخدمة في مشاريع المستخدم: {extracted_phrase}."
                 elif cat == "curriculum":
                     cleaned_memory = f"الاستعداد الدراسي والامتحانات: {extracted_phrase}."
+                elif cat == "profile":
+                    cleaned_memory = f"معلومة دراسية عن المستخدم: {extracted_phrase}."
                 else:
                     cleaned_memory = f"معلومة عن المستخدم: {extracted_phrase}."
                 

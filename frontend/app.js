@@ -250,6 +250,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const profGradeSubSelect = document.getElementById('profGradeSubSelect');
   const profSpecializationWrapper = document.getElementById('profSpecializationWrapper');
   const profSpecializationInput = document.getElementById('profSpecializationInput');
+  const profUniversityWrapper = document.getElementById('profUniversityWrapper');
+  const profUniversityInput = document.getElementById('profUniversityInput');
   const saveProfileBtn = document.getElementById('saveProfileBtn');
 
   // In-App Custom Confirm Modal (Replaces browser confirm())
@@ -355,6 +357,43 @@ document.addEventListener('DOMContentLoaded', () => {
       ]
     }
   };
+
+  function normalizeStudentProfile(profile) {
+    if (!profile || typeof profile !== 'object') return profile;
+    const normalized = { ...profile };
+    const stageAliases = {
+      'الابتدائية': 'primary', 'المرحلة الابتدائية': 'primary',
+      'المتوسطة': 'middle', 'المرحلة المتوسطة': 'middle',
+      'الإعدادية': 'preparatory', 'الاعدادية': 'preparatory', 'المرحلة الإعدادية': 'preparatory',
+      'الجامعية': 'university', 'المرحلة الجامعية': 'university', 'المرحلة الجامعية والدراسات': 'university'
+    };
+    normalized.stage = stageAliases[normalized.stage] || normalized.stage || 'preparatory';
+    if (!IRAQI_STAGES_DATA[normalized.stage]) normalized.stage = 'preparatory';
+    if (!normalized.grade_sub && normalized.grade) {
+      const oldGrade = String(normalized.grade);
+      const aliases = [
+        ['الأول الابتدائي', 'first_primary'], ['الثاني الابتدائي', 'second_primary'], ['الثالث الابتدائي', 'third_primary'],
+        ['الرابع الابتدائي', 'fourth_primary'], ['الخامس الابتدائي', 'fifth_primary'], ['السادس الابتدائي', 'sixth_primary'],
+        ['الأول متوسط', 'first_middle'], ['الثاني متوسط', 'second_middle'], ['الثالث متوسط', 'third_middle'],
+        ['الرابع العلمي', 'fourth_scientific'], ['الرابع الأدبي', 'fourth_literary'],
+        ['الخامس العلمي', 'fifth_scientific'], ['الخامس الأدبي', 'fifth_literary'],
+        ['السادس العلمي', 'sixth_scientific'], ['السادس الأدبي', 'sixth_literary'],
+        ['الأولى', 'uni_stage_1'], ['الثانية', 'uni_stage_2'], ['الثالثة', 'uni_stage_3'],
+        ['الرابعة', 'uni_stage_4'], ['الخامسة', 'uni_stage_5'], ['السادسة', 'uni_stage_6']
+      ];
+      const matched = aliases.find(([label]) => oldGrade.includes(label));
+      normalized.grade_sub = matched ? matched[1] : (normalized.stage === 'university' ? 'uni_stage_1' : 'sixth_scientific');
+    }
+    const validStageGrades = IRAQI_STAGES_DATA[normalized.stage].grades;
+    if (!validStageGrades.some((grade) => grade.id === normalized.grade_sub)) {
+      normalized.grade_sub = normalized.stage === 'university'
+        ? validStageGrades[0].id
+        : validStageGrades[validStageGrades.length - 1].id;
+    }
+    normalized.university = normalized.university || '';
+    normalized.specialization = normalized.specialization || '';
+    return normalized;
+  }
 
   // --- State Variables ---
   let currentConversationId = localStorage.getItem('leo_active_conv_id') || null;
@@ -1702,7 +1741,8 @@ document.addEventListener('DOMContentLoaded', () => {
         attachments: attachmentsToSend,
         model: selectedModel,
         temperature: settingsState.temperature,
-        study_mode: settingsState.studyMode
+        study_mode: settingsState.studyMode,
+        long_term_memories: readLongTermMemoryCache()
       };
 
       const resp = await fetch('/api/chat', {
@@ -1719,7 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let buffer = '';
       let streamDone = false;
 
-      const processStreamLine = (line) => {
+      const processStreamLine = async (line) => {
         const trimmed = line.trim();
         if (!trimmed || !trimmed.startsWith('data:')) return;
         const dataContent = trimmed.substring(5).trim();
@@ -1728,8 +1768,32 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        let parsed;
         try {
-          const parsed = JSON.parse(dataContent);
+          parsed = JSON.parse(dataContent);
+        } catch (parseError) {
+          console.warn('[CHAT STREAM] Ignoring malformed event:', parseError);
+          return;
+        }
+
+        if (typeof parsed.error === 'string' && parsed.error) {
+          const serverError = new Error(parsed.error);
+          serverError.isServerError = true;
+          throw serverError;
+        }
+
+        try {
+          if (Array.isArray(parsed.memory_updates)) {
+            await Promise.all(parsed.memory_updates.map(async memory => {
+              upsertLongTermMemoryCache(memory);
+              try {
+                await syncMemoryToFirebase(memory);
+              } catch (error) {
+                console.warn('Automatic memory cloud sync failed:', error);
+              }
+            }));
+          }
+
           if (parsed.conversation_id) {
             responseConversationId = parsed.conversation_id;
             if (currentConversationId === conversationAtSend && currentConversationId !== responseConversationId) {
@@ -1754,8 +1818,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (typeof parsed.content === 'string') {
             requestLifecycle.receive(parsed.content, () => handleSendPrompt(text, attachmentsToSend, imageGenerationRequest));
           }
-        } catch (parseError) {
-          console.warn('[CHAT STREAM] Ignoring malformed event:', parseError);
+        } catch (eventError) {
+          throw eventError;
         }
       };
 
@@ -1771,12 +1835,12 @@ document.addEventListener('DOMContentLoaded', () => {
         buffer = lines.pop();
 
         for (const line of lines) {
-          processStreamLine(line);
+          await processStreamLine(line);
           if (streamDone) break;
         }
       }
 
-      if (buffer.trim()) processStreamLine(buffer);
+      if (buffer.trim()) await processStreamLine(buffer);
       requestLifecycle.finish({
         onRetry: imageGenerationRequest
           ? () => handleSendPrompt(text, attachmentsToSend, true)
@@ -1799,7 +1863,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       let errorMsg = 'حدث خطأ أثناء الاستجابة.';
-      if (!navigator.onLine || (err.message && (err.message.toLowerCase().includes('failed to fetch') || err.message.toLowerCase().includes('network')))) {
+      if (err.isServerError) {
+        errorMsg = err.message;
+      } else if (!navigator.onLine || (err.message && (err.message.toLowerCase().includes('failed to fetch') || err.message.toLowerCase().includes('network')))) {
         errorMsg = 'لا يوجد اتصال بالإنترنت أو تعذر الوصول إلى الخادم. رسالتك محفوظة.';
       } else {
         errorMsg = `تعذر استلام الرد (${err.message || 'خطأ في الاتصال'}).`;
@@ -2259,15 +2325,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (stageKey === 'university') {
       profSpecializationWrapper.style.display = 'flex';
+      if (profUniversityWrapper) profUniversityWrapper.style.display = 'flex';
     } else {
       profSpecializationWrapper.style.display = 'none';
+      if (profUniversityWrapper) profUniversityWrapper.style.display = 'none';
     }
+  }
+
+  function selectStudentUniversity(university = '') {
+    if (profUniversityInput) profUniversityInput.value = university || '';
   }
 
   profStageSelect.addEventListener('change', () => {
     populateGradeSelect(profStageSelect.value);
   });
-
   // --- ChatGPT-Style Full-Screen Auth & Onboarding Flow ---
   let authMode = 'login'; // 'login' or 'signup'
 
@@ -2331,8 +2402,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const genderRadios = document.querySelectorAll('input[name="profGender"]');
       genderRadios.forEach(r => r.checked = (r.value === studentProfile.gender));
       
+      studentProfile = normalizeStudentProfile(studentProfile);
       profStageSelect.value = studentProfile.stage || 'preparatory';
       populateGradeSelect(profStageSelect.value, studentProfile.grade_sub);
+      selectStudentUniversity(studentProfile.university);
       if (profSpecializationInput) profSpecializationInput.value = studentProfile.specialization || '';
       if (profStudyModeSelect && studentProfile.studyMode) profStudyModeSelect.value = studentProfile.studyMode;
       goToAuthStep(effectiveStep);
@@ -2342,6 +2415,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (defaultMaleRadio) defaultMaleRadio.checked = true;
       profStageSelect.value = 'preparatory';
       populateGradeSelect('preparatory', 'sixth_scientific');
+      selectStudentUniversity('');
       if (profSpecializationInput) profSpecializationInput.value = '';
       goToAuthStep(effectiveStep);
     }
@@ -2373,8 +2447,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if user already has an existing academic profile in cloud
         const cloudProf = await window.LeoFirebase.getProfile();
         if (cloudProf && cloudProf.name && cloudProf.name.trim() && cloudProf.name.trim() !== 'الطالب') {
-          studentProfile = cloudProf;
-          localStorage.setItem('leo_student_profile', JSON.stringify(cloudProf));
+          studentProfile = normalizeStudentProfile(cloudProf);
+          localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
           updateProfileUI();
           closeProfileModal();
           showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name}`);
@@ -2428,8 +2502,8 @@ document.addEventListener('DOMContentLoaded', () => {
           await window.LeoFirebase.signIn(email, password);
           const cloudProf = await window.LeoFirebase.getProfile();
           if (cloudProf && cloudProf.name && cloudProf.name.trim() !== 'الطالب') {
-            studentProfile = cloudProf;
-            localStorage.setItem('leo_student_profile', JSON.stringify(cloudProf));
+            studentProfile = normalizeStudentProfile(cloudProf);
+            localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
             updateProfileUI();
             closeProfileModal();
             showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name}`);
@@ -2486,12 +2560,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const gender = genderRadio ? genderRadio.value : 'male';
     const stage = profStageSelect.value;
     const grade_sub = profGradeSubSelect.value;
+    let university = profUniversityInput ? profUniversityInput.value.trim() : '';
+    if (stage === 'university') {
+      if (!university) {
+        showToast('يرجى اختيار الجامعة أو المعهد');
+        profUniversityInput && profUniversityInput.focus();
+        return;
+      }
+    } else {
+      university = '';
+    }
     const specialization = profSpecializationInput ? profSpecializationInput.value.trim() : '';
     const studyMode = profStudyModeSelect ? profStudyModeSelect.value : 'standard';
 
     const email = authEmailInput ? authEmailInput.value.trim() : '';
 
-    studentProfile = { name, gender, stage, grade_sub, specialization, studyMode, email };
+    studentProfile = { name, gender, stage, grade_sub, university, specialization, studyMode, email };
     settingsState.studyMode = studyMode;
 
     try {
@@ -2686,19 +2770,117 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Real Long-Term Memory Management ---
-  async function refreshMemoriesUI() {
+  const LONG_TERM_MEMORY_CACHE_KEY = 'leo_long_term_memories_v1';
+
+  function getLongTermMemoryCacheKey() {
+    const accountKey = window.LeoFirebase?.currentUser?.uid || deviceUserId || 'guest';
+    return `${LONG_TERM_MEMORY_CACHE_KEY}_${accountKey}`;
+  }
+
+  function readLongTermMemoryCache() {
     try {
-      const res = await fetch('/api/memories');
-      if (!res.ok) return [];
-      const data = await res.json();
-      const memories = data.memories || [];
-      if (memoryCountSubtitle) {
-        memoryCountSubtitle.textContent = memories.length > 0 ? `${memories.length} تفضيلات محفوظة` : 'لا توجد تفضيلات بعد';
-      }
-      return memories;
+      const cached = JSON.parse(localStorage.getItem(getLongTermMemoryCacheKey()) || '[]');
+      return Array.isArray(cached) ? cached.filter(item => item && typeof item.content === 'string').slice(0, 100) : [];
     } catch (e) {
       return [];
     }
+  }
+
+  function writeLongTermMemoryCache(memories) {
+    try {
+      localStorage.setItem(getLongTermMemoryCacheKey(), JSON.stringify(memories));
+    } catch (e) {
+      console.warn('Could not cache long-term memories:', e);
+    }
+  }
+
+  function memoryContentKey(memory) {
+    return String(memory?.content || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  function upsertLongTermMemoryCache(memory) {
+    if (!memory || typeof memory.content !== 'string' || !memory.content.trim()) return;
+    const memories = readLongTermMemoryCache();
+    const key = memoryContentKey(memory);
+    const index = memories.findIndex(item => memoryContentKey(item) === key);
+    if (index >= 0) memories[index] = { ...memories[index], ...memory };
+    else memories.unshift(memory);
+    writeLongTermMemoryCache(memories);
+  }
+
+  async function syncMemoryToFirebase(memory) {
+    if (!window.LeoFirebase || typeof window.LeoFirebase.saveMemory !== 'function') return false;
+    const cloudId = await window.LeoFirebase.saveMemory(memory);
+    if (cloudId) upsertLongTermMemoryCache({ ...memory, id: cloudId });
+    return !!cloudId;
+  }
+
+  async function refreshMemoriesUI() {
+    const [localResult, cloudResult] = await Promise.allSettled([
+      fetch('/api/memories').then(async res => {
+        if (!res.ok) throw new Error(`Memory request failed (${res.status})`);
+        const data = await res.json();
+        const memories = Array.isArray(data) ? data : (Array.isArray(data.memories) ? data.memories : null);
+        if (!memories) throw new Error('Memory response has an invalid format');
+        return memories;
+      }),
+      window.LeoFirebase && typeof window.LeoFirebase.getMemories === 'function'
+        ? window.LeoFirebase.getMemories()
+        : Promise.resolve(null)
+    ]);
+
+    const localMemories = localResult.status === 'fulfilled' ? localResult.value : [];
+    let cloudMemories = cloudResult.status === 'fulfilled' && Array.isArray(cloudResult.value)
+      ? cloudResult.value
+      : [];
+    const cloudUnavailable = cloudResult.status === 'rejected' || cloudResult.value === null;
+    if (cloudUnavailable && localMemories.length === 0) {
+      const cached = readLongTermMemoryCache();
+      if (cached.length) {
+        if (memoryCountSubtitle) memoryCountSubtitle.textContent = `${cached.length} تفضيلات محفوظة`;
+        return cached;
+      }
+    }
+    const cloudByContent = new Map(cloudMemories.map(memory => [memoryContentKey(memory), memory]));
+
+    // Migrate older SQLite-only memories into Firestore, and remember which
+    // local record belongs to each cloud record so deletion affects both.
+    if (window.LeoFirebase && typeof window.LeoFirebase.saveMemory === 'function') {
+      for (const localMemory of localMemories) {
+        const key = memoryContentKey(localMemory);
+        if (!key) continue;
+        const existing = cloudByContent.get(key);
+        if (existing) {
+          existing.localIds = [...new Set([...(existing.localIds || []), localMemory.id].filter(Boolean))];
+          continue;
+        }
+        const cloudId = await window.LeoFirebase.saveMemory(localMemory);
+        if (cloudId) {
+          const synced = { ...localMemory, id: cloudId, localIds: [localMemory.id].filter(Boolean) };
+          cloudByContent.set(key, synced);
+          cloudMemories.push(synced);
+        }
+      }
+    }
+
+    const merged = [...cloudMemories];
+    const mergedKeys = new Set(merged.map(memoryContentKey));
+    localMemories.forEach(memory => {
+      const key = memoryContentKey(memory);
+      if (!key || mergedKeys.has(key)) return;
+      merged.push({ ...memory, localIds: [memory.id].filter(Boolean) });
+      mergedKeys.add(key);
+    });
+
+    if (localResult.status === 'rejected' && cloudUnavailable) {
+      if (memoryCountSubtitle) memoryCountSubtitle.textContent = 'تعذر تحميل الذاكرة الآن';
+      return null;
+    }
+    writeLongTermMemoryCache(merged);
+    if (memoryCountSubtitle) {
+      memoryCountSubtitle.textContent = merged.length > 0 ? `${merged.length} تفضيلات محفوظة` : 'لا توجد تفضيلات بعد';
+    }
+    return merged;
   }
 
   async function renderMemoriesModalList() {
@@ -2706,7 +2888,12 @@ document.addEventListener('DOMContentLoaded', () => {
     memoryItemsList.innerHTML = '<div class="memory-empty-state">جاري تحميل التفضيلات...</div>';
     const memories = await refreshMemoriesUI();
 
-    if (!memories || memories.length === 0) {
+    if (!memories) {
+      memoryItemsList.innerHTML = '<div class="memory-empty-state">تعذر تحميل الذكريات الآن. تحقق من الاتصال ثم افتح النافذة مجدداً.</div>';
+      return;
+    }
+
+    if (memories.length === 0) {
       memoryItemsList.innerHTML = '<div class="memory-empty-state">لا توجد تفضيلات محفوظة بعد. سيتذكر الأستاذ ليو تفضيلاتك تلقائياً أو يمكنك إضافتها يدوياً أعلاه.</div>';
       return;
     }
@@ -2716,18 +2903,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'memory-item-card';
       const dateStr = mem.created_at ? new Date(mem.created_at).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }) : '';
-      card.innerHTML = `
-        <div class="memory-item-info">
-          <span class="memory-item-text">${mem.content}</span>
-          <span class="memory-item-date">${dateStr ? 'حُفظ في: ' + dateStr : ''}</span>
-        </div>
-        <button class="memory-item-del-btn" title="حذف هذا التفضيل" type="button"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      `;
-      card.querySelector('.memory-item-del-btn').onclick = async (e) => {
+      const info = document.createElement('div');
+      info.className = 'memory-item-info';
+      const text = document.createElement('span');
+      text.className = 'memory-item-text';
+      text.textContent = mem.content || '';
+      const date = document.createElement('span');
+      date.className = 'memory-item-date';
+      date.textContent = dateStr ? `حُفظ في: ${dateStr}` : '';
+      info.append(text, date);
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'memory-item-del-btn';
+      deleteButton.title = 'حذف هذا التفضيل';
+      deleteButton.type = 'button';
+      deleteButton.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      card.append(info, deleteButton);
+      deleteButton.onclick = async (e) => {
         e.stopPropagation();
-        await fetch(`/api/memories/${mem.id}`, { method: 'DELETE' });
-        showToast('تم حذف التفضيل بنجاح');
-        renderMemoriesModalList();
+        try {
+          const res = await fetch(`/api/memories/${encodeURIComponent(mem.id)}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Memory delete failed');
+          if (window.LeoFirebase && typeof window.LeoFirebase.deleteMemory === 'function') {
+            if (!await window.LeoFirebase.deleteMemory(mem.id)) throw new Error('Cloud memory delete failed');
+          }
+          for (const localId of mem.localIds || []) {
+            if (localId && localId !== mem.id) {
+              await fetch(`/api/memories/${encodeURIComponent(localId)}`, { method: 'DELETE' });
+            }
+          }
+          writeLongTermMemoryCache(readLongTermMemoryCache().filter(item => memoryContentKey(item) !== memoryContentKey(mem)));
+          showToast('تم حذف التفضيل بنجاح');
+          renderMemoriesModalList();
+        } catch (e) {
+          showToast('تعذر حذف التفضيل. حاول مجدداً.');
+        }
       };
       memoryItemsList.appendChild(card);
     });
@@ -2756,14 +2965,26 @@ document.addEventListener('DOMContentLoaded', () => {
     addManualMemoryBtn.onclick = async () => {
       const text = manualMemoryInput.value.trim();
       if (!text) return;
-      await fetch('/api/memories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text, category: 'preference' })
-      });
-      manualMemoryInput.value = '';
-      showToast('تم حفظ التفضيل في ذاكرة ليو');
-      renderMemoriesModalList();
+      addManualMemoryBtn.disabled = true;
+      try {
+        const res = await fetch('/api/memories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: text, category: 'preference' })
+        });
+        if (!res.ok) throw new Error('Memory save failed');
+        const saved = await res.json();
+        const savedMemory = { id: saved.id, content: text, category: 'preference' };
+        upsertLongTermMemoryCache(savedMemory);
+        const cloudSaved = await syncMemoryToFirebase(savedMemory);
+        manualMemoryInput.value = '';
+        showToast(cloudSaved ? 'تم حفظ التفضيل في ذاكرة ليو السحابية' : 'حُفظ التفضيل محلياً، وتعذرت مزامنته سحابياً');
+        renderMemoriesModalList();
+      } catch (e) {
+        showToast('تعذر حفظ التفضيل. تحقق من الاتصال ثم أعد المحاولة.');
+      } finally {
+        addManualMemoryBtn.disabled = false;
+      }
     };
   }
 
@@ -2775,9 +2996,18 @@ document.addEventListener('DOMContentLoaded', () => {
         okText: 'مسح الكل',
         danger: true,
         onConfirm: async () => {
-          await fetch('/api/memories/clear', { method: 'POST' });
-          showToast('تم مسح جميع التفضيلات المحفوظة');
-          renderMemoriesModalList();
+          try {
+            const res = await fetch('/api/memories/clear', { method: 'POST' });
+            if (!res.ok) throw new Error('Memory clear failed');
+            if (window.LeoFirebase && typeof window.LeoFirebase.clearMemories === 'function') {
+              if (!await window.LeoFirebase.clearMemories()) throw new Error('Cloud memory clear failed');
+            }
+            writeLongTermMemoryCache([]);
+            showToast('تم مسح جميع التفضيلات المحفوظة');
+            renderMemoriesModalList();
+          } catch (e) {
+            showToast('تعذر مسح الذكريات. حاول مجدداً.');
+          }
         }
       });
     };
@@ -3243,7 +3473,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const parsedLocal = JSON.parse(localCachedProf);
           if (parsedLocal && parsedLocal.name && parsedLocal.name.trim() && parsedLocal.name.trim() !== 'الطالب') {
-            studentProfile = parsedLocal;
+            studentProfile = normalizeStudentProfile(parsedLocal);
+            localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
             updateProfileUI();
           } else {
             localStorage.removeItem('leo_student_profile');
@@ -3258,8 +3489,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (profRes.ok) {
         const p = await profRes.json();
         if (p && p.name && p.name.trim() && p.name.trim() !== 'الطالب') {
-          studentProfile = p;
-          localStorage.setItem('leo_student_profile', JSON.stringify(p));
+          studentProfile = normalizeStudentProfile(p);
+          localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
           updateProfileUI();
         } else if (studentProfile && studentProfile.name && studentProfile.name.trim() !== 'الطالب') {
           // If server restarted, sync our verified local profile to server
@@ -3308,7 +3539,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 6. Load Conversation History & Memories
       loadConversationHistory();
-      refreshMemoriesUI();
+      if (!window.LeoFirebase) refreshMemoriesUI();
 
       // 7. Background Sync: Push all locally cached conversations to server DB & Firebase Cloud
       //    This ensures conversations survive server restarts, Vercel cold starts, and DB resets.
@@ -3331,6 +3562,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       await window.LeoFirebase.ensureAuthenticated(deviceUserId, studentProfile ? studentProfile.name : '');
+      await refreshMemoriesUI();
 
       // Realtime listener: Any change in Firebase immediately updates the sidebar & cache
       window.LeoFirebase.onConversationsChanged((firebaseConvs) => {
@@ -3362,8 +3594,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Restore profile from Firebase if local is missing
       const cloudProfile = await window.LeoFirebase.getProfile();
       if (cloudProfile && cloudProfile.name && (!studentProfile || !studentProfile.name || studentProfile.name === 'الطالب')) {
-        studentProfile = cloudProfile;
-        localStorage.setItem('leo_student_profile', JSON.stringify(cloudProfile));
+        studentProfile = normalizeStudentProfile(cloudProfile);
+        localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
         updateProfileUI();
       } else if (studentProfile && studentProfile.name && studentProfile.name !== 'الطالب') {
         window.LeoFirebase.saveProfile(studentProfile).catch(() => {});

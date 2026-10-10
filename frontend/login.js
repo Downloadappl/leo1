@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const genderFemale = document.getElementById('genderFemale');
   const stageSelect = document.getElementById('stageSelect');
   const gradeSelect = document.getElementById('gradeSelect');
+  const universityFields = document.getElementById('universityFields');
+  const universityInput = document.getElementById('universityInput');
+  const specializationInput = document.getElementById('specializationInput');
   const learningModeSelect = document.getElementById('learningModeSelect');
   const finishProfileBtn = document.getElementById('finishProfileBtn');
 
@@ -47,26 +50,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Curriculum Stages & Grades Map ---
   const curriculumGrades = {
-    'الابتدائية': [
-      'الأول الابتدائي',
-      'الثاني الابتدائي',
-      'الثالث الابتدائي',
-      'الرابع الابتدائي',
-      'الخامس الابتدائي',
-      'السادس الابتدائي (وزاري)'
+    primary: [
+      { id: 'first_primary', label: 'الصف الأول الابتدائي' },
+      { id: 'second_primary', label: 'الصف الثاني الابتدائي' },
+      { id: 'third_primary', label: 'الصف الثالث الابتدائي' },
+      { id: 'fourth_primary', label: 'الصف الرابع الابتدائي' },
+      { id: 'fifth_primary', label: 'الصف الخامس الابتدائي' },
+      { id: 'sixth_primary', label: 'الصف السادس الابتدائي (وزاري)' }
     ],
-    'المتوسطة': [
-      'الأول متوسط',
-      'الثاني متوسط',
-      'الثالث متوسط (وزاري)'
+    middle: [
+      { id: 'first_middle', label: 'الصف الأول متوسط' },
+      { id: 'second_middle', label: 'الصف الثاني متوسط' },
+      { id: 'third_middle', label: 'الصف الثالث متوسط (وزاري)' }
     ],
-    'الإعدادية': [
-      'الرابع العلمي',
-      'الرابع الأدبي',
-      'الخامس العلمي',
-      'الخامس الأدبي',
-      'السادس العلمي (وزاري)',
-      'السادس الأدبي (وزاري)'
+    preparatory: [
+      { id: 'fourth_scientific', label: 'الرابع الإعدادي (العلمي)' },
+      { id: 'fourth_literary', label: 'الرابع الإعدادي (الأدبي)' },
+      { id: 'fifth_scientific', label: 'الخامس الإعدادي (العلمي)' },
+      { id: 'fifth_literary', label: 'الخامس الإعدادي (الأدبي)' },
+      { id: 'sixth_scientific', label: 'السادس الإعدادي (العلمي - بكالوريا وزاري)' },
+      { id: 'sixth_literary', label: 'السادس الإعدادي (الأدبي - بكالوريا وزاري)' },
+      { id: 'sixth_vocational', label: 'السادس الإعدادي (المهني / صناعي / تجاري)' }
+    ],
+    university: [
+      { id: 'uni_stage_1', label: 'المرحلة الأولى' },
+      { id: 'uni_stage_2', label: 'المرحلة الثانية' },
+      { id: 'uni_stage_3', label: 'المرحلة الثالثة' },
+      { id: 'uni_stage_4', label: 'المرحلة الرابعة' },
+      { id: 'uni_stage_5', label: 'المرحلة الخامسة (طب / هندسة)' },
+      { id: 'uni_stage_6', label: 'المرحلة السادسة (طب بشري)' },
+      { id: 'postgraduate', label: 'الدراسات العليا (ماجستير / دكتوراه)' }
     ]
   };
 
@@ -179,22 +192,29 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Stage & Grade Select Population ---
   function populateGrades(stage) {
     if (!gradeSelect) return;
-    const grades = curriculumGrades[stage] || [];
+    const grades = curriculumGrades[stage] || curriculumGrades.middle;
     gradeSelect.innerHTML = '';
-    grades.forEach((g, idx) => {
+    grades.forEach((grade, idx) => {
       const opt = document.createElement('option');
-      opt.value = g;
-      opt.textContent = g;
-      if (idx === grades.length - 1) opt.selected = true; // Default to ministerial class
+      opt.value = grade.id;
+      opt.textContent = grade.label;
+      if (stage === 'university' ? idx === 0 : idx === grades.length - 1) opt.selected = true;
       gradeSelect.appendChild(opt);
     });
+  }
+
+  function syncUniversityFields() {
+    const isUniversity = stageSelect && stageSelect.value === 'university';
+    if (universityFields) universityFields.style.display = isUniversity ? 'flex' : 'none';
   }
 
   if (stageSelect) {
     stageSelect.addEventListener('change', (e) => {
       populateGrades(e.target.value);
+      syncUniversityFields();
     });
-    populateGrades(stageSelect.value || 'المتوسطة');
+    populateGrades(stageSelect.value || 'middle');
+    syncUniversityFields();
   }
 
   // --- Gender Selection Pill ---
@@ -223,20 +243,69 @@ document.addEventListener('DOMContentLoaded', () => {
     if (studentNameInput) studentNameInput.focus();
   }
 
-  function finishAuthAndEnter(profileData) {
+  async function finishAuthAndEnter(profileData) {
+    profileData = normalizeStudentProfile(profileData);
     // 1. Save profile to localStorage
     localStorage.setItem('leo_student_profile', JSON.stringify(profileData));
 
-    // 2. Sync profile to Firebase if available
+    // 2. Sync the profile with the local app database before the chat loads it.
+    await Promise.all([
+      fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData)
+      }).catch(() => null),
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studyMode: profileData.studyMode || 'standard' })
+      }).catch(() => null)
+    ]);
+
+    // 3. Sync profile to Firebase if available
     if (window.LeoFirebase && typeof window.LeoFirebase.saveProfile === 'function') {
-      window.LeoFirebase.saveProfile(profileData).catch(() => {});
+      await window.LeoFirebase.saveProfile(profileData).catch(() => {});
     }
 
-    // 3. Show success alert briefly and redirect to the main app!
+    // 4. Show success alert briefly and redirect to the main app!
     showAlert(`تم تجهيز حسابك بنجاح! جاري تحويلك إلى قاعة الدراسة...`, 'success');
     setTimeout(() => {
       window.location.replace('index.html');
     }, 400);
+  }
+
+  function normalizeStudentProfile(profile) {
+    const normalized = { ...(profile || {}) };
+    const stageAliases = {
+      'الابتدائية': 'primary', 'المرحلة الابتدائية': 'primary',
+      'المتوسطة': 'middle', 'المرحلة المتوسطة': 'middle',
+      'الإعدادية': 'preparatory', 'الاعدادية': 'preparatory', 'المرحلة الإعدادية': 'preparatory',
+      'الجامعية': 'university', 'المرحلة الجامعية': 'university', 'المرحلة الجامعية والدراسات': 'university'
+    };
+    normalized.stage = stageAliases[normalized.stage] || normalized.stage || 'preparatory';
+    if (!curriculumGrades[normalized.stage]) normalized.stage = 'preparatory';
+    if (!normalized.grade_sub && normalized.grade) {
+      const gradeText = String(normalized.grade);
+      const gradeMap = {
+        'الأول الابتدائي': 'first_primary', 'الثاني الابتدائي': 'second_primary', 'الثالث الابتدائي': 'third_primary',
+        'الرابع الابتدائي': 'fourth_primary', 'الخامس الابتدائي': 'fifth_primary', 'السادس الابتدائي': 'sixth_primary',
+        'الأول متوسط': 'first_middle', 'الثاني متوسط': 'second_middle', 'الثالث متوسط': 'third_middle',
+        'الرابع العلمي': 'fourth_scientific', 'الرابع الأدبي': 'fourth_literary',
+        'الخامس العلمي': 'fifth_scientific', 'الخامس الأدبي': 'fifth_literary',
+        'السادس العلمي': 'sixth_scientific', 'السادس الأدبي': 'sixth_literary',
+        'الأولى': 'uni_stage_1', 'الثانية': 'uni_stage_2', 'الثالثة': 'uni_stage_3',
+        'الرابعة': 'uni_stage_4', 'الخامسة': 'uni_stage_5', 'السادسة': 'uni_stage_6'
+      };
+      const matched = Object.entries(gradeMap).find(([label]) => gradeText.includes(label));
+      normalized.grade_sub = matched ? matched[1] : (normalized.stage === 'university' ? 'uni_stage_1' : 'sixth_scientific');
+    }
+    if (!curriculumGrades[normalized.stage].some((grade) => grade.id === normalized.grade_sub)) {
+      const grades = curriculumGrades[normalized.stage];
+      normalized.grade_sub = normalized.stage === 'university' ? grades[0].id : grades[grades.length - 1].id;
+    }
+    normalized.university = normalized.university || '';
+    normalized.specialization = normalized.specialization || '';
+    return normalized;
   }
 
   // --- 1. Google Sign-In Handler ---
@@ -256,8 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Check if user already had a saved profile in Firebase
         const existingCloudProfile = await window.LeoFirebase.getProfile().catch(() => null);
-        if (existingCloudProfile && existingCloudProfile.name && existingCloudProfile.grade) {
-          finishAuthAndEnter(existingCloudProfile);
+        if (existingCloudProfile && existingCloudProfile.name && (existingCloudProfile.grade_sub || existingCloudProfile.grade)) {
+          await finishAuthAndEnter(existingCloudProfile);
           return;
         }
 
@@ -299,8 +368,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Check if user already had a saved profile in Firebase
         const existingCloudProfile = await window.LeoFirebase.getProfile().catch(() => null);
-        if (existingCloudProfile && existingCloudProfile.name && existingCloudProfile.grade) {
-          finishAuthAndEnter(existingCloudProfile);
+        if (existingCloudProfile && existingCloudProfile.name && (existingCloudProfile.grade_sub || existingCloudProfile.grade)) {
+          await finishAuthAndEnter(existingCloudProfile);
           return;
         }
 
@@ -375,8 +444,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Check if profile exists
           const cloudProfile = await window.LeoFirebase.getProfile().catch(() => null);
-          if (cloudProfile && cloudProfile.name && cloudProfile.grade) {
-            finishAuthAndEnter(cloudProfile);
+          if (cloudProfile && cloudProfile.name && (cloudProfile.grade_sub || cloudProfile.grade)) {
+            await finishAuthAndEnter(cloudProfile);
           } else {
             const fallbackName = email.split('@')[0];
             goToStep2(fallbackName);
@@ -412,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 4. Finish Profile (Step 2) ---
   if (finishProfileBtn) {
-    finishProfileBtn.addEventListener('click', () => {
+    finishProfileBtn.addEventListener('click', async () => {
       const studentName = studentNameInput ? studentNameInput.value.trim() : '';
       if (!studentName) {
         alert('يرجى كتابة اسمك أو لقبك الدراسي لمتابعة الدخول.');
@@ -420,21 +489,32 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const stage = stageSelect ? stageSelect.value : 'المتوسطة';
-      const grade = gradeSelect ? gradeSelect.value : 'الثالث متوسط (وزاري)';
-      const studyMode = learningModeSelect ? learningModeSelect.value : 'شرح مبسط ومباشر';
+      const stage = stageSelect ? stageSelect.value : 'middle';
+      const grade_sub = gradeSelect ? gradeSelect.value : 'third_middle';
+      const studyMode = learningModeSelect ? learningModeSelect.value : 'standard';
+      let university = '';
+      if (stage === 'university') {
+        university = universityInput ? universityInput.value.trim() : '';
+        if (!university) {
+          showAlert('يرجى كتابة أو اختيار اسم الجامعة أو المعهد.');
+          universityInput && universityInput.focus();
+          return;
+        }
+      }
 
       const finalProfile = {
         name: studentName,
         gender: selectedGender,
         stage: stage,
-        grade: grade,
+        grade_sub,
+        university,
+        specialization: specializationInput ? specializationInput.value.trim() : '',
         studyMode: studyMode,
         avatarIcon: selectedGender === 'female' ? 'female' : 'male',
         updated_at: Date.now()
       };
 
-      finishAuthAndEnter(finalProfile);
+      await finishAuthAndEnter(finalProfile);
     });
   }
 });

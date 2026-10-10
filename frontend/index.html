@@ -871,9 +871,45 @@
               <select id="profGradeSubSelect" dir="rtl"></select>
             </div>
 
+            <div class="auth-field" id="profUniversityWrapper" style="display: none;">
+              <label for="profUniversityInput">الجامعة أو المعهد:</label>
+              <input type="text" id="profUniversityInput" list="iraqiUniversitySuggestions" placeholder="اكتب أو ابحث عن اسم الجامعة أو المعهد" dir="rtl" autocomplete="organization">
+              <datalist id="iraqiUniversitySuggestions">
+                <option value="جامعة بغداد"></option>
+                <option value="الجامعة المستنصرية"></option>
+                <option value="جامعة النهرين"></option>
+                <option value="جامعة البصرة"></option>
+                <option value="جامعة الموصل"></option>
+                <option value="جامعة الكوفة"></option>
+                <option value="جامعة كربلاء"></option>
+                <option value="جامعة بابل"></option>
+                <option value="جامعة تكريت"></option>
+                <option value="جامعة الأنبار"></option>
+                <option value="جامعة ديالى"></option>
+                <option value="جامعة القادسية"></option>
+                <option value="جامعة واسط"></option>
+                <option value="جامعة ذي قار"></option>
+                <option value="جامعة ميسان"></option>
+                <option value="جامعة المثنى"></option>
+                <option value="جامعة كركوك"></option>
+                <option value="جامعة سامراء"></option>
+                <option value="جامعة الفلوجة"></option>
+                <option value="جامعة الحمدانية"></option>
+                <option value="جامعة تلعفر"></option>
+                <option value="الجامعة التقنية الوسطى"></option>
+                <option value="الجامعة التقنية الشمالية"></option>
+                <option value="الجامعة التقنية الجنوبية"></option>
+                <option value="جامعة الإمام جعفر الصادق"></option>
+                <option value="جامعة البيان"></option>
+                <option value="جامعة المستقبل"></option>
+                <option value="جامعة الكفيل"></option>
+                <option value="جامعة وارث الأنبياء"></option>
+              </datalist>
+            </div>
+
             <div class="auth-field" id="profSpecializationWrapper" style="display: none;">
               <label for="profSpecializationInput">الكلية أو القسم / التخصص الدراسي:</label>
-              <input type="text" id="profSpecializationInput" placeholder="مثال: هندسة، طب، صيدلة، قانون..." dir="rtl">
+              <input type="text" id="profSpecializationInput" placeholder="مثال: كلية الطب، هندسة الحاسوب..." dir="rtl">
             </div>
 
             <div class="auth-field">

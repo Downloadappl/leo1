@@ -23,6 +23,7 @@ import {
   getDocs, 
   collection, 
   query, 
+  where,
   deleteDoc, 
   updateDoc, 
   onSnapshot 
@@ -228,6 +229,74 @@ window.LeoFirebase = {
       console.warn('Firebase getProfile warning:', e);
     }
     return null;
+  },
+
+  // Long-term memories live in Firestore so they survive serverless restarts.
+  async getMemories() {
+    const uid = this.currentUser ? this.currentUser.uid : (auth.currentUser ? auth.currentUser.uid : null);
+    if (!uid) return null;
+
+    try {
+      const memoriesRef = collection(db, 'users', uid, 'memories');
+      const snapshot = await getDocs(memoriesRef);
+      return snapshot.docs
+        .map((memoryDoc) => ({ id: memoryDoc.id, ...memoryDoc.data() }))
+        .sort((a, b) => (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0));
+    } catch (e) {
+      console.warn('Firebase getMemories warning:', e);
+      return null;
+    }
+  },
+
+  async saveMemory(memory) {
+    const uid = this.currentUser ? this.currentUser.uid : (auth.currentUser ? auth.currentUser.uid : null);
+    const content = typeof memory?.content === 'string' ? memory.content.trim() : '';
+    if (!uid || !content) return false;
+
+    try {
+      const memoriesRef = collection(db, 'users', uid, 'memories');
+      const duplicates = await getDocs(query(memoriesRef, where('content', '==', content)));
+      const existing = duplicates.docs[0];
+      const memoryId = existing ? existing.id : (memory.id || `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+      const now = Date.now() / 1000;
+      await setDoc(doc(db, 'users', uid, 'memories', memoryId), {
+        id: memoryId,
+        category: memory.category || 'preference',
+        content,
+        keywords: memory.keywords || '',
+        created_at: existing ? (existing.data().created_at || now) : (memory.created_at || now),
+        updated_at: now
+      }, { merge: true });
+      return memoryId;
+    } catch (e) {
+      console.warn('Firebase saveMemory warning:', e);
+      return false;
+    }
+  },
+
+  async deleteMemory(memoryId) {
+    const uid = this.currentUser ? this.currentUser.uid : (auth.currentUser ? auth.currentUser.uid : null);
+    if (!uid || !memoryId) return false;
+    try {
+      await deleteDoc(doc(db, 'users', uid, 'memories', memoryId));
+      return true;
+    } catch (e) {
+      console.warn('Firebase deleteMemory warning:', e);
+      return false;
+    }
+  },
+
+  async clearMemories() {
+    const uid = this.currentUser ? this.currentUser.uid : (auth.currentUser ? auth.currentUser.uid : null);
+    if (!uid) return false;
+    try {
+      const snapshot = await getDocs(collection(db, 'users', uid, 'memories'));
+      await Promise.all(snapshot.docs.map((memoryDoc) => deleteDoc(memoryDoc.ref)));
+      return true;
+    } catch (e) {
+      console.warn('Firebase clearMemories warning:', e);
+      return false;
+    }
   },
 
   // حفظ أو تحديث محادثة كاملة مع رسائلها في Firestore
