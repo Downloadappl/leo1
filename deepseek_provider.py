@@ -6,13 +6,20 @@ import threading
 
 DEEPSEEK_BASE_URL = "https://chat.deepseek.com"
 POW_SOLVER_URL = os.environ.get("DEEPSEEK_POW_URL", "https://dark.ps/deepseek/pow")
-DEFAULT_TOKEN = os.environ.get("DEEPSEEK_USER_TOKEN", "53gX/jfDTrzWjeNpZsCNbhm+mnZB1QoynBAIdQ+QoznBVYvCqsuLQZMHSdSecRk/")
+DEFAULT_TOKEN = os.environ.get("DEEPSEEK_USER_TOKEN", "Vc74DKueJS4DT0qVue7/syTImmddQYyjd8u44KXCpWLQxBQLvlrCI8pZ6wNjFPX4")
 
 class DeepSeekChatClient:
     """Clean, production-ready reverse client for DeepSeek Web API with PoW challenge solving."""
 
     def __init__(self, user_token=None, pow_url=None):
-        self.user_token = (user_token or os.environ.get("DEEPSEEK_USER_TOKEN") or DEFAULT_TOKEN).strip()
+        raw_token = (user_token or os.environ.get("DEEPSEEK_USER_TOKEN") or DEFAULT_TOKEN).strip()
+        if raw_token.startswith('{') and 'value' in raw_token:
+            try:
+                parsed = json.loads(raw_token)
+                raw_token = parsed.get('value', raw_token)
+            except Exception:
+                pass
+        self.user_token = raw_token.strip()
         self.pow_url = pow_url or os.environ.get("DEEPSEEK_POW_URL") or POW_SOLVER_URL
         self.session = requests.Session()
         self.lock = threading.Lock()
