@@ -1358,7 +1358,7 @@ body.theme-light .chat-response-waiting-dots i { background: #6366f1; }
 /* Row 2: 3 Large Action Buttons Trio (Exactly from Screenshot) */
 .attachment-actions-trio {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
 }

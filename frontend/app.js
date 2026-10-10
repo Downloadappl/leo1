@@ -266,21 +266,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const lightboxDownloadBtn = document.getElementById('lightboxDownloadBtn');
   const lightboxCloseBtn = document.getElementById('lightboxCloseBtn');
   let imageGenerationModeEnabled = false;
+  let imageEditingModeEnabled = false;
   const normalChatPlaceholder = chatTextInput ? chatTextInput.getAttribute('placeholder') : '';
 
-  function setImageGenerationMode(enabled) {
+  function setImageGenerationMode(enabled, editing = false) {
     imageGenerationModeEnabled = Boolean(enabled);
-    if (imageGenerationModeChip) imageGenerationModeChip.hidden = !imageGenerationModeEnabled;
+    imageEditingModeEnabled = imageGenerationModeEnabled && Boolean(editing);
+    if (imageGenerationModeChip) {
+      imageGenerationModeChip.hidden = !imageGenerationModeEnabled;
+      const label = imageGenerationModeChip.querySelector(':scope > span');
+      if (label) label.textContent = imageEditingModeEnabled ? 'تعديل صورة' : 'إنشاء صور';
+    }
     if (chatTextInput) {
       chatTextInput.placeholder = imageGenerationModeEnabled
-        ? 'صف الصورة التي تريد إنشاءها...'
+        ? (imageEditingModeEnabled ? 'اكتب كيف تريد تعديل الصورة...' : 'صف الصورة التي تريد إنشاءها...')
         : (normalChatPlaceholder || 'اسأل الأستاذ ليو...');
-      chatTextInput.setAttribute('aria-label', imageGenerationModeEnabled ? 'وصف الصورة المطلوب إنشاؤها' : 'اكتب رسالتك');
+      chatTextInput.setAttribute('aria-label', imageGenerationModeEnabled ? (imageEditingModeEnabled ? 'وصف التعديل المطلوب' : 'وصف الصورة المطلوب إنشاؤها') : 'اكتب رسالتك');
     }
     const generationChoice = document.getElementById('sheetGenerateImgBtn');
     if (generationChoice) {
-      generationChoice.classList.toggle('selected', imageGenerationModeEnabled);
-      generationChoice.setAttribute('aria-pressed', String(imageGenerationModeEnabled));
+      generationChoice.classList.toggle('selected', imageGenerationModeEnabled && !imageEditingModeEnabled);
+      generationChoice.setAttribute('aria-pressed', String(imageGenerationModeEnabled && !imageEditingModeEnabled));
+    }
+    const editChoice = document.getElementById('sheetEditImgBtn');
+    if (editChoice) {
+      editChoice.classList.toggle('selected', imageEditingModeEnabled);
+      editChoice.setAttribute('aria-pressed', String(imageEditingModeEnabled));
     }
   }
 
@@ -667,10 +678,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // Enable an explicit image-creation mode from the existing plus menu.
   // The selected chip stays in the composer while the prompt is typed.
   const selectImageCreationMode = () => {
-    setImageGenerationMode(true);
+    setImageGenerationMode(true, false);
     if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
     if (glowingInputBox) glowingInputBox.classList.remove('elevated');
     if (chatTextInput) chatTextInput.focus();
+  };
+  const selectImageEditingMode = () => {
+    setImageGenerationMode(true, true);
+    if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
+    if (glowingInputBox) glowingInputBox.classList.remove('elevated');
+    if (!pendingAttachments.some(att => att.kind === 'image' || (att.type || '').startsWith('image/'))) {
+      fileInput?.click();
+    }
+    chatTextInput?.focus();
   };
 
   // Close attachment panel when clicking outside
@@ -1344,7 +1364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return patterns.some(p => p.test(s));
   }
 
-  function createGeneratingPlaceholder(reqId = '') {
+  function createGeneratingPlaceholder(reqId = '', editing = false) {
     const template = document.getElementById('imageGenerationCardTemplate');
     let card;
     if (template) {
@@ -1358,6 +1378,10 @@ document.addEventListener('DOMContentLoaded', () => {
       card.id = `placeholder_${reqId}`;
       card.dataset.requestId = reqId;
     }
+    const status = card.querySelector('.gen-placeholder-status');
+    if (status && editing) status.textContent = 'جاري تعديل الصورة...';
+    const meta = card.querySelector('.gen-placeholder-meta');
+    if (meta && editing) meta.textContent = 'نطبّق التغييرات على صورتك';
     card.setAttribute('role', 'status');
     card.setAttribute('aria-live', 'polite');
     return card;
@@ -1542,9 +1566,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Owns the visible state of one assistant reply. Keeping this per message
   // prevents one request from replacing or completing another request's UI.
   class ChatResponseLifecycle {
-    constructor({ textElem, cursorElem, imageGenerationRequest, requestId, onDone }) {
+    constructor({ textElem, cursorElem, imageGenerationRequest, imageEditingRequest, requestId, onDone }) {
       this.textElem = textElem;
       this.imageGenerationRequest = imageGenerationRequest;
+      this.imageEditingRequest = imageEditingRequest;
       this.requestId = requestId;
       if (requestId) this.textElem.dataset.responseRequestId = requestId;
       this.state = imageGenerationRequest ? 'generating-image' : 'waiting';
@@ -1562,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       this.textElem.replaceChildren(imageGenerationRequest
-        ? createGeneratingPlaceholder(requestId)
+        ? createGeneratingPlaceholder(requestId, imageEditingRequest)
         : createResponseWaitingIndicator());
       if (cursorElem && cursorElem.parentNode) cursorElem.remove();
     }
@@ -1733,12 +1758,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // and therefore gets its own placeholder and stream lifecycle.
   window.retryImagePrompt = (prompt) => handleSendPrompt(prompt, [], true);
 
-  async function handleSendPrompt(retryPromptText = null, retryAttachments = null, forceImageGeneration = false) {
+  async function handleSendPrompt(retryPromptText = null, retryAttachments = null, forceImageGeneration = false, forceImageEdit = false) {
     if (isSubmitting) return;
 
     const text = (retryPromptText !== null) ? retryPromptText : chatTextInput.value.trim();
     const attachmentsToSend = (retryAttachments !== null) ? retryAttachments : [...pendingAttachments];
     const imageGenerationRequest = Boolean(forceImageGeneration || (retryPromptText === null && imageGenerationModeEnabled) || isImageGenerationIntent(text));
+    const imageEditingRequest = Boolean(forceImageEdit || (retryPromptText === null && imageEditingModeEnabled));
 
     if (!text && attachmentsToSend.length === 0) return;
 
@@ -1783,6 +1809,7 @@ document.addEventListener('DOMContentLoaded', () => {
       textElem,
       cursorElem,
       imageGenerationRequest,
+      imageEditingRequest,
       requestId,
       onDone: (finalContent) => {
         actionsElem.style.display = 'flex';
@@ -1847,6 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
         assistant_message_id: assistantMsgId,
         content: text,
         image_generation: imageGenerationRequest,
+        image_edit: imageEditingRequest,
         attachments: attachmentsToSend,
         model: selectedModel,
         temperature: settingsState.temperature,
@@ -1931,7 +1959,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (typeof parsed.content === 'string') {
-            requestLifecycle.receive(parsed.content, () => handleSendPrompt(text, attachmentsToSend, imageGenerationRequest));
+            requestLifecycle.receive(parsed.content, () => handleSendPrompt(text, attachmentsToSend, imageGenerationRequest, imageEditingRequest));
           }
         } catch (eventError) {
           throw eventError;
@@ -1958,7 +1986,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (buffer.trim()) await processStreamLine(buffer);
       requestLifecycle.finish({
         onRetry: imageGenerationRequest
-          ? () => handleSendPrompt(text, attachmentsToSend, true)
+          ? () => handleSendPrompt(text, attachmentsToSend, true, imageEditingRequest)
           : () => {
               messageRow.remove();
               handleSendPrompt(text, attachmentsToSend, false);
@@ -3234,8 +3262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const parsedImageUrl = new URL(url, window.location.href);
       const imageHost = parsedImageUrl.hostname.toLowerCase();
-      const isImageProvider = imageHost === 'fal.media' || imageHost.endsWith('.fal.media') ||
-        imageHost === 'pollinations.ai' || imageHost.endsWith('.pollinations.ai');
+      const isImageProvider = imageHost === 'fal.media' || imageHost.endsWith('.fal.media');
       if (isImageProvider && parsedImageUrl.protocol === 'https:') {
         downloadUrl = `/api/image/download?url=${encodeURIComponent(parsedImageUrl.href)}`;
       }
@@ -3517,6 +3544,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (sheetGenerateImgBtn) {
     sheetGenerateImgBtn.onclick = selectImageCreationMode;
   }
+  const sheetEditImgBtn = document.getElementById('sheetEditImgBtn');
+  if (sheetEditImgBtn) sheetEditImgBtn.onclick = selectImageEditingMode;
   if (imageStudioCloseBtn) imageStudioCloseBtn.onclick = closeLibraryModal;
   if (imageStudioModalOverlay) {
     imageStudioModalOverlay.onclick = (e) => {

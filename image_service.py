@@ -1,18 +1,12 @@
 """
-High-Performance AI Image Generation Service for Professor Leo Assistant
-Integrates top-tier image models:
-- GPT Image 2 (Flagship GPT/DALL-E grade image creation from RIVAL-Suite-Bot)
-- Nano Banana (Super-fast high-creativity stylized generator)
-- AI Background Eraser (rembg)
+Image generation and editing through the PicAI/Fal queue used by the supplied bot.
 """
 
 import time
 import json
 import base64
 import urllib.request
-import urllib.parse
 import urllib.error
-import ssl
 import http.cookiejar
 import threading
 from typing import Optional, Dict, Any
@@ -20,12 +14,13 @@ from typing import Optional, Dict, Any
 PICAI_BASE = "https://picai.com"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
-# Supported modern models (GPT Image 2 and Nano Banana)
+# PicAI models used by the supplied bot source.
 MODELS = {
     "gpt-image-2": "gpt-image-2",
-    "nano-banana": "nano-banana",
+    "flux-schnell": "flux-schnell",
     "gpt-image-2-edit": "gpt-image-2-edit",
-    "rembg": "rembg"
+    "rembg": "rembg",
+    "bria-rmbg": "bria-rmbg"
 }
 
 # Bound simultaneous image jobs on each warm server instance. The provider also
@@ -33,13 +28,8 @@ MODELS = {
 IMAGE_SEMAPHORE = threading.BoundedSemaphore(value=2)
 
 def _create_opener():
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    
     cj = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(
-        urllib.request.HTTPSHandler(context=ctx),
         urllib.request.HTTPCookieProcessor(cj)
     )
     opener.addheaders = [
@@ -50,13 +40,13 @@ def _create_opener():
     ]
     return opener
 
-def upload_image(image_data: bytes) -> str:
+def upload_image(image_data: bytes, mime_type: str = "image/jpeg") -> str:
     """Uploads an image to picai CDN for edit or rembg workflows."""
     b64 = base64.b64encode(image_data).decode('utf-8')
     opener = _create_opener()
     
     payload = json.dumps({
-        "dataUrl": f"data:image/jpeg;base64,{b64}"
+        "dataUrl": f"{mime_type};base64,{b64}" if mime_type.startswith("data:") else f"data:{mime_type};base64,{b64}"
     }).encode('utf-8')
     
     req = urllib.request.Request(
@@ -74,29 +64,6 @@ def upload_image(image_data: bytes) -> str:
             raise RuntimeError("لم يتم استلام رابط الصورة المرفوعة")
         return url
 
-def _generate_nano_banana(prompt: str, aspect_ratio: str = "square_hd") -> str:
-    """Generates an image via Nano Banana engine."""
-    dims = {
-        "square_hd": (1024, 1024),
-        "square": (768, 768),
-        "landscape_16_9": (1280, 720),
-        "portrait_16_9": (720, 1280)
-    }.get(aspect_ratio, (1024, 1024))
-    
-    encoded_prompt = urllib.parse.quote(prompt)
-    seed = int(time.time() * 1000) % 999999
-    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={dims[0]}&height={dims[1]}&seed={seed}&nologo=true&model=turbo"
-    
-    # Pre-flight probe to verify image generation readiness
-    req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    with urllib.request.urlopen(req, context=ctx, timeout=35) as res:
-        if res.status != 200:
-            raise RuntimeError("فشل توليد صورة نانو بانانا")
-    return url
-
 def generate_image(
     prompt: str,
     model: str = "gpt-image-2",
@@ -105,40 +72,29 @@ def generate_image(
     timeout: int = 90
 ) -> Dict[str, Any]:
     """
-    Flagship Image Generator:
-    - Primary: GPT Image 2 (RIVAL PicAI/Fal engine)
-    - Banana: Nano Banana (Fast creative engine)
-    - Rembg: Background removal
+    Generate or edit images through the PicAI/Fal queue used by the supplied bot.
     """
     if not model or model not in MODELS:
         model = "gpt-image-2"
+    if not prompt and model not in ("rembg", "bria-rmbg"):
+        raise ValueError("يرجى كتابة وصف للصورة أو التعديل المطلوب")
 
-    # 1. Nano Banana Generation
-    if model == "nano-banana":
-        img_url = _generate_nano_banana(prompt, aspect_ratio=aspect_ratio)
-        return {
-            "status": "success",
-            "url": img_url,
-            "model": "nano-banana",
-            "prompt": prompt,
-            "aspect_ratio": aspect_ratio
-        }
-
-    # 2. GPT Image 2 / Fal PicAI Generation
+    # PicAI generation/editing queue
     payload_input: Dict[str, Any] = {
         "prompt": prompt,
-        "image_size": aspect_ratio if aspect_ratio in ["square_hd", "square", "landscape_16_9", "portrait_16_9"] else "square_hd"
+        "image_size": aspect_ratio if aspect_ratio in ["square_hd", "square", "landscape_16_9", "portrait_16_9"] else "square_hd",
+        "num_inference_steps": 28
     }
 
-    if model in ("gpt-image-2-edit", "rembg"):
+    if model in ("gpt-image-2-edit", "rembg", "bria-rmbg"):
         if not image_url:
             raise RuntimeError("هذا الإجراء يتطلب وجود رابط أو ملف صورة مسبق")
         payload_input["image_url"] = image_url
-        if model == "rembg":
+        if model in ("rembg", "bria-rmbg"):
             payload_input["prompt"] = "remove background"
 
     opener = _create_opener()
-    picai_model_id = "rembg" if model == "rembg" else "gpt-image-2"
+    picai_model_id = MODELS[model]
 
     try:
         run_data = None

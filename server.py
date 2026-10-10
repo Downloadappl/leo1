@@ -11,6 +11,7 @@ import hashlib
 import asyncio
 import uuid
 import io
+import html
 import zipfile
 try:
     import edge_tts
@@ -973,8 +974,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             parsed_url = urlparse(candidate)
             hostname = (parsed_url.hostname or '').lower().rstrip('.')
             allowed_host = (
-                hostname == 'fal.media' or hostname.endswith('.fal.media') or
-                hostname == 'pollinations.ai' or hostname.endswith('.pollinations.ai')
+                hostname == 'fal.media' or hostname.endswith('.fal.media')
             )
             return parsed_url.scheme == 'https' and allowed_host
 
@@ -1285,7 +1285,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         # AI Image Generation Service (RIVAL-Suite-Bot engine)
         if path == '/api/image/generate':
             prompt = body.get('prompt', '').strip()
-            model = body.get('model', 'flux-schnell')
+            model = body.get('model', 'gpt-image-2')
             aspect_ratio = body.get('aspect_ratio', 'square_hd')
             image_url = body.get('image_url')
             if not prompt and model not in ('rembg', 'bria-rmbg'):
@@ -1313,10 +1313,14 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self._send_json({'error': 'لا توجد بيانات صورة'}, 400)
                 return
             try:
-                if ',' in raw_data:
+                mime_type = 'image/jpeg'
+                if raw_data.startswith('data:') and ',' in raw_data:
+                    header, raw_data = raw_data.split(',', 1)
+                    mime_type = header[5:].split(';', 1)[0] or mime_type
+                elif ',' in raw_data:
                     raw_data = raw_data.split(',', 1)[1]
                 img_bytes = base64.b64decode(raw_data)
-                url = image_service.upload_image(img_bytes)
+                url = image_service.upload_image(img_bytes, mime_type)
                 self._send_json({'url': url, 'status': 'success'}, 200)
             except Exception as e:
                 self._send_json({'error': str(e)}, 500)
@@ -1327,6 +1331,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             conv_id = body.get('conversation_id')
             user_text = body.get('content', '')
             force_image_generation = body.get('image_generation') is True
+            image_edit_request = body.get('image_edit') is True
             raw_attachments = body.get('attachments', [])
             attachments = []
             attachment_updates = []
@@ -1435,9 +1440,9 @@ class AppHandler(SimpleHTTPRequestHandler):
                         return extracted if (extracted and len(extracted) >= 2) else t
                 return None
 
-            img_prompt = raw_text if force_image_generation else extract_chat_image_prompt(raw_text)
+            img_prompt = raw_text if (force_image_generation or image_edit_request) else extract_chat_image_prompt(raw_text)
 
-            if img_prompt:
+            if img_prompt or image_edit_request:
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
                 self.send_header('Cache-Control', 'no-cache, no-transform')
@@ -1481,23 +1486,47 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.wfile.flush()
 
                 try:
-                    gen_res = image_service.generate_image(img_prompt, model="gpt-image-2")
+                    if not img_prompt:
+                        raise RuntimeError('اكتب وصفاً يوضح التعديل المطلوب على الصورة.')
+                    image_model = "gpt-image-2-edit" if image_edit_request else "gpt-image-2"
+                    source_image_url = None
+                    if image_edit_request:
+                        image_attachment = next((att for att in attachments if att.get('kind') == 'image' and att.get('data')), None)
+                        if not image_attachment:
+                            raise RuntimeError('أرفق صورة أولاً حتى أتمكن من تعديلها.')
+                        image_data_url = image_attachment['data']
+                        mime_type = image_attachment.get('type') or 'image/jpeg'
+                        if image_data_url.startswith('data:') and ',' in image_data_url:
+                            data_header, encoded_image = image_data_url.split(',', 1)
+                            mime_type = data_header[5:].split(';', 1)[0] or mime_type
+                        else:
+                            encoded_image = image_data_url
+                        image_bytes = base64.b64decode(encoded_image, validate=False)
+                        source_image_url = image_service.upload_image(image_bytes, mime_type)
+
+                    gen_res = image_service.generate_image(
+                        img_prompt,
+                        model=image_model,
+                        image_url=source_image_url
+                    )
                     img_url = gen_res.get('url')
 
                     # Persist to Library Database
                     database.record_generated_image(uid, img_url, img_prompt, conv_id)
 
                     # Minimal, clean image display without any new extra icons
+                    safe_img_url = html.escape(str(img_url), quote=True)
+                    safe_img_prompt = html.escape(str(img_prompt), quote=True)
                     res_body = (
-                        f'<div class="chat-generated-image-card" data-img-url="{img_url}">\n'
-                    f'  <img src="{img_url}" alt="{img_prompt}" class="chat-generated-image" draggable="false" ondragstart="return false" onclick="openImageLightbox && openImageLightbox(\'{img_url}\')" loading="eager" decoding="async" fetchpriority="high" />\n'
+                        f'<div class="chat-generated-image-card" data-img-url="{safe_img_url}">\n'
+                    f'  <img src="{safe_img_url}" alt="{safe_img_prompt}" class="chat-generated-image" draggable="false" ondragstart="return false" loading="eager" decoding="async" fetchpriority="high" />\n'
                         f'</div>\n\n'
                     )
                 except Exception as ex:
                     res_body = (
                         f'<div class="chat-image-error-card">\n'
-                        f'  <div class="image-error-text">عذراً، تعذر إنشاء الصورة حالياً: {str(ex)}</div>\n'
-                        f'  <button class="image-retry-btn" onclick="retryImagePrompt && retryImagePrompt(\'{img_prompt}\')">إعادة المحاولة</button>\n'
+                        f'  <div class="image-error-text">عذراً، تعذر معالجة الصورة حالياً: {html.escape(str(ex))}</div>\n'
+                        f'  <button class="image-retry-btn" type="button">إعادة المحاولة</button>\n'
                         f'</div>\n\n'
                     )
 
