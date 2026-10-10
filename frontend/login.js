@@ -389,6 +389,8 @@ document.addEventListener('DOMContentLoaded', () => {
           showAlert('هذا البريد مسجل مسبقاً بموفر خدمة آخر (مثل Google أو البريد).');
         } else if (err.code === 'auth/operation-not-allowed') {
           showAlert('تسجيل GitHub بانتظار إدخال Client ID و Secret في Firebase Console.');
+        } else if (/invalid redirect uri|redirect_uri.*not associated|redirect_uri.*match/i.test(err.message || '')) {
+          showAlert('إعداد GitHub OAuth يحتاج تصحيحاً: اجعل Authorization callback URL في تطبيق GitHub هو https://msi9nw.firebaseapp.com/__/auth/handler ثم احفظ التغيير.');
         } else {
           showAlert(err.message || 'حدث خطأ أثناء تسجيل الدخول عبر GitHub. يمكنك المتابعة بالبريد أو كزائر.');
         }
