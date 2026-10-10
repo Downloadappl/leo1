@@ -767,7 +767,7 @@ class RewindClient:
                 print(f"[AUTH ERROR] {e}")
             return False
 
-    def stream_chat(self, messages, model_name="leo-4o-mini", has_images=False, temperature=0.7, relevant_memories=None, abort_event=None, user_id=None):
+    def stream_chat(self, messages, model_name="deepseek-flash", has_images=False, temperature=0.7, relevant_memories=None, abort_event=None, user_id=None):
         if abort_event and abort_event.is_set():
             return
 
@@ -1200,7 +1200,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         # Create conversation
         if path == '/api/conversations':
             title = body.get('title', 'محادثة جديدة')
-            model = body.get('model', 'leo-4o-mini')
+            model = body.get('model', 'deepseek-flash')
             conv = database.create_conversation(title=title, model=model, user_id=uid)
             self._send_json(conv, 201)
             return
@@ -1339,7 +1339,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                         client_update['_index'] = attachment_index
                         attachment_updates.append(client_update)
             cloud_memories = body.get('long_term_memories', [])
-            model = body.get('model', 'leo-4o-mini')
+            model = body.get('model', 'deepseek-flash')
             temperature = float(body.get('temperature', 0.7))
             study_mode = body.get('study_mode', 'standard')
             req_id = body.get('request_id') or f"req_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"

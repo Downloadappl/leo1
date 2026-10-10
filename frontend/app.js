@@ -19,6 +19,41 @@ document.addEventListener('DOMContentLoaded', () => {
   const attachmentPreviewDrawer = document.getElementById('attachmentPreviewDrawer');
   const micBtn = document.getElementById('micBtn');
 
+  // Keep the app shell aligned to the actually visible browser viewport. On
+  // mobile, the visual viewport shrinks when the virtual keyboard opens even
+  // when the layout viewport (and 100vh) does not.
+  const appViewport = document.querySelector('.app-viewport');
+  const mainChatScreen = document.getElementById('mainChatScreen');
+  const visualViewport = window.visualViewport;
+  let viewportSyncFrame = 0;
+  const syncVisibleViewport = () => {
+    viewportSyncFrame = 0;
+    if (!appViewport) return;
+    const visibleHeight = visualViewport?.height || document.documentElement.clientHeight || window.innerHeight;
+    const visibleTop = visualViewport?.offsetTop || 0;
+    appViewport.style.setProperty('--leo-visual-viewport-height', `${Math.max(0, visibleHeight)}px`);
+    appViewport.style.setProperty('--leo-visual-viewport-top', `${Math.max(0, visibleTop)}px`);
+  };
+  const queueViewportSync = () => {
+    if (viewportSyncFrame) return;
+    viewportSyncFrame = window.requestAnimationFrame(syncVisibleViewport);
+  };
+  syncVisibleViewport();
+  if (visualViewport) {
+    visualViewport.addEventListener('resize', queueViewportSync, { passive: true });
+    visualViewport.addEventListener('scroll', queueViewportSync, { passive: true });
+  }
+  window.addEventListener('resize', queueViewportSync, { passive: true });
+  window.addEventListener('orientationchange', queueViewportSync, { passive: true });
+  if (mainChatScreen) {
+    // Older Safari versions treat overflow:hidden as programmatically
+    // scrollable when focusing a nested input. This shell is never the chat
+    // scroller, so undo only that accidental outer-container movement.
+    mainChatScreen.addEventListener('scroll', () => {
+      if (mainChatScreen.scrollTop !== 0) mainChatScreen.scrollTop = 0;
+    }, { passive: true });
+  }
+
   // --- Device & User Isolation (Every device has its own isolated conversations and profile) ---
   let deviceUserId = localStorage.getItem('leo_device_user_id');
   if (!deviceUserId) {
@@ -453,7 +488,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // Keep the active conversation usable when browser storage is unavailable.
     }
   }
-  let selectedModel = localStorage.getItem('leo_selected_model') || 'leo-4o-mini';
+  let selectedModel = localStorage.getItem('leo_selected_model');
+  if (!selectedModel || selectedModel === 'leo-4o-mini') {
+    selectedModel = 'deepseek-flash';
+    localStorage.setItem('leo_selected_model', 'deepseek-flash');
+  }
   let isGenerating = false;
   let pendingAttachments = [];
   let isRecording = false;
@@ -555,6 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
     chatTextInput.style.height = 'auto';
     const newHeight = Math.min(Math.max(chatTextInput.scrollHeight, 36), 130);
     chatTextInput.style.height = newHeight + 'px';
+    chatTextInput.style.overflowY = chatTextInput.scrollHeight > 130 ? 'auto' : 'hidden';
   }
 
   chatTextInput.addEventListener('input', () => {
@@ -977,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderStoredAssistantMessage(msg.content, msg.id);
       }
     });
-    scrollToBottom();
+    scrollToBottom(true);
   }
 
   // --- Refresh Sidebar Conversation List Only (Does NOT touch or clear the active chat) ---
@@ -1409,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
         img.draggable = false;
         img.onclick = () => openImageLightbox(img.src);
       });
-      scrollToBottom(true);
+      scrollToBottom();
     }
 
     finish(preserveRenderedContent = false) {
@@ -1456,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           bindCopyCodeButtons(this.textElem);
-          scrollToBottom(true);
+          scrollToBottom();
         }
 
         // When all incoming characters have been smoothly revealed and stream is finished
@@ -1492,7 +1532,7 @@ document.addEventListener('DOMContentLoaded', () => {
         img.draggable = false;
         img.onclick = () => openImageLightbox(img.src);
       });
-      scrollToBottom(true);
+      scrollToBottom();
       if (this.onDone) {
         this.onDone(finalText);
       }
@@ -1584,7 +1624,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const meta = this.textElem.querySelector('.gen-placeholder-meta');
       if (status) status.textContent = 'جاري تحميل الصورة...';
       if (meta) meta.textContent = 'نجهزها للعرض بأعلى جودة';
-      scrollToBottom(true);
+      scrollToBottom();
 
       const image = new Image();
       image.decoding = 'async';
@@ -1734,7 +1774,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Append User Message Immediately (unless it was already in DOM from a retry)
     if (retryPromptText === null) {
       appendUserMessage(text, attachmentsToSend, userMsgId);
-      scrollToBottom();
     }
 
     // Prepare Assistant Slot for Streaming
@@ -1775,7 +1814,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollToBottom();
       }
     });
-    scrollToBottom();
+    scrollToBottom(true);
 
     // Immediately cache optimistic user message into local persistent storage
     if (conversationAtSend) {
@@ -2321,7 +2360,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  function scrollToBottom() {
+  function scrollToBottom(force = false) {
+    if (!chatContentArea) return;
+    const remaining = chatContentArea.scrollHeight - chatContentArea.clientHeight - chatContentArea.scrollTop;
+    if (!force && remaining > 140) return;
     chatContentArea.scrollTop = chatContentArea.scrollHeight;
   }
 
