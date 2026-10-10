@@ -173,7 +173,7 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
     # Default student info if not provided
     name = "الطالب"
     gender_rules = "تخاطب الطالب بأسلوب تربوي محترم ورصين."
-    stage_info = "المرحلة الإعدادية - المنهج العراقي الرسمي."
+    stage_info = "لم تُحدَّد المرحلة أو الصف أو التخصص في الملف الدراسي؛ لا تفترض أياً منها."
 
     if student_profile:
         name = student_profile.get('name', 'الطالب')
@@ -189,18 +189,20 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
 - استخدم أفعال وضمائر التذكير المناسبة (أحسنتَ، هل فهمتَ هذه النقطة؟، لاحظ معي، ركز في هذه الخطوة).
 - يُمنع منعاً باتاً وتاماً استخدام كلمة "بني" أو "يا بني". استخدم النداء باسمه أو بصيغة علمية راقية."""
 
-        stg = student_profile.get('stage', 'preparatory')
-        stg_name = IRAQI_STAGES_NAMES.get(stg, stg)
-        grd = student_profile.get('grade_sub', 'sixth_scientific')
-        grd_name = IRAQI_GRADES_NAMES.get(grd, grd)
-        university = student_profile.get('university', '')
-        spec = student_profile.get('specialization', '')
-        
-        stage_info = f"المرحلة: {stg_name} — الصف / الفرع: {grd_name}"
-        if university:
-            stage_info += f" — الجامعة / المعهد: {university}"
-        if spec:
-            stage_info += f" — الكلية والتخصص: {spec}"
+        stg = student_profile.get('stage')
+        stg_name = IRAQI_STAGES_NAMES.get(stg, stg) if stg else ''
+        grd = student_profile.get('grade_sub')
+        grd_name = IRAQI_GRADES_NAMES.get(grd, grd) if grd else ''
+        university = str(student_profile.get('university') or '').strip()
+        spec = str(student_profile.get('specialization') or '').strip()
+
+        profile_details = [value for value in (
+            f"المرحلة: {stg_name}" if stg_name else '',
+            f"الصف / الفرع: {grd_name}" if grd_name else '',
+            f"الجامعة / المعهد: {university}" if university else '',
+            f"الكلية والتخصص: {spec}" if spec else ''
+        ) if value]
+        stage_info = " — ".join(profile_details) or "لم تُحدَّد المرحلة أو الصف أو التخصص في الملف الدراسي؛ لا تفترض أياً منها."
 
     if is_ongoing:
         dialogue_continuity_rules = """
@@ -224,6 +226,12 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
 - اسم الطالب: {name}
 - التوجيه النحوي للجنس: {gender_rules}
 - المرحلة الدراسية للمتعلم: {stage_info}
+
+مرجع الملف الدراسي (قاعدة ملزمة):
+- هذه البيانات هي المرجع الحالي والدقيق لمرحلة الطالب وصفه وجامعته وتخصصه، وتعلو على أي معلومة قديمة في المحادثات أو الذاكرة طويلة الأمد.
+- إذا عُدّلت المرحلة أو الصف أو التخصص، استخدم القيمة الحالية أعلاه فوراً وتجاهل القيم السابقة.
+- لا تخمّن المرحلة أو الصف أو التخصص من صياغة السؤال أو مادة المنهج أو سجل المحادثات.
+- إذا كانت إحدى هذه البيانات غير محددة في الملف، فلا تنسب للطالب قيمة لها؛ اسأله عنها فقط عندما تكون ضرورية للإجابة.
 
 {dialogue_continuity_rules}
 
@@ -249,7 +257,7 @@ def build_teacher_system_prompt(student_profile=None, study_mode="standard", is_
         base_prompt += "\n\n=== الذاكرة طويلة الأمد المسترجعة للطالب (ذات صلة وثيقة بسؤاله الحالي فقط) ===\n"
         for mem in relevant_memories:
             base_prompt += f"- {mem['content']}\n"
-        base_prompt += "قاعدة استخدام الذاكرة: هذه تفضيلات ومعلومات حقيقية مسبقة يتذكرها الأستاذ ليو عن الطالب. استخدمها مباشرة لتقديم إجابة مخصصة ومطابقة لما يفضله الطالب، دون أن تطالبه بتكرار ما ذكره سابقاً ودون أن تقول بأسلوب آلي مكرر أنك تتذكر ذلك.\n"
+        base_prompt += "قاعدة استخدام الذاكرة: استخدم هذه الذكريات لتخصيص الإجابة، لكن إذا تعارضت معلومة مرحلة أو صف أو جامعة أو تخصص فيها مع مرجع الملف الدراسي الحالي، فاعتمد الملف الحالي وتجاهل المعلومة القديمة.\n"
         base_prompt += "========================================================================"
 
     return base_prompt
@@ -1062,8 +1070,22 @@ class AppHandler(SimpleHTTPRequestHandler):
             # Smart Context Management for Long Conversations
             managed_messages = prepare_conversation_context(raw_db_messages, max_history=18)
 
-            # Retrieve student profile for teacher personalization
-            student_profile = database.get_student_profile(user_id=uid)
+            # Prefer the just-synchronized client profile so Vercel's ephemeral
+            # SQLite copy cannot make the assistant use an outdated study stage.
+            submitted_profile = body.get('student_profile')
+            if (
+                isinstance(submitted_profile, dict)
+                and isinstance(submitted_profile.get('name'), str)
+                and submitted_profile['name'].strip()
+                and submitted_profile['name'].strip() != 'الطالب'
+            ):
+                student_profile = submitted_profile
+                try:
+                    database.save_student_profile(user_id=uid, profile_data=student_profile)
+                except Exception as profile_save_error:
+                    print(f"[PROFILE SAVE NOTICE] {profile_save_error}")
+            else:
+                student_profile = database.get_student_profile(user_id=uid)
             sys_prompt = build_teacher_system_prompt(
                 student_profile,
                 study_mode,

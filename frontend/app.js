@@ -459,6 +459,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Student Profile State (Strictly null until authenticated/filled — no dummy data!)
   let studentProfile = null;
+  let profileHydrationWait = Promise.resolve();
+  let resolveProfileHydrationWait = () => {};
 
   // Settings State
   let settingsState = {
@@ -1655,6 +1657,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!text && attachmentsToSend.length === 0) return;
 
+    await profileHydrationWait;
+
     // Strict Authentication & Profile Gate (No dummy data allowed)
     if (!studentProfile || !studentProfile.name || !studentProfile.name.trim() || studentProfile.name.trim() === 'الطالب') {
       openProfileModal(true);
@@ -1763,6 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
         model: selectedModel,
         temperature: settingsState.temperature,
         study_mode: settingsState.studyMode,
+        student_profile: { ...studentProfile },
         long_term_memories: readLongTermMemoryCache()
       };
 
@@ -2622,12 +2627,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Sync to local server
-    fetch('/api/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(studentProfile)
-    }).catch(() => {});
+    // Sync the current profile before the next chat request can use it.
+    try {
+      const profileResponse = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(studentProfile)
+      });
+      if (!profileResponse.ok) throw new Error(`Profile sync returned ${profileResponse.status}`);
+    } catch (profileSyncError) {
+      console.warn('Profile sync notice:', profileSyncError);
+    }
 
     saveSettingsToServer();
 
@@ -3486,6 +3496,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Initial Startup & Profile Check ---
   async function startup() {
+    profileHydrationWait = new Promise(resolve => {
+      resolveProfileHydrationWait = resolve;
+    });
     try {
       // Reloads restore this tab's active conversation; a new page visit starts a clean chat.
       if (!isPageReload) persistActiveConversationId(null);
@@ -3516,7 +3529,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const profRes = await fetch('/api/profile');
       if (profRes.ok) {
         const p = await profRes.json();
-        if (p && p.name && p.name.trim() && p.name.trim() !== 'الطالب') {
+        if (!studentProfile && p && p.name && p.name.trim() && p.name.trim() !== 'الطالب') {
           studentProfile = normalizeStudentProfile(p);
           localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
           updateProfileUI();
@@ -3532,6 +3545,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 3. Strict Authentication Check: If no real user data exists, redirect to login page!
       if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
+        resolveProfileHydrationWait();
         window.location.replace('login.html');
         return;
       }
@@ -3577,6 +3591,7 @@ document.addEventListener('DOMContentLoaded', () => {
       initFirebaseStartup();
 
     } catch (e) {
+      resolveProfileHydrationWait();
       console.error('Startup error:', e);
     }
   }
@@ -3585,11 +3600,29 @@ document.addEventListener('DOMContentLoaded', () => {
   async function initFirebaseStartup() {
     if (!window.LeoFirebase) {
       window.addEventListener('load', () => setTimeout(initFirebaseStartup, 200), { once: true });
+      resolveProfileHydrationWait();
       return;
     }
 
     try {
       await window.LeoFirebase.ensureAuthenticated(deviceUserId, studentProfile ? studentProfile.name : '');
+
+      // The cloud profile is the canonical, cross-device source of the student's current stage.
+      const cloudProfile = await window.LeoFirebase.getProfile();
+      if (cloudProfile && cloudProfile.name && cloudProfile.name.trim() && cloudProfile.name.trim() !== 'الطالب') {
+        studentProfile = normalizeStudentProfile(cloudProfile);
+        localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+        updateProfileUI();
+        fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(studentProfile)
+        }).catch(() => {});
+      } else if (studentProfile && studentProfile.name && studentProfile.name !== 'الطالب') {
+        await window.LeoFirebase.saveProfile(studentProfile);
+      }
+      resolveProfileHydrationWait();
+
       await refreshMemoriesUI();
 
       // Realtime listener: Any change in Firebase immediately updates the sidebar & cache
@@ -3619,20 +3652,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      // Restore profile from Firebase if local is missing
-      const cloudProfile = await window.LeoFirebase.getProfile();
-      if (cloudProfile && cloudProfile.name && (!studentProfile || !studentProfile.name || studentProfile.name === 'الطالب')) {
-        studentProfile = normalizeStudentProfile(cloudProfile);
-        localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
-        updateProfileUI();
-      } else if (studentProfile && studentProfile.name && studentProfile.name !== 'الطالب') {
-        window.LeoFirebase.saveProfile(studentProfile).catch(() => {});
-      }
-
       // Sync local conversations to Firebase cloud
       syncLocalConversationsToFirebase();
 
     } catch (err) {
+      resolveProfileHydrationWait();
       console.warn('Firebase startup initialization notice:', err);
     }
   }
