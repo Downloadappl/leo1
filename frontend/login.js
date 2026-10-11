@@ -487,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
     finishProfileBtn.addEventListener('click', async () => {
       const studentName = studentNameInput ? studentNameInput.value.trim() : '';
       if (!studentName) {
-        alert('يرجى كتابة اسمك أو لقبك الدراسي لمتابعة الدخول.');
+        showAlert('يرجى كتابة اسمك أو لقبك الدراسي لمتابعة الدخول.');
         if (studentNameInput) studentNameInput.focus();
         return;
       }

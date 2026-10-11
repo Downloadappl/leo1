@@ -956,6 +956,23 @@
       </div>
     </div>
 
+    <div class="custom-modal-overlay rename-conversation-overlay" id="renameConversationOverlay" role="dialog" aria-modal="true" aria-labelledby="renameConversationTitle">
+      <div class="custom-modal-content rename-conversation-card">
+        <div class="modal-header">
+          <h3 class="modal-title" id="renameConversationTitle">إعادة تسمية المحادثة</h3>
+          <button class="modal-close-btn" id="renameConversationCancel" type="button" aria-label="إغلاق">×</button>
+        </div>
+        <div class="rename-conversation-body">
+          <label for="renameConversationInput">اسم المحادثة</label>
+          <input id="renameConversationInput" type="text" maxlength="120" autocomplete="off">
+          <div class="rename-conversation-actions">
+            <button class="confirm-btn confirm-btn-cancel" id="renameConversationCancelAlt" type="button">إلغاء</button>
+            <button class="confirm-btn" id="renameConversationSave" type="button">حفظ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Generic Action Modal (Rename, Customization, Feedback) -->
     <div class="custom-modal-overlay" id="customModalOverlay">
       <div class="custom-modal-content">

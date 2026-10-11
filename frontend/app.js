@@ -388,13 +388,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmDialogDesc = document.getElementById('confirmDialogDesc');
   const confirmCancelBtn = document.getElementById('confirmCancelBtn');
   const confirmOkBtn = document.getElementById('confirmOkBtn');
+  const renameConversationOverlay = document.getElementById('renameConversationOverlay');
+  const renameConversationInput = document.getElementById('renameConversationInput');
+  const renameConversationSave = document.getElementById('renameConversationSave');
+  const renameConversationCancel = document.getElementById('renameConversationCancel');
+  const renameConversationCancelAlt = document.getElementById('renameConversationCancelAlt');
   let pendingConfirmAction = null;
+  let pendingRenameAction = null;
 
   function showCustomConfirm({ title = 'تأكيد الإجراء', message = '', okText = 'تأكيد الحذف', cancelText = 'إلغاء', danger = true, onConfirm = null }) {
     if (!appConfirmModal) {
-      if (confirm(message)) {
-        if (typeof onConfirm === 'function') onConfirm();
-      }
+      showToast(message || 'تعذر فتح نافذة التأكيد داخل الموقع');
       return;
     }
     confirmDialogTitle.textContent = title;
@@ -432,6 +436,39 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target === appConfirmModal) hideCustomConfirm();
     };
   }
+
+  function closeRenameConversation() {
+    renameConversationOverlay?.classList.remove('active');
+    pendingRenameAction = null;
+  }
+  function openRenameConversation(conversation, onSave) {
+    if (!renameConversationOverlay || !renameConversationInput) {
+      showToast('تعذر فتح إعادة التسمية');
+      return;
+    }
+    pendingRenameAction = onSave;
+    renameConversationInput.value = conversation.title || '';
+    renameConversationOverlay.classList.add('active');
+    requestAnimationFrame(() => {
+      renameConversationInput.focus();
+      renameConversationInput.select();
+    });
+  }
+  renameConversationCancel?.addEventListener('click', closeRenameConversation);
+  renameConversationCancelAlt?.addEventListener('click', closeRenameConversation);
+  renameConversationOverlay?.addEventListener('click', (event) => {
+    if (event.target === renameConversationOverlay) closeRenameConversation();
+  });
+  renameConversationSave?.addEventListener('click', () => {
+    const save = pendingRenameAction;
+    const title = renameConversationInput?.value || '';
+    closeRenameConversation();
+    if (typeof save === 'function' && title.trim()) save(title);
+  });
+  renameConversationInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') renameConversationSave?.click();
+    if (event.key === 'Escape') closeRenameConversation();
+  });
 
   const customModalOverlay = document.getElementById('customModalOverlay');
   const modalCloseBtn = document.getElementById('modalCloseBtn');
@@ -1171,6 +1208,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderRecentConversations(convs) {
+    recentChatsList.querySelectorAll('.chat-history-item.menu-open').forEach(openItem => {
+      const openMenu = openItem._chatActionsMenu;
+      openMenu?.remove();
+    });
     recentChatsList.innerHTML = '';
     if (!convs || convs.length === 0) {
       recentChatsList.innerHTML = `<div style="color: #71717a; font-size: 13px; padding: 10px;">${viewingArchived ? 'لا توجد محادثات مؤرشفة' : 'لا توجد محادثات سابقة'}</div>`;
@@ -1214,18 +1255,47 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       const menuTrigger = item.querySelector('.chat-menu-trigger');
+      const menu = item.querySelector('.chat-actions-group');
+      item._chatActionsMenu = menu;
+      const closeItemMenu = () => {
+        item.classList.remove('menu-open', 'menu-up');
+        menu.classList.remove('portal-open');
+        menu.style.removeProperty('top');
+        menu.style.removeProperty('left');
+        if (menu.parentElement !== item) item.appendChild(menu);
+      };
       const openContextMenu = () => {
         recentChatsList.querySelectorAll('.chat-history-item.menu-open').forEach(openItem => {
-          if (openItem !== item) openItem.classList.remove('menu-open', 'menu-up');
+          if (openItem !== item) {
+            openItem.classList.remove('menu-open', 'menu-up');
+            const openMenu = openItem._chatActionsMenu;
+            openMenu?.classList.remove('portal-open');
+            openMenu?.style.removeProperty('top');
+            openMenu?.style.removeProperty('left');
+            if (openMenu && openMenu.parentElement !== openItem) openItem.appendChild(openMenu);
+          }
         });
-        const listBounds = recentChatsList.getBoundingClientRect();
-        const itemBounds = item.getBoundingClientRect();
-        item.classList.toggle('menu-up', listBounds.bottom - itemBounds.bottom < 230);
         item.classList.add('menu-open');
+        if (menu.parentElement !== document.body) document.body.appendChild(menu);
+        menu.classList.add('portal-open');
+        item.classList.remove('menu-up');
+        requestAnimationFrame(() => {
+          const itemBounds = item.getBoundingClientRect();
+          const menuBounds = menu.getBoundingClientRect();
+          const margin = 10;
+          const top = itemBounds.bottom + menuBounds.height + margin <= window.innerHeight
+            ? itemBounds.bottom + 4
+            : Math.max(margin, itemBounds.top - menuBounds.height - 4);
+          const left = Math.max(margin, Math.min(itemBounds.left, window.innerWidth - menuBounds.width - margin));
+          menu.style.top = `${top}px`;
+          menu.style.left = `${left}px`;
+        });
       };
       menuTrigger.onclick = (e) => {
         e.stopPropagation();
-        if (item.classList.contains('menu-open')) item.classList.remove('menu-open', 'menu-up');
+        if (item.classList.contains('menu-open')) {
+          closeItemMenu();
+        }
         else openContextMenu();
       };
       let holdTimer = null;
@@ -1249,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Actions Bindings
       item.querySelector('.pin').onclick = async (e) => {
-        item.classList.remove('menu-open', 'menu-up');
+        closeItemMenu();
         e.stopPropagation();
         const newPinned = !conv.pinned;
         conv.pinned = newPinned;
@@ -1266,11 +1336,11 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       item.querySelector('.edit').onclick = (e) => {
-        item.classList.remove('menu-open', 'menu-up');
+        closeItemMenu();
         e.stopPropagation();
-        const newTitle = prompt('أدخل الاسم الجديد للمحادثة:', conv.title);
-        if (newTitle && newTitle.trim()) {
-          const finalTitle = newTitle.trim();
+        openRenameConversation(conv, (title) => {
+          if (!title || !title.trim()) return;
+          const finalTitle = title.trim();
           conv.title = finalTitle;
           if (window.LeoFirebase) {
             window.LeoFirebase.updateConversation(conv.id, { title: finalTitle }).catch(() => {});
@@ -1287,11 +1357,11 @@ document.addEventListener('DOMContentLoaded', () => {
             saveConversationToLocalCache(cached);
           }
           refreshConversationListOnly();
-        }
+        });
       };
 
       item.querySelector('.archive').onclick = async (e) => {
-        item.classList.remove('menu-open', 'menu-up');
+        closeItemMenu();
         e.stopPropagation();
         const newArchived = !conv.archived;
         conv.archived = newArchived;
@@ -1308,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       item.querySelector('.del').onclick = (e) => {
-        item.classList.remove('menu-open', 'menu-up');
+        closeItemMenu();
         e.stopPropagation();
         showCustomConfirm({
           title: 'حذف المحادثة',
@@ -2632,8 +2702,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.chat-history-item')) return;
-    recentChatsList.querySelectorAll('.chat-history-item.menu-open').forEach(item => item.classList.remove('menu-open', 'menu-up'));
+    if (e.target.closest('.chat-history-item, .chat-actions-group')) return;
+    recentChatsList.querySelectorAll('.chat-history-item.menu-open').forEach(item => {
+      item.classList.remove('menu-open', 'menu-up');
+      const menu = item._chatActionsMenu;
+      menu?.classList.remove('portal-open');
+      menu?.style.removeProperty('top');
+      menu?.style.removeProperty('left');
+      if (menu && menu.parentElement !== item) item.appendChild(menu);
+    });
   });
 
   document.querySelectorAll('.dropdown-item').forEach(item => {
