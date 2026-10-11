@@ -149,7 +149,7 @@
               <span class="model-badge vision-badge">بصري</span>
             </div>
 
-            <div class="dropdown-item active" data-model="leo-academic">
+            <div class="dropdown-item" data-model="leo-academic">
               <div class="item-info-col">
                 <div class="item-title">Leo Academic Max</div>
                 <div class="item-desc">أكاديمي متخصص في التلخيص المنهجي والمقارنات العلمية</div>
@@ -157,18 +157,18 @@
               <span class="model-badge academic-badge">أكاديمي</span>
             </div>
 
-            <div class="dropdown-item" data-model="deepseek-flash">
+            <div class="dropdown-item active" data-model="deepseek-flash">
               <div class="item-info-col">
-                <div class="item-title">DeepSeek Flash</div>
-                <div class="item-desc">نموذج DeepSeek الرسمي السريع مع دعم تحليل الصور</div>
+                <div class="item-title">نموذج ليو · سريع</div>
+                <div class="item-desc">إجابات سريعة ومباشرة لمساعدتك في الدراسة</div>
               </div>
               <span class="model-badge">سريع</span>
             </div>
 
             <div class="dropdown-item" data-model="deepseek-v4-pro">
               <div class="item-info-col">
-                <div class="item-title">DeepSeek V4 Pro</div>
-                <div class="item-desc">نموذج DeepSeek الرسمي للاستدلال المتقدم</div>
+                <div class="item-title">نموذج ليو · متقدم</div>
+                <div class="item-desc">تحليل أعمق للمسائل والأفكار المعقدة</div>
               </div>
               <span class="model-badge pro-badge">متقدم</span>
             </div>
@@ -373,6 +373,8 @@
               <span>إنشاء صور</span>
               <button class="image-generation-mode-remove" id="imageGenerationModeRemove" type="button" aria-label="إلغاء وضع إنشاء الصور" title="إلغاء">×</button>
             </span>
+            <span class="image-generation-mode-chip search-mode-chip" id="searchModeChip" hidden dir="rtl"><span>البحث على الإنترنت</span></span>
+            <span class="image-generation-mode-chip search-mode-chip" id="thinkingModeChip" hidden dir="rtl"><span>وضع التفكير</span></span>
             <textarea 
               class="chat-text-input" 
               id="chatTextInput" 
@@ -385,6 +387,13 @@
 
           <!-- Right: Audio & Action Controls -->
           <div class="input-right-actions">
+
+            <button class="input-btn mode-toggle-btn" id="webSearchBtn" type="button" title="البحث على الإنترنت" aria-label="البحث على الإنترنت" aria-pressed="false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+            </button>
+            <button class="input-btn mode-toggle-btn" id="thinkingModeBtn" type="button" title="تفعيل وضع التفكير" aria-label="وضع التفكير" aria-pressed="false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.5 17a7 7 0 1 0-7 0"></path><path d="M9 10a3 3 0 0 1 6 0c0 1.5-1.5 2-1.5 3.5h-3C10.5 12 9 11.5 9 10Z"></path></svg>
+            </button>
             
             <!-- Microphone Button -->
             <button class="input-btn mic-btn" id="micBtn" title="استماع صوتي" aria-label="ميكروفون">

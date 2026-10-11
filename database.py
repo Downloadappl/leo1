@@ -37,7 +37,7 @@ def init_db():
             title TEXT NOT NULL,
             created_at REAL NOT NULL,
             updated_at REAL NOT NULL,
-            model TEXT DEFAULT 'leo-academic',
+            model TEXT DEFAULT 'deepseek-flash',
             pinned INTEGER DEFAULT 0,
             archived INTEGER DEFAULT 0
         );
@@ -221,9 +221,7 @@ def get_conversation(conv_id, user_id=None):
             cursor.execute("SELECT * FROM conversations WHERE id = ? AND user_id = ?", (conv_id, user_id))
             conv = cursor.fetchone()
         
-        # Safe fallback: if not matched with user_id, check by conversation id alone
-        # This prevents disappearing conversations due to minor user_id variation or legacy default_user
-        if not conv:
+        if not user_id:
             cursor.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,))
             conv = cursor.fetchone()
 
@@ -246,7 +244,7 @@ def get_conversation(conv_id, user_id=None):
         conv_dict['messages'] = messages_list
         return conv_dict
 
-def create_conversation(title="محادثة جديدة", model="leo-academic", conv_id=None, user_id="default_user"):
+def create_conversation(title="محادثة جديدة", model="deepseek-flash", conv_id=None, user_id="default_user"):
     if not conv_id:
         conv_id = f"conv_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
     now = time.time()
@@ -287,7 +285,7 @@ def update_conversation(conv_id, title=None, model=None, pinned=None, archived=N
             
         cursor.execute(f"UPDATE conversations SET {', '.join(updates)} {where}", tuple(params))
         conn.commit()
-    return get_conversation(conv_id)
+    return get_conversation(conv_id, user_id=user_id) if user_id else get_conversation(conv_id)
 
 def delete_conversation(conv_id, user_id=None):
     with get_connection() as conn:
@@ -322,20 +320,32 @@ def add_message(conv_id, role, content, attachments=None, msg_id=None, user_id="
         cursor = conn.cursor()
         cursor.execute("SELECT id, title, user_id FROM conversations WHERE id = ?", (conv_id,))
         row = cursor.fetchone()
+        if row and row['user_id'] != user_id:
+            return None
+        if msg_id:
+            cursor.execute("""SELECT m.conversation_id, c.user_id
+                FROM messages m LEFT JOIN conversations c ON c.id = m.conversation_id
+                WHERE m.id = ?""", (msg_id,))
+            existing_message = cursor.fetchone()
+            if existing_message and (
+                existing_message['conversation_id'] != conv_id
+                or existing_message['user_id'] != user_id
+            ):
+                return None
         if not row:
             auto_title = generate_smart_title(content)
             cursor.execute("""
                 INSERT INTO conversations (id, user_id, title, created_at, updated_at, model, pinned, archived)
                 VALUES (?, ?, ?, ?, ?, ?, 0, 0)
-            """, (conv_id, user_id, auto_title, now, now, "leo-academic"))
+            """, (conv_id, user_id, auto_title, now, now, "deepseek-flash"))
         else:
             curr_title = row['title']
             # If default title, generate smart title from first user message
             if (curr_title == "محادثة جديدة" or not curr_title) and role == "user" and content:
                 smart_title = generate_smart_title(content)
-                cursor.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?", (smart_title, now, conv_id))
+                cursor.execute("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?", (smart_title, now, conv_id, user_id))
             else:
-                cursor.execute("UPDATE conversations SET updated_at = ? WHERE id = ?", (now, conv_id))
+                cursor.execute("UPDATE conversations SET updated_at = ? WHERE id = ? AND user_id = ?", (now, conv_id, user_id))
                 
         cursor.execute("""
             INSERT OR REPLACE INTO messages (id, conversation_id, role, content, attachments, created_at)
@@ -352,22 +362,34 @@ def add_message(conv_id, role, content, attachments=None, msg_id=None, user_id="
         "created_at": now
     }
 
-def delete_message(msg_id):
+def delete_message(msg_id, user_id=None):
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM messages WHERE id = ?", (msg_id,))
+        if user_id:
+            cursor.execute("""DELETE FROM messages WHERE id = ? AND conversation_id IN
+                (SELECT id FROM conversations WHERE user_id = ?)""", (msg_id, user_id))
+        else:
+            cursor.execute("DELETE FROM messages WHERE id = ?", (msg_id,))
         conn.commit()
     return True
 
-def trim_messages_from_id(conv_id, msg_id):
+def trim_messages_from_id(conv_id, msg_id, user_id=None):
     """Deletes the specified message and all subsequent messages in the conversation."""
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT created_at FROM messages WHERE id = ? AND conversation_id = ?", (msg_id, conv_id))
+        if user_id:
+            cursor.execute("""SELECT m.created_at FROM messages m JOIN conversations c ON c.id = m.conversation_id
+                WHERE m.id = ? AND m.conversation_id = ? AND c.user_id = ?""", (msg_id, conv_id, user_id))
+        else:
+            cursor.execute("SELECT created_at FROM messages WHERE id = ? AND conversation_id = ?", (msg_id, conv_id))
         row = cursor.fetchone()
         if row:
             msg_time = row['created_at']
-            cursor.execute("DELETE FROM messages WHERE conversation_id = ? AND created_at >= ?", (conv_id, msg_time))
+            if user_id:
+                cursor.execute("""DELETE FROM messages WHERE conversation_id = ? AND created_at >= ?
+                    AND conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)""", (conv_id, msg_time, user_id))
+            else:
+                cursor.execute("DELETE FROM messages WHERE conversation_id = ? AND created_at >= ?", (conv_id, msg_time))
             conn.commit()
     return True
 
@@ -682,8 +704,11 @@ def sync_conversations(user_id, conversations_data):
             cid = c.get('id')
             if not cid:
                 continue
+            existing = cursor.execute("SELECT user_id FROM conversations WHERE id = ?", (cid,)).fetchone()
+            if existing and existing['user_id'] != user_id:
+                continue
             title = c.get('title', 'محادثة دراسية')
-            model = c.get('model', 'leo-academic')
+            model = c.get('model', 'deepseek-flash')
             created_at = c.get('created_at', time.time())
             updated_at = c.get('updated_at', time.time())
             pinned = 1 if c.get('pinned') else 0
@@ -706,8 +731,8 @@ def sync_conversations(user_id, conversations_data):
                     attachments = json.dumps(m.get('attachments', []), ensure_ascii=False)
                     cursor.execute("""
                     INSERT OR IGNORE INTO messages (id, conversation_id, role, content, attachments, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """, (mid, cid, role, content, attachments, m_created_at))
+                    SELECT ?, id, ?, ?, ?, ? FROM conversations WHERE id = ? AND user_id = ?
+                    """, (mid, role, content, attachments, m_created_at, cid, user_id))
         conn.commit()
 
 # --- Library (Generated Images & Sent Images) ---

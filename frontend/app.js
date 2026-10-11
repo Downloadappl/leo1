@@ -15,6 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const attachBtn = document.getElementById('attachBtn');
   const imageGenerationModeChip = document.getElementById('imageGenerationModeChip');
   const imageGenerationModeRemove = document.getElementById('imageGenerationModeRemove');
+  const webSearchBtn = document.getElementById('webSearchBtn');
+  const thinkingModeBtn = document.getElementById('thinkingModeBtn');
+  const searchModeChip = document.getElementById('searchModeChip');
+  const thinkingModeChip = document.getElementById('thinkingModeChip');
   const fileInput = document.getElementById('fileInput');
   const attachmentPreviewDrawer = document.getElementById('attachmentPreviewDrawer');
   const micBtn = document.getElementById('micBtn');
@@ -61,37 +65,59 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('leo_device_user_id', deviceUserId);
   }
 
-  // Intercept only internal/local backend fetch requests to pass X-User-Id header
-  // Crucial: NEVER inject custom headers into cross-origin requests (Firebase, Google APIs) to avoid CORS preflight blocks
+  let activeAccountStorageId = deviceUserId;
+  const accountStorageKey = (key) => `${key}_${activeAccountStorageId || 'pending'}`;
+  function activateAccountScope(user) {
+    if (!user?.uid || user.uid === activeAccountStorageId) return;
+    activeAccountStorageId = user.uid;
+    deviceUserId = user.uid;
+    studentProfile = null;
+    pendingAttachments = [];
+    selectedModel = localStorage.getItem(accountStorageKey('leo_selected_model')) || 'deepseek-flash';
+    settingsState = {
+      studyMode: 'standard',
+      temperature: 0.7,
+      appearance: 'dark',
+      bubbleTheme: 'theme-blue-pink'
+    };
+    setOptionalModes({ search: false, thinking: false });
+    document.body.classList.remove(...bubbleThemes.map(theme => theme.id), 'theme-light');
+    document.body.classList.add('theme-blue-pink');
+    applyAppearance('dark');
+    const selectedModelItem = document.querySelector(`.dropdown-item[data-model="${selectedModel}"]`);
+    if (selectedModelItem) {
+      document.querySelectorAll('.dropdown-item').forEach(item => item.classList.remove('active'));
+      selectedModelItem.classList.add('active');
+      currentModelLabel.textContent = selectedModelItem.querySelector('.item-title')?.textContent || 'نموذج ليو · سريع';
+    }
+    persistActiveConversationId(null);
+    saveConversationsIndexToLocalCache([]);
+    renderRecentConversations([]);
+    messagesStreamList.replaceChildren();
+    showEmptyState();
+  }
+
+  // Authenticate every same-origin API call with Firebase's signed ID token.
   const _originalFetch = window.fetch;
   window.fetch = function(url, options = {}) {
-    options = options || {};
-    try {
-      const urlStr = typeof url === 'string' ? url : (url && url.url ? url.url : '');
-      const isLocal = !urlStr.startsWith('http://') && !urlStr.startsWith('https://') 
-        || urlStr.startsWith(window.location.origin) 
-        || urlStr.startsWith('/api') 
-        || urlStr.startsWith('./api');
-
-      if (isLocal) {
-        options.headers = options.headers || {};
-        if (typeof options.headers.append === 'function') {
-          options.headers.append('X-User-Id', deviceUserId);
-        } else {
-          options.headers['X-User-Id'] = deviceUserId;
-        }
+    return (async () => {
+      const requestUrl = typeof url === 'string' ? url : (url && url.url ? url.url : '');
+      const isSameOrigin = !/^https?:\/\//i.test(requestUrl) || requestUrl.startsWith(window.location.origin);
+      if (isSameOrigin && requestUrl.includes('/api/')) {
+        const headers = new Headers(options?.headers || (url instanceof Request ? url.headers : undefined));
+        const token = await window.LeoFirebase?.getIdToken?.();
+        if (token) headers.set('Authorization', `Bearer ${token}`);
+        options = { ...(options || {}), headers };
       }
-    } catch (e) {
-      // Fallback cleanly
-    }
-    return _originalFetch(url, options);
+      return _originalFetch(url, options);
+    })();
   };
 
   // --- Reliable Local Persistent Storage + Firebase Cloud Sync ---
   function saveConversationToLocalCache(conv) {
     if (!conv || !conv.id) return;
     try {
-      localStorage.setItem(`leo_conv_${conv.id}`, JSON.stringify(conv));
+      localStorage.setItem(accountStorageKey(`leo_conv_${conv.id}`), JSON.stringify(conv));
     } catch (e) {
       console.warn('LocalStorage save failed:', e);
     }
@@ -141,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function getConversationFromLocalCache(convId) {
     if (!convId) return null;
     try {
-      const raw = localStorage.getItem(`leo_conv_${convId}`);
+      const raw = localStorage.getItem(accountStorageKey(`leo_conv_${convId}`));
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (data && Array.isArray(data.messages)) {
@@ -158,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function removeConversationFromLocalCache(convId) {
     if (!convId) return;
     try {
-      localStorage.removeItem(`leo_conv_${convId}`);
+      localStorage.removeItem(accountStorageKey(`leo_conv_${convId}`));
     } catch (e) {}
     // Delete from Firebase Cloud
     if (window.LeoFirebase && typeof window.LeoFirebase.deleteConversation === 'function') {
@@ -169,13 +195,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveConversationsIndexToLocalCache(convs) {
     if (!Array.isArray(convs)) return;
     try {
-      localStorage.setItem('leo_conversations_index', JSON.stringify(convs));
+      localStorage.setItem(accountStorageKey('leo_conversations_index'), JSON.stringify(convs));
     } catch (e) {}
   }
 
   function getConversationsIndexFromLocalCache() {
     try {
-      const raw = localStorage.getItem('leo_conversations_index');
+      const raw = localStorage.getItem(accountStorageKey('leo_conversations_index'));
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       return null;
@@ -267,6 +293,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const lightboxCloseBtn = document.getElementById('lightboxCloseBtn');
   let imageGenerationModeEnabled = false;
   let imageEditingModeEnabled = false;
+  let webSearchEnabled = false;
+  let thinkingEnabled = false;
   const normalChatPlaceholder = chatTextInput ? chatTextInput.getAttribute('placeholder') : '';
 
   function setImageGenerationMode(enabled, editing = false) {
@@ -301,6 +329,23 @@ document.addEventListener('DOMContentLoaded', () => {
       if (chatTextInput) chatTextInput.focus();
     });
   }
+
+  function setOptionalModes({ search = webSearchEnabled, thinking = thinkingEnabled } = {}) {
+    webSearchEnabled = Boolean(search);
+    thinkingEnabled = Boolean(thinking);
+    if (webSearchBtn) {
+      webSearchBtn.setAttribute('aria-pressed', String(webSearchEnabled));
+      webSearchBtn.title = webSearchEnabled ? 'إيقاف البحث على الإنترنت' : 'البحث على الإنترنت';
+    }
+    if (thinkingModeBtn) {
+      thinkingModeBtn.setAttribute('aria-pressed', String(thinkingEnabled));
+      thinkingModeBtn.title = thinkingEnabled ? 'إيقاف وضع التفكير' : 'تفعيل وضع التفكير';
+    }
+    if (searchModeChip) searchModeChip.hidden = !webSearchEnabled;
+    if (thinkingModeChip) thinkingModeChip.hidden = !thinkingEnabled;
+  }
+  webSearchBtn?.addEventListener('click', () => setOptionalModes({ search: !webSearchEnabled }));
+  thinkingModeBtn?.addEventListener('click', () => setOptionalModes({ thinking: !thinkingEnabled }));
 
   // Modals & Toast
   // Full-Screen Auth & Onboarding Elements (ChatGPT Style)
@@ -469,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- State Variables ---
-  const ACTIVE_CONVERSATION_SESSION_KEY = 'leo_session_active_conv_id';
+  const ACTIVE_CONVERSATION_SESSION_KEY = () => accountStorageKey('leo_session_active_conv_id');
   const isPageReload = (() => {
     try {
       const navigation = performance.getEntriesByType('navigation')[0];
@@ -481,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentConversationId = (() => {
     if (!isPageReload) return null;
     try {
-      return sessionStorage.getItem(ACTIVE_CONVERSATION_SESSION_KEY) || null;
+      return sessionStorage.getItem(ACTIVE_CONVERSATION_SESSION_KEY()) || null;
     } catch (e) {
       return null;
     }
@@ -491,18 +536,18 @@ document.addEventListener('DOMContentLoaded', () => {
     currentConversationId = conversationId || null;
     try {
       if (currentConversationId) {
-        sessionStorage.setItem(ACTIVE_CONVERSATION_SESSION_KEY, currentConversationId);
+        sessionStorage.setItem(ACTIVE_CONVERSATION_SESSION_KEY(), currentConversationId);
       } else {
-        sessionStorage.removeItem(ACTIVE_CONVERSATION_SESSION_KEY);
+        sessionStorage.removeItem(ACTIVE_CONVERSATION_SESSION_KEY());
       }
     } catch (e) {
       // Keep the active conversation usable when browser storage is unavailable.
     }
   }
-  let selectedModel = localStorage.getItem('leo_selected_model');
+  let selectedModel = localStorage.getItem(accountStorageKey('leo_selected_model'));
   if (!selectedModel || selectedModel === 'leo-4o-mini' || selectedModel === 'deepseek-flash') {
-    selectedModel = 'leo-academic';
-    localStorage.setItem('leo_selected_model', 'leo-academic');
+    selectedModel = 'deepseek-flash';
+    localStorage.setItem(accountStorageKey('leo_selected_model'), selectedModel);
   }
   let isGenerating = false;
   let pendingAttachments = [];
@@ -1387,15 +1432,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return card;
   }
 
-  function createResponseWaitingIndicator() {
+  function createResponseWaitingIndicator(searching = false) {
     const template = document.getElementById('chatResponseWaitingTemplate');
-    if (template) return template.content.firstElementChild.cloneNode(true);
+    if (template) {
+      const indicator = template.content.firstElementChild.cloneNode(true);
+      if (searching) indicator.querySelector('.chat-response-waiting-label').textContent = 'جاري البحث على الإنترنت…';
+      return indicator;
+    }
     const indicator = document.createElement('div');
     indicator.className = 'chat-response-waiting';
     indicator.setAttribute('role', 'status');
     indicator.setAttribute('aria-live', 'polite');
     indicator.dir = 'rtl';
-    indicator.innerHTML = '<span class="chat-response-waiting-icon" aria-hidden="true"><span class="chat-response-waiting-orbit"></span><span class="chat-response-waiting-spark">✦</span></span><span class="chat-response-waiting-label">جاري تجهيز الرد</span><span class="chat-response-waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+    indicator.innerHTML = `<span class="chat-response-waiting-icon" aria-hidden="true"><span class="chat-response-waiting-orbit"></span><span class="chat-response-waiting-spark">✦</span></span><span class="chat-response-waiting-label">${searching ? 'جاري البحث على الإنترنت…' : 'جاري تجهيز الرد'}</span><span class="chat-response-waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
     return indicator;
   }
 
@@ -1566,10 +1615,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Owns the visible state of one assistant reply. Keeping this per message
   // prevents one request from replacing or completing another request's UI.
   class ChatResponseLifecycle {
-    constructor({ textElem, cursorElem, imageGenerationRequest, imageEditingRequest, requestId, onDone }) {
+    constructor({ textElem, cursorElem, imageGenerationRequest, imageEditingRequest, webSearchRequest, requestId, onDone }) {
       this.textElem = textElem;
       this.imageGenerationRequest = imageGenerationRequest;
       this.imageEditingRequest = imageEditingRequest;
+      this.webSearchRequest = webSearchRequest;
       this.requestId = requestId;
       if (requestId) this.textElem.dataset.responseRequestId = requestId;
       this.state = imageGenerationRequest ? 'generating-image' : 'waiting';
@@ -1588,13 +1638,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
       this.textElem.replaceChildren(imageGenerationRequest
         ? createGeneratingPlaceholder(requestId, imageEditingRequest)
-        : createResponseWaitingIndicator());
+        : createResponseWaitingIndicator(webSearchRequest));
       if (cursorElem && cursorElem.parentNode) cursorElem.remove();
     }
 
     setState(state) {
       this.state = state;
       this.textElem.dataset.responseState = state;
+    }
+
+    updateStatus(status) {
+      const label = this.textElem.querySelector('.chat-response-waiting-label');
+      if (!label || this.state !== 'waiting') return;
+      const labels = {
+        searching: 'جاري البحث على الإنترنت…',
+        sources_found: 'تم العثور على مصادر، جاري إعداد الإجابة…',
+        search_failed: 'تعذّر البحث؛ ستكون الإجابة دون مصادر متحققة.',
+        no_results: 'لم تظهر نتائج؛ ستكون الإجابة دون مراجع.'
+      };
+      if (labels[status]) label.textContent = labels[status];
     }
 
     receive(content, onImageRetry = null) {
@@ -1758,13 +1820,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // and therefore gets its own placeholder and stream lifecycle.
   window.retryImagePrompt = (prompt) => handleSendPrompt(prompt, [], true);
 
-  async function handleSendPrompt(retryPromptText = null, retryAttachments = null, forceImageGeneration = false, forceImageEdit = false) {
+  async function handleSendPrompt(retryPromptText = null, retryAttachments = null, forceImageGeneration = false, forceImageEdit = false, forceWebSearch = false, forceThinking = false) {
     if (isSubmitting) return;
 
     const text = (retryPromptText !== null) ? retryPromptText : chatTextInput.value.trim();
     const attachmentsToSend = (retryAttachments !== null) ? retryAttachments : [...pendingAttachments];
     const imageGenerationRequest = Boolean(forceImageGeneration || (retryPromptText === null && imageGenerationModeEnabled) || isImageGenerationIntent(text));
     const imageEditingRequest = Boolean(forceImageEdit || (retryPromptText === null && imageEditingModeEnabled));
+    const webSearchRequest = forceWebSearch || (retryPromptText === null && webSearchEnabled);
+    const thinkingRequest = forceThinking || (retryPromptText === null && thinkingEnabled);
 
     if (!text && attachmentsToSend.length === 0) return;
 
@@ -1810,6 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
       cursorElem,
       imageGenerationRequest,
       imageEditingRequest,
+      webSearchRequest,
       requestId,
       onDone: (finalContent) => {
         actionsElem.style.display = 'flex';
@@ -1875,6 +1940,8 @@ document.addEventListener('DOMContentLoaded', () => {
         content: text,
         image_generation: imageGenerationRequest,
         image_edit: imageEditingRequest,
+        web_search: webSearchRequest,
+        thinking_enabled: thinkingRequest,
         attachments: attachmentsToSend,
         model: selectedModel,
         temperature: settingsState.temperature,
@@ -1920,6 +1987,8 @@ document.addEventListener('DOMContentLoaded', () => {
           throw serverError;
         }
 
+        if (typeof parsed.search_status === 'string') requestLifecycle.updateStatus(parsed.search_status);
+
         try {
           if (Array.isArray(parsed.attachment_updates)) {
             applyAttachmentUpdates(parsed.attachment_updates, userMsgId, parsed.conversation_id || responseConversationId, attachmentsToSend);
@@ -1959,7 +2028,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (typeof parsed.content === 'string') {
-            requestLifecycle.receive(parsed.content, () => handleSendPrompt(text, attachmentsToSend, imageGenerationRequest, imageEditingRequest));
+            requestLifecycle.receive(parsed.content, () => handleSendPrompt(text, attachmentsToSend, imageGenerationRequest, imageEditingRequest, webSearchRequest, thinkingRequest));
           }
         } catch (eventError) {
           throw eventError;
@@ -1986,10 +2055,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (buffer.trim()) await processStreamLine(buffer);
       requestLifecycle.finish({
         onRetry: imageGenerationRequest
-          ? () => handleSendPrompt(text, attachmentsToSend, true, imageEditingRequest)
+          ? () => handleSendPrompt(text, attachmentsToSend, true, imageEditingRequest, webSearchRequest, thinkingRequest)
           : () => {
               messageRow.remove();
-              handleSendPrompt(text, attachmentsToSend, false);
+              handleSendPrompt(text, attachmentsToSend, false, false, webSearchRequest, thinkingRequest);
           }
       });
       if (requestLifecycle.state === 'loading-image') {
@@ -2029,7 +2098,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       requestLifecycle.fail(errorMarkup, '.stream-retry-btn', () => {
         messageRow.remove();
-        handleSendPrompt(text, attachmentsToSend, imageGenerationRequest);
+        handleSendPrompt(text, attachmentsToSend, imageGenerationRequest, imageEditingRequest, webSearchRequest, thinkingRequest);
       });
       releaseActiveChatRequest(requestId);
     }
@@ -2430,7 +2499,7 @@ document.addEventListener('DOMContentLoaded', () => {
       item.classList.add('active');
 
       selectedModel = item.dataset.model;
-      localStorage.setItem('leo_selected_model', selectedModel);
+      localStorage.setItem(accountStorageKey('leo_selected_model'), selectedModel);
 
       const title = item.querySelector('.item-title').textContent;
       currentModelLabel.textContent = title;
@@ -2608,16 +2677,17 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         showToast('جاري تسجيل الدخول عبر Google...');
         const user = await window.LeoFirebase.signInWithGoogle();
+        activateAccountScope(user);
         
         // Check if user already has an existing academic profile in cloud
         const cloudProf = await window.LeoFirebase.getProfile();
         if (cloudProf && cloudProf.name && cloudProf.name.trim() && cloudProf.name.trim() !== 'الطالب') {
           studentProfile = normalizeStudentProfile(cloudProf);
-          localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+          localStorage.setItem(accountStorageKey('leo_student_profile'), JSON.stringify(studentProfile));
           updateProfileUI();
           closeProfileModal();
           showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name}`);
-          showEmptyState();
+          window.location.reload();
         } else {
           // New Google account without profile: pre-fill name and advance to Step 2!
           if (user && user.displayName) {
@@ -2664,21 +2734,23 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         if (authMode === 'login') {
           showToast('جاري التحقق من بيانات الحساب...');
-          await window.LeoFirebase.signIn(email, password);
+          const user = await window.LeoFirebase.signIn(email, password);
+          activateAccountScope(user);
           const cloudProf = await window.LeoFirebase.getProfile();
           if (cloudProf && cloudProf.name && cloudProf.name.trim() !== 'الطالب') {
             studentProfile = normalizeStudentProfile(cloudProf);
-            localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+            localStorage.setItem(accountStorageKey('leo_student_profile'), JSON.stringify(studentProfile));
             updateProfileUI();
             closeProfileModal();
             showToast(`تم تسجيل دخولك بنجاح! مرحباً بك يا ${cloudProf.name}`);
-            showEmptyState();
+            window.location.reload();
           } else {
             goToAuthStep(2);
           }
         } else {
           showToast('جاري إنشاء الحساب الجديد...');
-          await window.LeoFirebase.signUp(email, password, { email });
+          const user = await window.LeoFirebase.signUp(email, password, { email });
+          activateAccountScope(user);
           showToast('تم إنشاء الحساب بنجاح! خطوتك الأخيرة لاختيار مرحلتك');
           goToAuthStep(2);
         }
@@ -2747,13 +2819,14 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsState.studyMode = studyMode;
 
     try {
-      localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+      localStorage.setItem(accountStorageKey('leo_student_profile'), JSON.stringify(studentProfile));
     } catch (e) {}
 
     // Save to Firebase Cloud Storage (silently without exposing technical details)
     if (window.LeoFirebase) {
       try {
-        await window.LeoFirebase.ensureAuthenticated(deviceUserId, name);
+        const user = await window.LeoFirebase.ensureAuthenticated(deviceUserId, name);
+        activateAccountScope(user);
         await window.LeoFirebase.saveProfile(studentProfile);
       } catch (fbErr) {
         console.warn('Profile save notice:', fbErr);
@@ -3599,7 +3672,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.LeoFirebase && typeof window.LeoFirebase.signOutUser === 'function') {
           await window.LeoFirebase.signOutUser().catch(() => {});
         }
-        localStorage.removeItem('leo_student_profile');
+        localStorage.removeItem(accountStorageKey('leo_student_profile'));
         studentProfile = null;
         window.location.replace('login.html');
       }
@@ -3634,7 +3707,19 @@ document.addEventListener('DOMContentLoaded', () => {
       resolveProfileHydrationWait = resolve;
     });
     try {
+      await window.LeoFirebase?.waitForAuthReady?.();
+      await window.LeoFirebase?.ensureAuthenticated?.(deviceUserId);
+      const authenticatedUid = window.LeoFirebase?.currentUser?.uid;
+      if (!authenticatedUid) throw new Error('تعذر التحقق من هوية الحساب. أعد تسجيل الدخول.');
+      activeAccountStorageId = authenticatedUid;
+      deviceUserId = authenticatedUid;
+      selectedModel = localStorage.getItem(accountStorageKey('leo_selected_model')) || 'deepseek-flash';
+      localStorage.setItem(accountStorageKey('leo_selected_model'), selectedModel);
+
       // Reloads restore this tab's active conversation; a new page visit starts a clean chat.
+      currentConversationId = isPageReload
+        ? sessionStorage.getItem(ACTIVE_CONVERSATION_SESSION_KEY()) || null
+        : null;
       if (!isPageReload) persistActiveConversationId(null);
       const cachedIndex = getConversationsIndexFromLocalCache();
       if (cachedIndex && cachedIndex.length > 0) {
@@ -3643,19 +3728,19 @@ document.addEventListener('DOMContentLoaded', () => {
       showEmptyState();
 
       // 1. Immediate localStorage profile cache restore (strictly purge any placeholder 'الطالب')
-      const localCachedProf = localStorage.getItem('leo_student_profile');
+      const localCachedProf = localStorage.getItem(accountStorageKey('leo_student_profile'));
       if (localCachedProf) {
         try {
           const parsedLocal = JSON.parse(localCachedProf);
           if (parsedLocal && parsedLocal.name && parsedLocal.name.trim() && parsedLocal.name.trim() !== 'الطالب') {
             studentProfile = normalizeStudentProfile(parsedLocal);
-            localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+            localStorage.setItem(accountStorageKey('leo_student_profile'), JSON.stringify(studentProfile));
             updateProfileUI();
           } else {
-            localStorage.removeItem('leo_student_profile');
+            localStorage.removeItem(accountStorageKey('leo_student_profile'));
           }
         } catch (e) {
-          localStorage.removeItem('leo_student_profile');
+          localStorage.removeItem(accountStorageKey('leo_student_profile'));
         }
       }
 
@@ -3665,7 +3750,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const p = await profRes.json();
         if (!studentProfile && p && p.name && p.name.trim() && p.name.trim() !== 'الطالب') {
           studentProfile = normalizeStudentProfile(p);
-          localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+          localStorage.setItem(accountStorageKey('leo_student_profile'), JSON.stringify(studentProfile));
           updateProfileUI();
         } else if (studentProfile && studentProfile.name && studentProfile.name.trim() !== 'الطالب') {
           // If server restarted, sync our verified local profile to server
@@ -3739,13 +3824,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      await window.LeoFirebase.ensureAuthenticated(deviceUserId, studentProfile ? studentProfile.name : '');
-
       // The cloud profile is the canonical, cross-device source of the student's current stage.
       const cloudProfile = await window.LeoFirebase.getProfile();
       if (cloudProfile && cloudProfile.name && cloudProfile.name.trim() && cloudProfile.name.trim() !== 'الطالب') {
         studentProfile = normalizeStudentProfile(cloudProfile);
-        localStorage.setItem('leo_student_profile', JSON.stringify(studentProfile));
+        localStorage.setItem(accountStorageKey('leo_student_profile'), JSON.stringify(studentProfile));
         updateProfileUI();
         fetch('/api/profile', {
           method: 'POST',
@@ -3769,7 +3852,7 @@ document.addEventListener('DOMContentLoaded', () => {
           firebaseConvs.forEach(fc => {
             if (fc && fc.id && Array.isArray(fc.messages)) {
               try {
-                localStorage.setItem(`leo_conv_${fc.id}`, JSON.stringify(fc));
+                localStorage.setItem(accountStorageKey(`leo_conv_${fc.id}`), JSON.stringify(fc));
               } catch (e) {}
             }
           });
@@ -3799,7 +3882,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function syncLocalConversationsToFirebase() {
     if (!window.LeoFirebase || typeof window.LeoFirebase.saveConversation !== 'function') return;
     try {
-      const indexRaw = localStorage.getItem('leo_conversations_index');
+      const indexRaw = localStorage.getItem(accountStorageKey('leo_conversations_index'));
       if (!indexRaw) return;
       const index = JSON.parse(indexRaw);
       if (!Array.isArray(index) || index.length === 0) return;
@@ -3827,7 +3910,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Background Sync: Push localStorage conversations to server for persistence ---
   async function syncLocalConversationsToServer() {
     try {
-      const indexRaw = localStorage.getItem('leo_conversations_index');
+      const indexRaw = localStorage.getItem(accountStorageKey('leo_conversations_index'));
       if (!indexRaw) return;
       const index = JSON.parse(indexRaw);
       if (!Array.isArray(index) || index.length === 0) return;

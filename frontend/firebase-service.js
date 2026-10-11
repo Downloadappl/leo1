@@ -77,6 +77,7 @@ window.LeoFirebase = {
   _conversationsUnsubscribe: null,
   _authListeners: [],
   _convListeners: [],
+  _authReadyPromise: null,
 
   // تسجيل مستمعي حالة تسجيل الدخول
   onAuthStateChanged(callback) {
@@ -86,6 +87,19 @@ window.LeoFirebase = {
         callback(this.currentUser);
       }
     }
+  },
+
+  waitForAuthReady() {
+    if (this.isReady) return Promise.resolve(this.currentUser);
+    if (!this._authReadyPromise) {
+      this._authReadyPromise = new Promise(resolve => this._authListeners.push(resolve));
+    }
+    return this._authReadyPromise;
+  },
+
+  async getIdToken() {
+    const user = auth.currentUser;
+    return user ? user.getIdToken() : null;
   },
 
   // تسجيل مستمعي تغييرات المحادثات الحية (Realtime Snapshot)
@@ -190,6 +204,7 @@ window.LeoFirebase = {
     }
     await signOut(auth);
     this.currentUser = null;
+    this._notifyConversations([]);
   },
 
   // حفظ بيانات الطالب في Firestore
@@ -424,6 +439,8 @@ window.LeoFirebase = {
     try {
       const colRef = collection(db, 'users', uid, 'conversations');
       this._conversationsUnsubscribe = onSnapshot(colRef, (snapshot) => {
+        // Ignore a late snapshot from the previous account after a fast account switch.
+        if ((auth.currentUser?.uid || this.currentUser?.uid) !== uid) return;
         const conversations = [];
         snapshot.forEach(d => {
           conversations.push(d.data());
@@ -452,5 +469,9 @@ onAuthStateChanged(auth, (user) => {
   window.LeoFirebase._notifyAuth(user);
   if (user) {
     window.LeoFirebase._setupConversationsRealtimeListener();
+  } else if (window.LeoFirebase._conversationsUnsubscribe) {
+    window.LeoFirebase._conversationsUnsubscribe();
+    window.LeoFirebase._conversationsUnsubscribe = null;
+    window.LeoFirebase._notifyConversations([]);
   }
 });
