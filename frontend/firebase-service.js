@@ -518,7 +518,7 @@ async function completeMobileRedirect() {
       : GithubAuthProvider.credentialFromResult(result);
     if (!oauth?.accessToken) throw new Error('لم يُرجع مزود الدخول رمز وصول.');
     sessionStorage.removeItem('leo_mobile_oauth');
-    const callback = new URL('https://leeogpt-topaz.vercel.app/mobile-oauth-return');
+    const callback = new URL('https://leeogpt-topaz.vercel.app/mobile-oauth-return.html');
     callback.searchParams.set('provider', mobileProvider);
     callback.searchParams.set('access_token', oauth.accessToken);
     location.replace(callback.toString());

@@ -11,10 +11,6 @@
       "dest": "/frontend/.well-known/assetlinks.json"
     },
     {
-      "src": "/mobile-oauth-return",
-      "dest": "/frontend/mobile-oauth-return.html"
-    },
-    {
       "src": "/api/(.*)",
       "dest": "/api/index.py"
     },
