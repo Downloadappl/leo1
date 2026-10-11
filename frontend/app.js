@@ -663,6 +663,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  chatTextInput.addEventListener('focus', () => {
+    mainChatScreen?.classList.add('composer-focused');
+    mainChatScreen?.classList.remove('composer-raised');
+  });
+  chatTextInput.addEventListener('blur', () => {
+    mainChatScreen?.classList.remove('composer-focused');
+    syncComposerPosition();
+  });
+
   // Enter handling: Ctrl+Enter sends with strict double-send prevention, plain Enter adds newline
   chatTextInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -1338,26 +1347,44 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let typewriterInterval = null;
+  let typewriterRotationTimeout = null;
   function runTypewriterEffect(targetString) {
     if (!typewriterText) return;
     if (typewriterInterval) clearInterval(typewriterInterval);
-    typewriterText.textContent = '';
-    let idx = 0;
-    typewriterInterval = setInterval(() => {
-      if (idx < targetString.length) {
-        typewriterText.textContent += targetString.charAt(idx);
-        idx++;
-      } else {
+    if (typewriterRotationTimeout) clearTimeout(typewriterRotationTimeout);
+    const phrases = Array.isArray(targetString) ? targetString : [targetString];
+    let phraseIndex = 0;
+    const typeCurrentPhrase = () => {
+      const phrase = phrases[phraseIndex] || '';
+      typewriterText.textContent = '';
+      let idx = 0;
+      typewriterInterval = setInterval(() => {
+        if (idx < phrase.length) {
+          typewriterText.textContent += phrase.charAt(idx++);
+          return;
+        }
         clearInterval(typewriterInterval);
         typewriterInterval = null;
-      }
-    }, 45);
+        if (phrases.length > 1) {
+          typewriterRotationTimeout = setTimeout(() => {
+            phraseIndex = (phraseIndex + 1) % phrases.length;
+            typeCurrentPhrase();
+          }, 2500);
+        }
+      }, 45);
+    };
+    typeCurrentPhrase();
   }
 
   function showEmptyState() {
     messagesStreamList.innerHTML = '';
     emptyStateContainer.style.display = 'flex';
-    runTypewriterEffect('اسأل، اكتشف، أنجز.');
+    runTypewriterEffect([
+      'اسأل، اكتشف، أنجز.',
+      'ما الذي تود أن تتعلمه اليوم؟',
+      'ابدأ سؤالك، ولنحلّه معاً.',
+      'فكرة جديدة تبدأ بسؤال.'
+    ]);
     syncComposerPosition();
   }
 

@@ -5367,9 +5367,39 @@ body.theme-light .mode-toggle-btn[aria-pressed="true"] {
   will-change: transform;
 }
 
-.main-chat-screen.composer-raised .input-section-container {
+.main-chat-screen.composer-raised:not(.composer-focused) .input-section-container {
   transform: translateY(clamp(-230px, -19vh, -120px));
 }
+.main-chat-screen.composer-focused .input-section-container { transform: translateY(0); }
+
+.app-header {
+  direction: rtl;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.app-header #sidebarToggleBtn { margin-inline-start: auto; }
+.model-selector-pill {
+  min-height: 38px;
+  padding: 5px 12px;
+  gap: 7px;
+  font-size: 13px;
+}
+.model-selector-pill .model-name-label { white-space: nowrap; }
+.input-bottom-row { justify-content: flex-start; }
+.input-left-actions {
+  width: 100%;
+  justify-content: flex-start;
+  direction: ltr;
+}
+.input-left-actions .mic-btn { margin-left: auto; }
+.input-left-actions .waveform-pill-btn { margin-left: 8px; }
+.input-left-actions .input-plus-btn { margin-right: 0; }
+.attachment-action-panel .sheet-action-tile { direction: rtl; }
+.attachment-action-panel .sheet-action-tile span { direction: rtl; }
+
+.glowing-input-box { min-height: 142px; }
+.input-field-wrapper,
+.input-field-wrapper .chat-text-input { min-height: 66px; }
 
 .empty-state-container { gap: 0; }
 .empty-state-hero { gap: 0; }
@@ -5480,12 +5510,24 @@ html.theme-light .attachment-action-panel .sheet-action-tile svg { color: #64748
 
 @media (max-width: 600px) {
   .app-header { max-width: none; }
-  .model-dropdown-menu { left: 0; transform: translateY(-6px); }
+  .model-dropdown-menu {
+    left: auto;
+    right: -8px;
+    width: min(320px, calc(100vw - 24px));
+    transform: translateY(-6px);
+  }
   .model-selector-wrapper.active .model-dropdown-menu { transform: translateY(0); }
   .main-chat-screen.composer-raised .input-section-container {
     transform: translateY(clamp(-190px, -17vh, -112px));
   }
+  .main-chat-screen.composer-raised:not(.composer-focused) .input-section-container {
+    transform: translateY(clamp(-190px, -17vh, -112px));
+  }
+  .main-chat-screen.composer-focused .input-section-container { transform: translateY(0); }
   .attachment-action-panel { left: 2px; width: min(350px, calc(100vw - 24px)); }
+  .glowing-input-box { min-height: 132px; }
+  .input-field-wrapper,
+  .input-field-wrapper .chat-text-input { min-height: 62px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .input-section-container { transition-duration: .01ms; }
