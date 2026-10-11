@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeAccountStorageId = user.uid;
     deviceUserId = user.uid;
     studentProfile = null;
+    studentAvatarDataUrl = localStorage.getItem(accountStorageKey('leo_profile_avatar')) || '';
     pendingAttachments = [];
     selectedModel = localStorage.getItem(accountStorageKey('leo_selected_model')) || 'deepseek-flash';
     settingsState = {
@@ -275,6 +276,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const reportBugRow = document.getElementById('reportBugRow');
   const logoutRow = document.getElementById('logoutRow');
   const drawerQuickLogoutBtn = document.getElementById('drawerQuickLogoutBtn');
+  const profileScreen = document.getElementById('profileScreen');
+  const profileScreenBack = document.getElementById('profileScreenBack');
+  const profileAvatarFile = document.getElementById('profileAvatarFile');
+  let profileScreenReturnToSettings = false;
+  let studentAvatarDataUrl = '';
 
   // Long-Term Memory & History UI
   const longTermMemoryRow = document.getElementById('longTermMemoryRow');
@@ -483,6 +489,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function normalizeStudentProfile(profile) {
     if (!profile || typeof profile !== 'object') return profile;
     const normalized = { ...profile };
+    if (typeof normalized.avatarDataUrl === 'string') studentAvatarDataUrl = normalized.avatarDataUrl;
+    delete normalized.avatarDataUrl;
     const stageAliases = {
       'الابتدائية': 'primary', 'المرحلة الابتدائية': 'primary',
       'المتوسطة': 'middle', 'المرحلة المتوسطة': 'middle',
@@ -2951,7 +2959,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const specialization = profSpecializationInput ? profSpecializationInput.value.trim() : '';
     const studyMode = profStudyModeSelect ? profStudyModeSelect.value : 'standard';
 
-    const email = authEmailInput ? authEmailInput.value.trim() : '';
+    const email = window.LeoFirebase?.currentUser?.email || (authEmailInput ? authEmailInput.value.trim() : '');
 
     studentProfile = { name, gender, stage, grade_sub, university, specialization, studyMode, email };
     settingsState.studyMode = studyMode;
@@ -3013,6 +3021,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function updateProfileUI() {
+    const authUser = window.LeoFirebase?.currentUser;
+    const avatarUrl = studentAvatarDataUrl || authUser?.photoURL || '';
+    const applyAvatar = (imageId, letterId, fallback) => {
+      const image = document.getElementById(imageId);
+      const letterNode = document.getElementById(letterId);
+      if (!image || !letterNode) return;
+      image.onerror = () => { image.hidden = true; letterNode.hidden = false; };
+      if (avatarUrl) { image.src = avatarUrl; image.hidden = false; letterNode.hidden = true; }
+      else { image.removeAttribute('src'); image.hidden = true; letterNode.hidden = false; letterNode.textContent = fallback; }
+    };
     if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
       settingsUsernameText.textContent = 'تسجيل الدخول';
       drawerProfileName.textContent = 'تسجيل الدخول';
@@ -3023,6 +3041,10 @@ document.addEventListener('DOMContentLoaded', () => {
       drawerProfileStageBadge.textContent = 'اضغط للبدء';
       settingsStudentStagePill.textContent = 'غير مسجل';
       emptyStudentGreeting.textContent = 'أهلاً بك! يرجى تسجيل الدخول للبدء مع الأستاذ ليو المستشار الأكاديمي.';
+      applyAvatar('drawerAvatarImage', 'drawerAvatarLetter', '؟');
+      applyAvatar('drawerAccountAvatarImage', 'drawerAccountAvatarLetter', '؟');
+      applyAvatar('settingsAvatarImage', 'settingsAvatarLetterLarge', '؟');
+      updateProfileScreen();
       return;
     }
 
@@ -3035,6 +3057,9 @@ document.addEventListener('DOMContentLoaded', () => {
     drawerAccountName.textContent = name;
     drawerAccountAvatarLetter.textContent = letter;
     settingsAvatarLetterLarge.textContent = letter;
+    applyAvatar('drawerAvatarImage', 'drawerAvatarLetter', letter);
+    applyAvatar('drawerAccountAvatarImage', 'drawerAccountAvatarLetter', letter);
+    applyAvatar('settingsAvatarImage', 'settingsAvatarLetterLarge', letter);
 
     const stg = IRAQI_STAGES_DATA[studentProfile.stage] || IRAQI_STAGES_DATA.preparatory;
     const grd = stg.grades.find(g => g.id === studentProfile.grade_sub) || stg.grades[0];
@@ -3045,7 +3070,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const genderWord = studentProfile.gender === 'female' ? '' : '';
     emptyStudentGreeting.textContent = `مرحباً ${name}! الأستاذ ليو مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
+    updateProfileScreen();
   }
+
+  function updateProfileScreen() {
+    const profile = studentProfile || {};
+    const authUser = window.LeoFirebase?.currentUser;
+    const name = profile.name?.trim() || authUser?.displayName || 'الطالب';
+    const email = profile.email || authUser?.email || '—';
+    document.getElementById('profileDisplayName').textContent = name;
+    document.getElementById('profileStudentName').textContent = name;
+    document.getElementById('profileEmailText').textContent = email;
+    document.getElementById('profileGenderValue').textContent = profile.gender === 'female' ? 'أنثى' : profile.gender === 'male' ? 'ذكر' : '—';
+    const stage = IRAQI_STAGES_DATA[profile.stage];
+    const grade = stage?.grades.find(item => item.id === profile.grade_sub);
+    document.getElementById('profileStageValue').textContent = stage?.name || '—';
+    document.getElementById('profileGradeValue').textContent = grade?.label || '—';
+    document.getElementById('profileUniversityValue').textContent = profile.university || '—';
+    document.getElementById('profileSpecializationValue').textContent = profile.specialization || '—';
+    document.getElementById('profileUniversityRow').hidden = profile.stage !== 'university';
+    document.getElementById('profileSpecializationRow').hidden = !profile.specialization;
+    document.getElementById('profileAvatarLetter').textContent = name.charAt(0) || '؟';
+    const profileImage = document.getElementById('profileAvatarImage');
+    const profileLetter = document.getElementById('profileAvatarLetter');
+    const avatarUrl = studentAvatarDataUrl || authUser?.photoURL || '';
+    profileImage.onerror = () => { profileImage.hidden = true; profileLetter.hidden = false; };
+    if (avatarUrl) { profileImage.src = avatarUrl; profileImage.hidden = false; profileLetter.hidden = true; }
+    else { profileImage.removeAttribute('src'); profileImage.hidden = true; profileLetter.hidden = false; }
+  }
+
+  function openProfileScreen() {
+    if (!studentProfile?.name || studentProfile.name.trim() === 'الطالب') { openProfileModal(true); return; }
+    profileScreenReturnToSettings = settingsScreen.classList.contains('active');
+    updateProfileScreen();
+    profileScreen.classList.add('active');
+    profileScreen.setAttribute('aria-hidden', 'false');
+  }
+  function closeProfileScreen() {
+    profileScreen.classList.remove('active');
+    profileScreen.setAttribute('aria-hidden', 'true');
+    if (profileScreenReturnToSettings) settingsScreen.classList.add('active');
+  }
+  profileScreenBack.onclick = closeProfileScreen;
+  document.getElementById('profileEditDetails').onclick = () => {
+    closeProfileScreen();
+    openProfileModal(false, 2);
+  };
+  document.getElementById('profileEditAcademic').onclick = () => {
+    closeProfileScreen();
+    openProfileModal(false, 2);
+  };
+  document.getElementById('profileAvatarEdit').onclick = () => profileAvatarFile.click();
+  profileAvatarFile.addEventListener('change', async () => {
+    const file = profileAvatarFile.files?.[0];
+    profileAvatarFile.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 12 * 1024 * 1024) {
+      showToast('اختر صورة JPG أو PNG أو WebP بحجم أقل من 12 ميغابايت');
+      return;
+    }
+    try {
+      const imageUrl = await new Promise((resolve, reject) => {
+        const source = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        source.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(1, 512 / Math.max(source.naturalWidth, source.naturalHeight));
+          canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+          canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(objectUrl);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        source.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('invalid_image')); };
+        source.src = objectUrl;
+      });
+      studentAvatarDataUrl = imageUrl;
+      try { localStorage.setItem(accountStorageKey('leo_profile_avatar'), imageUrl); } catch (_) {}
+      updateProfileUI();
+      if (!window.LeoFirebase?.saveProfile) throw new Error('profile_storage_unavailable');
+      const saved = await window.LeoFirebase.saveProfile({ ...studentProfile, avatarDataUrl: imageUrl });
+      if (!saved) throw new Error('profile_photo_save_failed');
+      showToast('تم حفظ صورة الملف الشخصي في حسابك');
+    } catch (error) {
+      console.warn('Profile photo save notice:', error);
+      showToast('تعذر حفظ الصورة في الحساب. تحقق من الاتصال ثم أعد المحاولة.');
+    }
+  });
 
   // Profile click handlers
   drawerProfileCard.setAttribute('role', 'button');
@@ -3077,8 +3188,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   document.getElementById('drawerAccountProfile').onclick = () => {
     closeSidebar();
-    if (!studentProfile?.name || studentProfile.name.trim() === 'الطالب') openProfileModal(true);
-    else studentProfileRow.click();
+    openProfileScreen();
   };
   document.getElementById('drawerAccountSettings').onclick = () => {
     closeSidebar();
@@ -3086,7 +3196,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   document.getElementById('drawerAccountHelp').onclick = () => {
     closeSidebar();
-    reportBugRow.click();
+    window.location.href = 'mailto:khhjmwmmy@gmail.com?subject=' + encodeURIComponent('طلب مساعدة - الأستاذ ليو');
   };
   document.getElementById('drawerAccountLogout').onclick = () => {
     closeSidebar();
@@ -3095,8 +3205,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   settingsBackBtn.onclick = () => settingsScreen.classList.remove('active');
   studentProfileRow.onclick = () => openProfileModal(false, 2);
-  settingsNamePill.onclick = () => openProfileModal(false, 2);
-  avatarEditBadgeBtn.onclick = () => openProfileModal(false, 2);
+  settingsNamePill.onclick = openProfileScreen;
+  avatarEditBadgeBtn.onclick = openProfileScreen;
 
   // ChatGPT-style personalization screen; settings are saved per authenticated account.
   const customizationScreen = document.getElementById('customizationScreen');
@@ -3977,6 +4087,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!authenticatedUid) throw new Error('تعذر التحقق من هوية الحساب. أعد تسجيل الدخول.');
       activeAccountStorageId = authenticatedUid;
       deviceUserId = authenticatedUid;
+      studentAvatarDataUrl = localStorage.getItem(accountStorageKey('leo_profile_avatar')) || '';
       selectedModel = localStorage.getItem(accountStorageKey('leo_selected_model')) || 'deepseek-flash';
       localStorage.setItem(accountStorageKey('leo_selected_model'), selectedModel);
 

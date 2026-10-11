@@ -224,8 +224,10 @@ window.LeoFirebase = {
       if (rtdb) {
         set(ref(rtdb, `users/${uid}/profile`), profileData).catch(() => {});
       }
+      return true;
     } catch (e) {
       console.warn('Firebase saveProfile warning:', e);
+      return false;
     }
   },
 

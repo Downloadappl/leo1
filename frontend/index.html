@@ -483,7 +483,7 @@
 
         <div class="drawer-account-menu" id="drawerAccountMenu" role="menu" aria-label="قائمة الحساب" hidden>
           <div class="drawer-account-menu-header" dir="rtl">
-            <div class="user-avatar-circle pink-avatar"><span class="avatar-letter" id="drawerAccountAvatarLetter">ط</span></div>
+            <div class="user-avatar-circle pink-avatar"><span class="avatar-letter" id="drawerAccountAvatarLetter">ط</span><img class="avatar-photo" id="drawerAccountAvatarImage" alt="" hidden></div>
             <span class="drawer-account-menu-name" id="drawerAccountName">الطالب</span>
             <span class="drawer-account-menu-chevron" aria-hidden="true">›</span>
           </div>
@@ -512,6 +512,7 @@
           </div>
           <div class="user-avatar-circle pink-avatar">
             <span class="avatar-letter" id="drawerAvatarLetter">ط</span>
+            <img class="avatar-photo" id="drawerAvatarImage" alt="" hidden>
           </div>
         </div>
       </div>
@@ -542,6 +543,7 @@
           <div class="settings-large-avatar-wrapper">
             <div class="settings-large-avatar pink-avatar">
               <span class="avatar-letter-large" id="settingsAvatarLetterLarge">ط</span>
+              <img class="avatar-photo" id="settingsAvatarImage" alt="" hidden>
             </div>
             <button class="avatar-edit-badge-btn" id="avatarEditBadgeBtn" title="تعديل الملف الدراسي">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -743,6 +745,32 @@
         <button class="customization-save-btn" id="customizationSaveBtn" type="button">حفظ التخصيص <span>ϟ</span></button>
       </div>
     </div>
+
+    <section class="profile-screen" id="profileScreen" aria-hidden="true" dir="rtl">
+      <header class="profile-screen-header">
+        <span class="profile-screen-title">الملف الشخصي</span>
+        <button class="settings-back-btn" id="profileScreenBack" type="button" aria-label="رجوع"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+      </header>
+      <div class="profile-screen-scroll">
+        <article class="profile-identity-card">
+          <div class="profile-avatar-large" id="profileAvatarLarge"><span id="profileAvatarLetter">؟</span><img id="profileAvatarImage" alt="صورة الملف الشخصي" hidden></div>
+          <button class="profile-avatar-edit" id="profileAvatarEdit" type="button" aria-label="تغيير الصورة">✎</button>
+          <input id="profileAvatarFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <h2 id="profileDisplayName">الطالب</h2>
+          <p class="profile-email-line"><span id="profileEmailText">—</span><span aria-hidden="true">✉</span></p>
+          <div class="profile-identity-handle"><span>الاسم</span><strong id="profileStudentName">—</strong><button id="profileEditDetails" type="button">تعديل</button></div>
+        </article>
+        <article class="profile-academic-card">
+          <h3>البيانات الشخصية والدراسية</h3>
+          <div class="profile-detail-row"><span>الجنس</span><strong id="profileGenderValue">—</strong></div>
+          <div class="profile-detail-row"><span>المرحلة</span><strong id="profileStageValue">—</strong></div>
+          <div class="profile-detail-row"><span>الصف / السنة</span><strong id="profileGradeValue">—</strong></div>
+          <div class="profile-detail-row" id="profileUniversityRow"><span>الجامعة / المعهد</span><strong id="profileUniversityValue">—</strong></div>
+          <div class="profile-detail-row" id="profileSpecializationRow"><span>التخصص</span><strong id="profileSpecializationValue">—</strong></div>
+          <button class="profile-edit-academic" id="profileEditAcademic" type="button">تعديل البيانات الدراسية</button>
+        </article>
+      </div>
+    </section>
 
     <!-- ========================================================
          CHATGPT-STYLE FULL-SCREEN AUTH & ONBOARDING EXPERIENCE
