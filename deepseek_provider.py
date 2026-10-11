@@ -125,9 +125,10 @@ class DeepSeekChatClient:
 
         fragment_types = {}
         yielded_response = False
+        active_fragment_type = None
 
         def remember_fragment_types(fragments):
-            for index, fragment in enumerate(fragments):
+            for fragment in fragments:
                 if not isinstance(fragment, dict):
                     continue
                 fragment_type = str(fragment.get('type') or '').strip().upper()
@@ -135,7 +136,15 @@ class DeepSeekChatClient:
                 # Keep the first explicit classification instead of replacing
                 # it with an empty value, or the final answer stops mid-stream.
                 if fragment_type:
-                    fragment_types[index] = fragment_type
+                    remember_fragment_identity(fragment, fragment_type)
+
+        def remember_fragment_identity(fragment, fragment_type):
+            if not fragment_type or not isinstance(fragment, dict):
+                return
+            for key in ('id', 'fragment_id'):
+                identity = fragment.get(key)
+                if isinstance(identity, (int, str)):
+                    fragment_types[str(identity)] = fragment_type
 
         for raw_line in resp.iter_lines(chunk_size=1, decode_unicode=True):
             if abort_event and abort_event.is_set():
@@ -160,7 +169,11 @@ class DeepSeekChatClient:
                 if fragments:
                     remember_fragment_types(fragments)
                     last_frag = fragments[-1]
-                    f_type = fragment_types.get(len(fragments) - 1)
+                    explicit_type = str(last_frag.get('type') or '').strip().upper()
+                    if explicit_type:
+                        active_fragment_type = explicit_type
+                    identity_type = next((fragment_types.get(str(last_frag.get(key))) for key in ('id', 'fragment_id') if last_frag.get(key) is not None), None)
+                    f_type = explicit_type or identity_type or active_fragment_type
                     f_text = last_frag.get('content', '')
                     # Only explicitly marked final-response fragments may leave
                     # the provider. Thinking and untyped fragments stay private.
@@ -175,7 +188,11 @@ class DeepSeekChatClient:
                 if p_path == 'response/fragments' and isinstance(val, list) and val:
                     remember_fragment_types(val)
                     last_frag = val[-1]
-                    f_type = fragment_types.get(len(val) - 1)
+                    explicit_type = str(last_frag.get('type') or '').strip().upper()
+                    if explicit_type:
+                        active_fragment_type = explicit_type
+                    identity_type = next((fragment_types.get(str(last_frag.get(key))) for key in ('id', 'fragment_id') if last_frag.get(key) is not None), None)
+                    f_type = explicit_type or identity_type or active_fragment_type
                     f_text = last_frag.get('content', '')
                     if f_text and str(f_type or '').upper() == 'RESPONSE':
                         yielded_response = True
@@ -183,14 +200,22 @@ class DeepSeekChatClient:
                     continue
                 if p_path.endswith('/content') and isinstance(val, str) and val:
                     fragment_match = re.search(r'fragments/(\d+)/content$', p_path)
-                    fragment_type = fragment_types.get(int(fragment_match.group(1))) if fragment_match else None
+                    fragment_type = None
+                    if fragment_match:
+                        fragment_id = fragment_match.group(1)
+                        fragment_type = fragment_types.get(fragment_id)
+                    fragment_type = fragment_type or active_fragment_type
                     if fragment_type == 'RESPONSE':
                         yielded_response = True
                         yield ('text', val.replace('FINISHED', ''))
                     continue
 
-            # A plain string has no trustworthy fragment type, so never stream
-            # it to the chat where it could contain private reasoning.
+            # Some DeepSeek builds send subsequent deltas as plain strings.
+            # They are visible only after an explicit RESPONSE fragment was
+            # observed; THINK and unclassified streams remain private.
+            if isinstance(event_json.get('v'), str) and event_json['v'] and active_fragment_type == 'RESPONSE':
+                yielded_response = True
+                yield ('text', event_json['v'].replace('FINISHED', ''))
 
         if not yielded_response and not (abort_event and abort_event.is_set()):
             raise RuntimeError('لم يصل الرد النهائي من DeepSeek؛ لم يتم عرض محتوى التفكير. أعد المحاولة.')
