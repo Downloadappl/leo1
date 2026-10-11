@@ -11,6 +11,9 @@ import {
   GoogleAuthProvider,
   GithubAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signInWithCredential,
   onAuthStateChanged, 
   signOut,
   updateProfile
@@ -61,6 +64,7 @@ try {
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+let pendingMobileOAuth = null;
 let rtdb = null;
 try {
   rtdb = getDatabase(app);
@@ -169,6 +173,7 @@ window.LeoFirebase = {
   async signInWithGoogle() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+    if (window.flutter_inappwebview?.callHandler) return this._startMobileOAuth('google');
     const cred = await signInWithPopup(auth, provider);
     this.currentUser = cred.user;
     this._setupConversationsRealtimeListener();
@@ -178,10 +183,38 @@ window.LeoFirebase = {
   // تسجيل الدخول السريع عبر GitHub
   async signInWithGithub() {
     const provider = new GithubAuthProvider();
+    if (window.flutter_inappwebview?.callHandler) return this._startMobileOAuth('github');
     const cred = await signInWithPopup(auth, provider);
     this.currentUser = cred.user;
     this._setupConversationsRealtimeListener();
     return cred.user;
+  },
+
+  _startMobileOAuth(provider) {
+    return new Promise((resolve, reject) => {
+      pendingMobileOAuth = { resolve, reject };
+      window.flutter_inappwebview.callHandler('leoStartOAuth', provider).catch(error => {
+        pendingMobileOAuth = null;
+        reject(error);
+      });
+    });
+  },
+
+  async completeExternalOAuth(provider, accessToken) {
+    if (!['google', 'github'].includes(provider) || !accessToken) {
+      throw new Error('استجابة تسجيل الدخول غير صالحة.');
+    }
+    const credential = provider === 'google'
+      ? GoogleAuthProvider.credential(null, accessToken)
+      : GithubAuthProvider.credential(accessToken);
+    const result = await signInWithCredential(auth, credential);
+    this.currentUser = result.user;
+    this._setupConversationsRealtimeListener();
+    if (pendingMobileOAuth) {
+      pendingMobileOAuth.resolve(result.user);
+      pendingMobileOAuth = null;
+    }
+    return result.user;
   },
 
   // إنشاء حساب جديد بالبريد وكلمة المرور
@@ -464,6 +497,38 @@ window.LeoFirebase = {
     }
   }
 };
+
+// OAuth is started in the system browser for the Flutter shell. After Firebase
+// completes the redirect, hand its short-lived provider token back to the app.
+async function completeMobileRedirect() {
+  const params = new URLSearchParams(location.search);
+  const mobileProvider = params.get('mobile_oauth') || sessionStorage.getItem('leo_mobile_oauth');
+  if (!['google', 'github'].includes(mobileProvider)) return;
+  sessionStorage.setItem('leo_mobile_oauth', mobileProvider);
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result) {
+      const provider = mobileProvider === 'google' ? new GoogleAuthProvider() : new GithubAuthProvider();
+      if (mobileProvider === 'google') provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    const oauth = mobileProvider === 'google'
+      ? GoogleAuthProvider.credentialFromResult(result)
+      : GithubAuthProvider.credentialFromResult(result);
+    if (!oauth?.accessToken) throw new Error('لم يُرجع مزود الدخول رمز وصول.');
+    sessionStorage.removeItem('leo_mobile_oauth');
+    const callback = new URL('https://leeogpt-topaz.vercel.app/mobile-oauth-return');
+    callback.searchParams.set('provider', mobileProvider);
+    callback.searchParams.set('access_token', oauth.accessToken);
+    location.replace(callback.toString());
+  } catch (error) {
+    sessionStorage.removeItem('leo_mobile_oauth');
+    console.error('Mobile OAuth redirect failed:', error);
+    document.body.innerHTML = '<main dir="rtl" style="font:16px sans-serif;color:#eee;background:#18181b;min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px"><p>تعذر إكمال تسجيل الدخول. ارجع إلى LeoGPT وأعد المحاولة.</p></main>';
+  }
+}
+completeMobileRedirect();
 
 // الاستماع المباشر لتغير حالة مصادقة Firebase
 onAuthStateChanged(auth, (user) => {

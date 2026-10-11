@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.leo.app.leo_app",
+      "sha256_cert_fingerprints": [
+        "58:72:B3:F4:C5:EC:EB:F8:97:91:C6:91:F0:5D:83:D6:14:54:A5:80:3D:81:DB:74:A5:2C:BB:A2:4D:42:AD:9E"
+      ]
+    }
+  }
+]
