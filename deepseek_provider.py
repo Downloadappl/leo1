@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import time
 import requests
 import threading
@@ -122,6 +123,7 @@ class DeepSeekChatClient:
         resp = self.session.post(url, json=payload, headers=headers, stream=True, timeout=(15, 120))
         resp.raise_for_status()
 
+        fragment_types = {}
         for raw_line in resp.iter_lines(chunk_size=1, decode_unicode=True):
             if abort_event and abort_event.is_set():
                 break
@@ -143,25 +145,32 @@ class DeepSeekChatClient:
                     self.last_message_id = resp_obj['message_id']
                 fragments = resp_obj.get('fragments', [])
                 if fragments:
+                    fragment_types.update({index: str(fragment.get('type') or '').upper() for index, fragment in enumerate(fragments) if isinstance(fragment, dict)})
                     last_frag = fragments[-1]
                     f_type = last_frag.get('type')
                     f_text = last_frag.get('content', '')
                     if f_text:
-                        yield ('think' if f_type == 'THINK' else 'text', f_text.replace('FINISHED', ''))
+                        yield ('think' if str(f_type or '').upper() in ('THINK', 'THINKING', 'REASONING') else 'text', f_text.replace('FINISHED', ''))
                 continue
 
             if 'p' in event_json:
                 p_path = event_json['p']
                 val = event_json.get('v')
                 if p_path == 'response/fragments' and isinstance(val, list) and val:
+                    fragment_types.update({index: str(fragment.get('type') or '').upper() for index, fragment in enumerate(val) if isinstance(fragment, dict)})
                     last_frag = val[-1]
                     f_type = last_frag.get('type')
                     f_text = last_frag.get('content', '')
                     if f_text:
-                        yield ('think' if f_type == 'THINK' else 'text', f_text.replace('FINISHED', ''))
+                        yield ('think' if str(f_type or '').upper() in ('THINK', 'THINKING', 'REASONING') else 'text', f_text.replace('FINISHED', ''))
                     continue
                 if p_path.endswith('/content') and isinstance(val, str) and val:
-                    yield ('text', val.replace('FINISHED', ''))
+                    fragment_match = re.search(r'fragments/(\d+)/content$', p_path)
+                    fragment_type = fragment_types.get(int(fragment_match.group(1))) if fragment_match else None
+                    is_private_reasoning = str(fragment_type or '').upper() in ('THINK', 'THINKING', 'REASONING')
+                    if thinking_enabled and fragment_type is None:
+                        is_private_reasoning = True
+                    yield ('think' if is_private_reasoning else 'text', val.replace('FINISHED', ''))
                     continue
 
             if 'v' in event_json and isinstance(event_json['v'], str) and event_json['v']:

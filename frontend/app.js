@@ -17,8 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const imageGenerationModeRemove = document.getElementById('imageGenerationModeRemove');
   const webSearchBtn = document.getElementById('webSearchBtn');
   const thinkingModeBtn = document.getElementById('thinkingModeBtn');
-  const searchModeChip = document.getElementById('searchModeChip');
-  const thinkingModeChip = document.getElementById('thinkingModeChip');
   const fileInput = document.getElementById('fileInput');
   const attachmentPreviewDrawer = document.getElementById('attachmentPreviewDrawer');
   const micBtn = document.getElementById('micBtn');
@@ -341,8 +339,6 @@ document.addEventListener('DOMContentLoaded', () => {
       thinkingModeBtn.setAttribute('aria-pressed', String(thinkingEnabled));
       thinkingModeBtn.title = thinkingEnabled ? 'إيقاف وضع التفكير' : 'تفعيل وضع التفكير';
     }
-    if (searchModeChip) searchModeChip.hidden = !webSearchEnabled;
-    if (thinkingModeChip) thinkingModeChip.hidden = !thinkingEnabled;
   }
   webSearchBtn?.addEventListener('click', () => setOptionalModes({ search: !webSearchEnabled }));
   thinkingModeBtn?.addEventListener('click', () => setOptionalModes({ thinking: !thinkingEnabled }));
@@ -1432,11 +1428,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return card;
   }
 
-  function createResponseWaitingIndicator(searching = false) {
+  function createResponseWaitingIndicator(searching = false, thinking = false) {
     const template = document.getElementById('chatResponseWaitingTemplate');
     if (template) {
       const indicator = template.content.firstElementChild.cloneNode(true);
-      if (searching) indicator.querySelector('.chat-response-waiting-label').textContent = 'جاري البحث على الإنترنت…';
+      const label = indicator.querySelector('.chat-response-waiting-label');
+      if (searching) label.textContent = 'جاري البحث على الإنترنت…';
+      else if (thinking) label.textContent = 'ليو يفكر الآن…';
+      if (thinking) indicator.classList.add('is-thinking');
       return indicator;
     }
     const indicator = document.createElement('div');
@@ -1444,7 +1443,8 @@ document.addEventListener('DOMContentLoaded', () => {
     indicator.setAttribute('role', 'status');
     indicator.setAttribute('aria-live', 'polite');
     indicator.dir = 'rtl';
-    indicator.innerHTML = `<span class="chat-response-waiting-icon" aria-hidden="true"><span class="chat-response-waiting-orbit"></span><span class="chat-response-waiting-spark">✦</span></span><span class="chat-response-waiting-label">${searching ? 'جاري البحث على الإنترنت…' : 'جاري تجهيز الرد'}</span><span class="chat-response-waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+    indicator.innerHTML = `<span class="chat-response-waiting-icon" aria-hidden="true"><span class="chat-response-waiting-orbit"></span><span class="chat-response-waiting-spark">✦</span></span><span class="chat-response-waiting-label">${searching ? 'جاري البحث على الإنترنت…' : thinking ? 'ليو يفكر الآن…' : 'جاري تجهيز الرد'}</span><span class="chat-response-waiting-dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+    if (thinking) indicator.classList.add('is-thinking');
     return indicator;
   }
 
@@ -1615,11 +1615,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Owns the visible state of one assistant reply. Keeping this per message
   // prevents one request from replacing or completing another request's UI.
   class ChatResponseLifecycle {
-    constructor({ textElem, cursorElem, imageGenerationRequest, imageEditingRequest, webSearchRequest, requestId, onDone }) {
+    constructor({ textElem, cursorElem, imageGenerationRequest, imageEditingRequest, webSearchRequest, thinkingRequest, requestId, onDone }) {
       this.textElem = textElem;
       this.imageGenerationRequest = imageGenerationRequest;
       this.imageEditingRequest = imageEditingRequest;
       this.webSearchRequest = webSearchRequest;
+      this.thinkingRequest = thinkingRequest;
       this.requestId = requestId;
       if (requestId) this.textElem.dataset.responseRequestId = requestId;
       this.state = imageGenerationRequest ? 'generating-image' : 'waiting';
@@ -1638,7 +1639,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       this.textElem.replaceChildren(imageGenerationRequest
         ? createGeneratingPlaceholder(requestId, imageEditingRequest)
-        : createResponseWaitingIndicator(webSearchRequest));
+        : createResponseWaitingIndicator(webSearchRequest, thinkingRequest));
       if (cursorElem && cursorElem.parentNode) cursorElem.remove();
     }
 
@@ -1652,7 +1653,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!label || this.state !== 'waiting') return;
       const labels = {
         searching: 'جاري البحث على الإنترنت…',
-        sources_found: 'تم العثور على مصادر، جاري إعداد الإجابة…',
+        sources_found: this.thinkingRequest ? 'تم العثور على مصادر، ليو يفكر الآن…' : 'تم العثور على مصادر، جاري إعداد الإجابة…',
         search_failed: 'تعذّر البحث؛ ستكون الإجابة دون مصادر متحققة.',
         no_results: 'لم تظهر نتائج؛ ستكون الإجابة دون مراجع.'
       };
@@ -1875,6 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
       imageGenerationRequest,
       imageEditingRequest,
       webSearchRequest,
+      thinkingRequest,
       requestId,
       onDone: (finalContent) => {
         actionsElem.style.display = 'flex';
