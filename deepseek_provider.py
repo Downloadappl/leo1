@@ -125,6 +125,18 @@ class DeepSeekChatClient:
 
         fragment_types = {}
         yielded_response = False
+
+        def remember_fragment_types(fragments):
+            for index, fragment in enumerate(fragments):
+                if not isinstance(fragment, dict):
+                    continue
+                fragment_type = str(fragment.get('type') or '').strip().upper()
+                # DeepSeek often omits `type` from follow-up content patches.
+                # Keep the first explicit classification instead of replacing
+                # it with an empty value, or the final answer stops mid-stream.
+                if fragment_type:
+                    fragment_types[index] = fragment_type
+
         for raw_line in resp.iter_lines(chunk_size=1, decode_unicode=True):
             if abort_event and abort_event.is_set():
                 break
@@ -146,9 +158,9 @@ class DeepSeekChatClient:
                     self.last_message_id = resp_obj['message_id']
                 fragments = resp_obj.get('fragments', [])
                 if fragments:
-                    fragment_types.update({index: str(fragment.get('type') or '').upper() for index, fragment in enumerate(fragments) if isinstance(fragment, dict)})
+                    remember_fragment_types(fragments)
                     last_frag = fragments[-1]
-                    f_type = last_frag.get('type')
+                    f_type = fragment_types.get(len(fragments) - 1)
                     f_text = last_frag.get('content', '')
                     # Only explicitly marked final-response fragments may leave
                     # the provider. Thinking and untyped fragments stay private.
@@ -161,9 +173,9 @@ class DeepSeekChatClient:
                 p_path = event_json['p']
                 val = event_json.get('v')
                 if p_path == 'response/fragments' and isinstance(val, list) and val:
-                    fragment_types.update({index: str(fragment.get('type') or '').upper() for index, fragment in enumerate(val) if isinstance(fragment, dict)})
+                    remember_fragment_types(val)
                     last_frag = val[-1]
-                    f_type = last_frag.get('type')
+                    f_type = fragment_types.get(len(val) - 1)
                     f_text = last_frag.get('content', '')
                     if f_text and str(f_type or '').upper() == 'RESPONSE':
                         yielded_response = True
