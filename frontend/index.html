@@ -646,7 +646,7 @@
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
               <div class="row-text-column">
-                <span class="row-title">النمط البصري</span>
+                <span class="row-title">المظهر</span>
                 <span class="row-subtitle" id="currentAppearanceLabel">داكن (افتراضي)</span>
               </div>
               <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -655,6 +655,16 @@
                 <line x1="12" y1="21" x2="12" y2="23"></line>
               </svg>
             </div>
+            <div class="settings-choice-list" id="appearanceOptions" hidden></div>
+
+            <div class="card-inner-divider"></div>
+
+            <div class="settings-card-row clickable-row" id="languageRow" aria-expanded="false">
+              <svg class="chevron-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              <div class="row-text-column"><span class="row-title">اللغة</span><span class="row-subtitle" id="currentLanguageLabel">تلقائي (يطابق رسائلي)</span></div>
+              <svg class="row-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"></path><path d="m4 14 6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="m22 22-5-10-5 10"></path><path d="M14 18h6"></path></svg>
+            </div>
+            <div class="settings-choice-list" id="languageOptions" hidden></div>
 
             <div class="card-inner-divider"></div>
 
@@ -704,6 +714,34 @@
 
       </div>
 
+    </div>
+
+    <div class="customization-screen" id="customizationScreen" aria-hidden="true">
+      <header class="customization-header" dir="rtl">
+        <button class="settings-back-btn" id="customizationBackBtn" aria-label="رجوع" type="button"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+        <span class="settings-page-title">التخصيص</span>
+        <button class="settings-back-btn customization-save-top" id="customizationTopSave" aria-label="حفظ" type="button"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"></path></svg></button>
+      </header>
+      <div class="customization-scroll" dir="rtl">
+        <label class="customization-label" for="customStyleSelect">الأسلوب الأساسي والنبرة</label>
+        <div class="customization-card style-select-wrap"><button id="customStyleSelect" class="custom-style-select" type="button" aria-expanded="false">افتراضي</button><span class="custom-select-chevron">⌄</span><div class="settings-choice-list custom-select-options" id="customStyleOptions" hidden></div></div>
+        <p class="customization-help">هذه هي النبرة الرئيسية التي يستخدمها ليو في محادثاتك. لا تؤثر على قدراته.</p>
+        <label class="customization-label">السمات</label>
+        <div class="customization-card trait-list" id="customTraitList">
+          <button type="button" data-trait="curious">فضولي</button><button type="button" data-trait="empathetic">متعاطف</button><button type="button" data-trait="skeptical">متشكك</button><button type="button" data-trait="patient">صبور</button><button type="button" data-trait="playful">مرح</button><button type="button" data-trait="formal">رسمي</button><button type="button" data-trait="creative">مبدع</button><button type="button" data-trait="analytical">تحليلي</button>
+        </div>
+        <p class="customization-help">اختر تخصيصات إضافية فوق أسلوبك ونبرتك الأساسية.</p>
+        <label class="customization-card quick-answer-row" for="quickAnswersToggle"><span>إجابات سريعة</span><input id="quickAnswersToggle" type="checkbox"><span class="switch-track"></span></label>
+        <p class="customization-help">يمكن لليو استخدام معرفته العامة لتقديم إجابات سريعة ومعمقة. لا تُستخدم ذكرياتك الشخصية.</p>
+        <label class="customization-label" for="customInstructionsInput">تعليمات مخصصة</label>
+        <textarea class="customization-card custom-instructions" id="customInstructionsInput" maxlength="6700" placeholder="شارك أي شيء آخر تود أن يأخذه ليو بعين الاعتبار."></textarea>
+        <div class="customization-count"><span id="customInstructionsCount">0</span>/6700</div>
+        <label class="customization-label" for="studyModeSelect">تفضيل الشرح الدراسي</label>
+        <div class="customization-card style-select-wrap"><button id="studyModeSelect" class="custom-style-select" type="button" aria-expanded="false">شرح دراسي متسلسل خطوة بخطوة</button><span class="custom-select-chevron">⌄</span><div class="settings-choice-list custom-select-options" id="studyModeOptions" hidden></div></div>
+        <label class="customization-label" for="temperatureSelect">درجة التفصيل والدقة</label>
+        <input class="customization-card customization-temperature" id="temperatureSelect" type="range" min="0.2" max="1" step="0.1" aria-label="درجة التفصيل والدقة">
+        <button class="customization-save-btn" id="customizationSaveBtn" type="button">حفظ التخصيص <span>ϟ</span></button>
+      </div>
     </div>
 
     <!-- ========================================================

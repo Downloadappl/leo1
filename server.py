@@ -1422,6 +1422,8 @@ class AppHandler(SimpleHTTPRequestHandler):
             model = body.get('model', 'deepseek-flash')
             temperature = float(body.get('temperature', 0.7))
             study_mode = body.get('study_mode', 'standard')
+            personalization = body.get('personalization') if isinstance(body.get('personalization'), dict) else {}
+            response_language = str(body.get('response_language') or 'auto')[:16]
             web_search_request = body.get('web_search') is True
             thinking_request = body.get('thinking_enabled') is True
             req_id = body.get('request_id') or f"req_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
@@ -1703,6 +1705,33 @@ class AppHandler(SimpleHTTPRequestHandler):
                 is_ongoing=is_ongoing,
                 relevant_memories=relevant_memories
             )
+            style_labels = {
+                'friendly': 'ودود ودافئ', 'professional': 'احترافي ورصين', 'concise': 'موجز ومباشر',
+                'smart': 'ذكي ودقيق', 'encouraging': 'مشجع وداعم', 'direct': 'مباشر وواضح'
+            }
+            selected_style = style_labels.get(str(personalization.get('style') or ''), '')
+            if selected_style:
+                sys_prompt += f"\n\nنبرة الرد المفضلة: {selected_style}."
+            trait_labels = {
+                'curious': 'فضولي ويطرح أسئلة مفيدة عند الحاجة', 'empathetic': 'متعاطف ويراعي مشاعر المستخدم',
+                'skeptical': 'يتحقق من الافتراضات ولا يسلّم بالمعلومات غير المؤكدة', 'patient': 'صبور ويشرح بهدوء',
+                'playful': 'مرح باعتدال عندما يناسب السياق', 'formal': 'رسمي', 'creative': 'مبدع في عرض الأفكار',
+                'analytical': 'تحليلي ومنظم'
+            }
+            selected_traits = [trait_labels[item] for item in personalization.get('traits', [])[:8] if isinstance(item, str) and item in trait_labels] if isinstance(personalization.get('traits'), list) else []
+            if selected_traits:
+                sys_prompt += '\nسمات أسلوبية إضافية: ' + '؛ '.join(selected_traits) + '.'
+            custom_instructions = personalization.get('instructions')
+            if isinstance(custom_instructions, str) and custom_instructions.strip():
+                sys_prompt += '\n\nتفضيلات المستخدم المخصصة التالية (حد أقصى 6700 حرف):\n' + custom_instructions.strip()[:6700]
+            language_instructions = {
+                'en': 'Answer in English (US).', 'ar': 'أجب باللغة العربية الفصحى.',
+                'es': 'Responde en español.', 'fr': 'Réponds en français.', 'de': 'Antworte auf Deutsch.'
+            }
+            if response_language in language_instructions:
+                sys_prompt += '\n\nلغة الرد المفضلة للمستخدم: ' + language_instructions[response_language]
+            if personalization.get('quickAnswers') is True:
+                sys_prompt += '\n\nتفضيل الإجابات السريعة مفعّل: قدّم إجابة مباشرة ومختصرة للأسئلة البسيطة، مع الحفاظ على الدقة والتوسع عند الحاجة أو طلب الشرح.'
             formatted_messages = [{'role': 'system', 'content': sys_prompt}]
 
             search_results = []

@@ -81,7 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
       studyMode: 'standard',
       temperature: 0.7,
       appearance: 'dark',
-      bubbleTheme: 'theme-blue-pink'
+      bubbleTheme: 'theme-blue-pink',
+      language: 'auto',
+      personalization: { style: 'default', traits: [], quickAnswers: false, instructions: '' }
     };
     setOptionalModes({ search: false, thinking: false });
     document.body.classList.remove(...bubbleThemes.map(theme => theme.id), 'theme-light');
@@ -591,7 +593,9 @@ document.addEventListener('DOMContentLoaded', () => {
     studyMode: 'standard',
     temperature: 0.7,
     appearance: 'dark',
-    bubbleTheme: 'theme-blue-pink'
+    bubbleTheme: 'theme-blue-pink',
+    language: 'auto',
+    personalization: { style: 'default', traits: [], quickAnswers: false, instructions: '' }
   };
 
   const bubbleThemes = [
@@ -2088,6 +2092,8 @@ document.addEventListener('DOMContentLoaded', () => {
         model: selectedModel,
         temperature: settingsState.temperature,
         study_mode: settingsState.studyMode,
+        personalization: settingsState.personalization || {},
+        response_language: settingsState.language || 'auto',
         student_profile: { ...studentProfile },
         long_term_memories: readLongTermMemoryCache()
       };
@@ -3092,47 +3098,142 @@ document.addEventListener('DOMContentLoaded', () => {
   settingsNamePill.onclick = () => openProfileModal(false, 2);
   avatarEditBadgeBtn.onclick = () => openProfileModal(false, 2);
 
-  // Customization Row Modal
-  customizationRow.onclick = () => {
-    modalTitle.textContent = 'تخصيص نمط التدريس للأستاذ ليو';
-    modalBody.innerHTML = `
-      <div class="modal-field">
-        <label>نمط الشرح المفضل:</label>
-        <select id="modalStudyMode">
-          <option value="standard" ${settingsState.studyMode === 'standard' ? 'selected' : ''}>شرح دراسي متسلسل ومنهجي خطوة بخطوة</option>
-          <option value="math" ${settingsState.studyMode === 'math' ? 'selected' : ''}>حل مسائل وتمارين مع القوانين والتعويض (علمي/رياضي)</option>
-          <option value="exam" ${settingsState.studyMode === 'exam' ? 'selected' : ''}>مراجعة امتحانية وأسئلة وزارية مع الحل النموذجي</option>
-          <option value="summary" ${settingsState.studyMode === 'summary' ? 'selected' : ''}>تلخيص ذكي وجداول مقارنة للمراجعة السريعة</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <label>درجة التفصيل والدقة العلمية (Temperature: <span id="tempValDisplay">${settingsState.temperature}</span>):</label>
-        <input type="range" id="modalTempRange" min="0.2" max="1.0" step="0.1" value="${settingsState.temperature}">
-      </div>
-      <button class="modal-primary-btn" id="modalSaveCustomBtn">حفظ النمط التعليمي</button>
-    `;
-
-    const tempRange = document.getElementById('modalTempRange');
-    const tempDisplay = document.getElementById('tempValDisplay');
-    tempRange.oninput = () => tempDisplay.textContent = tempRange.value;
-
-    document.getElementById('modalSaveCustomBtn').onclick = () => {
-      settingsState.studyMode = document.getElementById('modalStudyMode').value;
-      settingsState.temperature = parseFloat(tempRange.value);
-      saveSettingsToServer();
-      closeModal();
-      showToast('تم حفظ نمط الشرح التعليمي');
+  // ChatGPT-style personalization screen; settings are saved per authenticated account.
+  const customizationScreen = document.getElementById('customizationScreen');
+  const customStyleSelect = document.getElementById('customStyleSelect');
+  const customInstructionsInput = document.getElementById('customInstructionsInput');
+  const customInstructionsCount = document.getElementById('customInstructionsCount');
+  const quickAnswersToggle = document.getElementById('quickAnswersToggle');
+  const studyModeSelect = document.getElementById('studyModeSelect');
+  const temperatureSelect = document.getElementById('temperatureSelect');
+  const customStyleOptions = document.getElementById('customStyleOptions');
+  const studyModeOptions = document.getElementById('studyModeOptions');
+  const customStyleChoices = [
+    { id: 'default', label: 'افتراضي' }, { id: 'friendly', label: 'ودود' }, { id: 'professional', label: 'احترافي' },
+    { id: 'concise', label: 'موجز' }, { id: 'smart', label: 'ذكي' }, { id: 'encouraging', label: 'مشجع' }, { id: 'direct', label: 'مباشر' }
+  ];
+  const studyModeChoices = [
+    { id: 'standard', label: 'شرح دراسي متسلسل خطوة بخطوة' }, { id: 'math', label: 'حل مسائل وتمارين مع القوانين' },
+    { id: 'exam', label: 'مراجعة امتحانية وأسئلة وزارية' }, { id: 'summary', label: 'تلخيص وجداول للمراجعة السريعة' }
+  ];
+  function selectPersonalizationChoice(trigger, list, choices, value) {
+    const choice = choices.find(item => item.id === value) || choices[0];
+    trigger.dataset.value = choice.id;
+    trigger.textContent = choice.label;
+    trigger.setAttribute('aria-expanded', 'false');
+    list.hidden = true;
+    renderChoiceList(list, choices, choice.id, selected => selectPersonalizationChoice(trigger, list, choices, selected.id));
+  }
+  function initPersonalizationChoice(trigger, list, choices, value) {
+    selectPersonalizationChoice(trigger, list, choices, value);
+    trigger.onclick = () => {
+      const open = list.hidden;
+      list.hidden = !open;
+      trigger.setAttribute('aria-expanded', String(open));
     };
-
-    openModal();
+    renderChoiceList(list, choices, trigger.dataset.value, choice => selectPersonalizationChoice(trigger, list, choices, choice.id));
+  }
+  initPersonalizationChoice(customStyleSelect, customStyleOptions, customStyleChoices, 'default');
+  initPersonalizationChoice(studyModeSelect, studyModeOptions, studyModeChoices, 'standard');
+  const traitButtons = [...document.querySelectorAll('#customTraitList [data-trait]')];
+  function syncPersonalizationForm() {
+    const prefs = settingsState.personalization || (settingsState.personalization = {});
+    selectPersonalizationChoice(customStyleSelect, customStyleOptions, customStyleChoices, prefs.style || 'default');
+    customInstructionsInput.value = prefs.instructions || '';
+    customInstructionsCount.textContent = String(customInstructionsInput.value.length);
+    quickAnswersToggle.checked = Boolean(prefs.quickAnswers);
+    selectPersonalizationChoice(studyModeSelect, studyModeOptions, studyModeChoices, settingsState.studyMode || 'standard');
+    temperatureSelect.value = String(settingsState.temperature ?? 0.7);
+    const selectedTraits = Array.isArray(prefs.traits) ? prefs.traits : [];
+    traitButtons.forEach(button => button.classList.toggle('selected', selectedTraits.includes(button.dataset.trait)));
+  }
+  customizationRow.onclick = () => {
+    syncPersonalizationForm();
+    customizationScreen.classList.add('active');
+    customizationScreen.setAttribute('aria-hidden', 'false');
   };
+  document.getElementById('customizationBackBtn').onclick = () => {
+    customizationScreen.classList.remove('active');
+    customizationScreen.setAttribute('aria-hidden', 'true');
+  };
+  customInstructionsInput.addEventListener('input', () => customInstructionsCount.textContent = String(customInstructionsInput.value.length));
+  traitButtons.forEach(button => button.addEventListener('click', () => button.classList.toggle('selected')));
+  function savePersonalization() {
+    settingsState.personalization = {
+      style: customStyleSelect.dataset.value || 'default',
+      traits: traitButtons.filter(button => button.classList.contains('selected')).map(button => button.dataset.trait),
+      quickAnswers: quickAnswersToggle.checked,
+      instructions: customInstructionsInput.value.slice(0, 6700)
+    };
+    settingsState.studyMode = studyModeSelect.dataset.value || 'standard';
+    settingsState.temperature = Number(temperatureSelect.value);
+    saveSettingsToServer();
+    customizationScreen.classList.remove('active');
+    customizationScreen.setAttribute('aria-hidden', 'true');
+    showToast('تم حفظ التخصيص');
+  }
+  document.getElementById('customizationSaveBtn').onclick = savePersonalization;
+  document.getElementById('customizationTopSave').onclick = savePersonalization;
 
   // --- Appearance Engine (Dark, Light, System) ---
   const appearanceModes = [
-    { id: 'dark', label: 'داكن (Dark)' },
-    { id: 'light', label: 'فاتح (Light)' },
-    { id: 'system', label: 'تلقائي حسب النظام (System)' }
+    { id: 'system', label: 'تلقائي (افتراضي)' },
+    { id: 'light', label: 'فاتح' },
+    { id: 'dark', label: 'داكن' }
   ];
+  const appearanceOptions = document.getElementById('appearanceOptions');
+  const languageOptions = document.getElementById('languageOptions');
+  const languageRow = document.getElementById('languageRow');
+  const currentLanguageLabel = document.getElementById('currentLanguageLabel');
+  const languageModes = [
+    { id: 'auto', label: 'تلقائي (يطابق رسائلي)', prompt: '' },
+    { id: 'en', label: 'English (USA)', prompt: 'Answer in English (US).' },
+    { id: 'ar', label: 'العربية', prompt: 'أجب باللغة العربية الفصحى.' },
+    { id: 'es', label: 'español (الإسبانية)', prompt: 'Responde en español.' },
+    { id: 'fr', label: 'français (الفرنسية)', prompt: 'Réponds en français.' },
+    { id: 'de', label: 'Deutsch (الألمانية)', prompt: 'Antworte auf Deutsch.' }
+  ];
+  function renderChoiceList(container, choices, selected, onSelect) {
+    container.replaceChildren(...choices.map(choice => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `settings-choice${choice.id === selected ? ' selected' : ''}`;
+      button.textContent = choice.label;
+      button.setAttribute('aria-pressed', String(choice.id === selected));
+      button.addEventListener('click', () => onSelect(choice));
+      return button;
+    }));
+  }
+  function updateLanguageLabel() {
+    const choice = languageModes.find(item => item.id === (settingsState.language || 'auto')) || languageModes[0];
+    currentLanguageLabel.textContent = choice.label;
+  }
+  function chooseAppearance(choice) {
+    applyAppearance(choice.id);
+    renderChoiceList(appearanceOptions, appearanceModes, choice.id, chooseAppearance);
+    saveSettingsToServer();
+    showToast(`تم تفعيل المظهر: ${choice.label}`);
+  }
+  function chooseLanguage(choice) {
+    settingsState.language = choice.id;
+    currentLanguageLabel.textContent = choice.label;
+    renderChoiceList(languageOptions, languageModes, choice.id, chooseLanguage);
+    saveSettingsToServer();
+    showToast('تم حفظ لغة الردود');
+  }
+  renderChoiceList(appearanceOptions, appearanceModes, settingsState.appearance, chooseAppearance);
+  renderChoiceList(languageOptions, languageModes, settingsState.language || 'auto', chooseLanguage);
+  appearanceRow.setAttribute('aria-expanded', 'false');
+  appearanceRow.onclick = () => {
+    const open = appearanceOptions.hidden;
+    appearanceOptions.hidden = !open;
+    appearanceRow.setAttribute('aria-expanded', String(open));
+  };
+  languageRow.onclick = () => {
+    const open = languageOptions.hidden;
+    languageOptions.hidden = !open;
+    languageRow.setAttribute('aria-expanded', String(open));
+  };
 
   function applyAppearance(mode) {
     settingsState.appearance = mode;
@@ -3158,16 +3259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Appearance Row Click Handler (Cycles Dark -> Light -> System)
-  if (appearanceRow) {
-    appearanceRow.onclick = () => {
-      const currIdx = appearanceModes.findIndex(m => m.id === settingsState.appearance);
-      const nextMode = appearanceModes[(currIdx + 1) % appearanceModes.length];
-      applyAppearance(nextMode.id);
-      saveSettingsToServer();
-      showToast(`تم تفعيل المظهر: ${nextMode.label}`);
-    };
-  }
+  updateLanguageLabel();
 
   // Bubble Theme Row
   if (bubbleThemeRow) {
@@ -3968,6 +4060,14 @@ document.addEventListener('DOMContentLoaded', () => {
               document.getElementById('glowingOrbPreview').style.background = tObj.preview;
             }
           }
+          settingsState.personalization = {
+            style: 'default', traits: [], quickAnswers: false, instructions: '',
+            ...(settingsState.personalization || {})
+          };
+          renderChoiceList(appearanceOptions, appearanceModes, settingsState.appearance || 'dark', chooseAppearance);
+          renderChoiceList(languageOptions, languageModes, settingsState.language || 'auto', chooseLanguage);
+          updateLanguageLabel();
+          syncPersonalizationForm();
         }
       }
 
