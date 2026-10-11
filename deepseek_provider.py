@@ -124,6 +124,7 @@ class DeepSeekChatClient:
         resp.raise_for_status()
 
         fragment_types = {}
+        yielded_response = False
         for raw_line in resp.iter_lines(chunk_size=1, decode_unicode=True):
             if abort_event and abort_event.is_set():
                 break
@@ -149,8 +150,11 @@ class DeepSeekChatClient:
                     last_frag = fragments[-1]
                     f_type = last_frag.get('type')
                     f_text = last_frag.get('content', '')
-                    if f_text:
-                        yield ('think' if str(f_type or '').upper() in ('THINK', 'THINKING', 'REASONING') else 'text', f_text.replace('FINISHED', ''))
+                    # Only explicitly marked final-response fragments may leave
+                    # the provider. Thinking and untyped fragments stay private.
+                    if f_text and str(f_type or '').upper() == 'RESPONSE':
+                        yielded_response = True
+                        yield ('text', f_text.replace('FINISHED', ''))
                 continue
 
             if 'p' in event_json:
@@ -161,17 +165,20 @@ class DeepSeekChatClient:
                     last_frag = val[-1]
                     f_type = last_frag.get('type')
                     f_text = last_frag.get('content', '')
-                    if f_text:
-                        yield ('think' if str(f_type or '').upper() in ('THINK', 'THINKING', 'REASONING') else 'text', f_text.replace('FINISHED', ''))
+                    if f_text and str(f_type or '').upper() == 'RESPONSE':
+                        yielded_response = True
+                        yield ('text', f_text.replace('FINISHED', ''))
                     continue
                 if p_path.endswith('/content') and isinstance(val, str) and val:
                     fragment_match = re.search(r'fragments/(\d+)/content$', p_path)
                     fragment_type = fragment_types.get(int(fragment_match.group(1))) if fragment_match else None
-                    is_private_reasoning = str(fragment_type or '').upper() in ('THINK', 'THINKING', 'REASONING')
-                    if thinking_enabled and fragment_type is None:
-                        is_private_reasoning = True
-                    yield ('think' if is_private_reasoning else 'text', val.replace('FINISHED', ''))
+                    if fragment_type == 'RESPONSE':
+                        yielded_response = True
+                        yield ('text', val.replace('FINISHED', ''))
                     continue
 
-            if 'v' in event_json and isinstance(event_json['v'], str) and event_json['v']:
-                yield ('text', event_json['v'].replace('FINISHED', ''))
+            # A plain string has no trustworthy fragment type, so never stream
+            # it to the chat where it could contain private reasoning.
+
+        if not yielded_response and not (abort_event and abort_event.is_set()):
+            raise RuntimeError('لم يصل الرد النهائي من DeepSeek؛ لم يتم عرض محتوى التفكير. أعد المحاولة.')
