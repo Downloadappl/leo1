@@ -1,5 +1,5 @@
 // ==============================================================================
-// 🎓 Leo GPT — خدمة الربط والتخزين السحابي عبر Firebase (Firestore & RTDB & Auth)
+// 🎓 LeoGPT — خدمة الربط والتخزين السحابي عبر Firebase (Firestore & RTDB & Auth)
 // ==============================================================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
@@ -525,7 +525,7 @@ async function completeMobileRedirect() {
   } catch (error) {
     sessionStorage.removeItem('leo_mobile_oauth');
     console.error('Mobile OAuth redirect failed:', error);
-    document.body.innerHTML = '<main dir="rtl" style="font:16px sans-serif;color:#eee;background:#18181b;min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px"><p>تعذر إكمال تسجيل الدخول. ارجع إلى Leo GPT وأعد المحاولة.</p></main>';
+    document.body.innerHTML = '<main dir="rtl" style="font:16px sans-serif;color:#eee;background:#18181b;min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px"><p>تعذر إكمال تسجيل الدخول. ارجع إلى LeoGPT وأعد المحاولة.</p></main>';
   }
 }
 completeMobileRedirect();

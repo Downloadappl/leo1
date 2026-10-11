@@ -1,5 +1,5 @@
 /**
- * Leo GPT — المستشار والموجه الأكاديمي
+ * LeoGPT — المستشار والموجه الأكاديمي
  * Iraqi Educational Curriculum Integration, ChatGPT-like Audio Bar, Pinned & Archived History
  */
 
@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chatTextInput) {
       chatTextInput.placeholder = imageGenerationModeEnabled
         ? (imageEditingModeEnabled ? 'اكتب كيف تريد تعديل الصورة...' : 'صف الصورة التي تريد إنشاءها...')
-        : (normalChatPlaceholder || 'اسأل Leo GPT...');
+        : (normalChatPlaceholder || 'اسأل LeoGPT...');
       chatTextInput.setAttribute('aria-label', imageGenerationModeEnabled ? (imageEditingModeEnabled ? 'وصف التعديل المطلوب' : 'وصف الصورة المطلوب إنشاؤها') : 'اكتب رسالتك');
     }
     const generationChoice = document.getElementById('sheetGenerateImgBtn');
@@ -850,7 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
       actionPillBtn.classList.add('send-mode');
       if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
       if (glowingInputBox) glowingInputBox.classList.remove('elevated');
-      showToast('تم إرفاق الملف؛ سيقوم Leo GPT بفحصه بدقة');
+      showToast('تم إرفاق الملف؛ سيقوم LeoGPT بفحصه بدقة');
     };
     reader.readAsDataURL(file);
   }
@@ -968,7 +968,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentActiveSpeakBtn) {
       currentActiveSpeakBtn.classList.remove('playing-audio', 'loading-audio');
       currentActiveSpeakBtn.innerHTML = speakerDefaultSvg;
-      currentActiveSpeakBtn.title = 'استماع إلى إجابة Leo GPT';
+      currentActiveSpeakBtn.title = 'استماع إلى إجابة LeoGPT';
       currentActiveSpeakBtn = null;
     }
     if (window.speechSynthesis) {
@@ -993,7 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentActiveTTSAudio.paused) {
         currentActiveTTSAudio.play();
         audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
-        audioBarStatusText.textContent = 'Leo GPT يواصل القراءة...';
+        audioBarStatusText.textContent = 'LeoGPT يواصل القراءة...';
       } else {
         currentActiveTTSAudio.pause();
         audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.speechSynthesis.resume();
         audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
         isAudioPaused = false;
-        audioBarStatusText.textContent = 'Leo GPT يواصل القراءة...';
+        audioBarStatusText.textContent = 'LeoGPT يواصل القراءة...';
       } else {
         window.speechSynthesis.pause();
         audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
@@ -1022,7 +1022,7 @@ document.addEventListener('DOMContentLoaded', () => {
         speechRec.start();
         audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
         isAudioPaused = false;
-        audioBarStatusText.textContent = 'Leo GPT يستمع إليك...';
+        audioBarStatusText.textContent = 'LeoGPT يستمع إليك...';
       } else {
         speechRec.stop();
         audioPauseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
@@ -1048,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function toggleVoiceRecording() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      chatTextInput.value = 'Leo GPT، اشرح لي هذه المسألة بالتفصيل خطوة بخطوة';
+      chatTextInput.value = 'LeoGPT، اشرح لي هذه المسألة بالتفصيل خطوة بخطوة';
       autoResizeTextarea();
       actionPillBtn.classList.add('send-mode');
       showToast('تم إدراج السؤال التعليمي في حقل المحادثة');
@@ -1073,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isRecording = true;
         playAudioTone('start');
         micBtn.classList.add('recording');
-        showAudioBar('Leo GPT يستمع إليك... تحدث الآن');
+        showAudioBar('LeoGPT يستمع إليك... تحدث الآن');
       };
 
       speechRec.onresult = (evt) => {
@@ -1083,7 +1083,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatTextInput.value = transcript;
         autoResizeTextarea();
         actionPillBtn.classList.add('send-mode');
-        audioBarStatusText.textContent = transcript || 'Leo GPT يستمع...';
+        audioBarStatusText.textContent = transcript || 'LeoGPT يستمع...';
       };
 
       speechRec.onerror = () => {
@@ -2550,7 +2550,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function buildToolbarHtml(actionsElem) {
     actionsElem.innerHTML = `
-      <button class="msg-action-btn action-speak" title="استماع إلى إجابة Leo GPT" aria-label="استماع">
+      <button class="msg-action-btn action-speak" title="استماع إلى إجابة LeoGPT" aria-label="استماع">
         <svg class="speaker-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
       </button>
       <button class="msg-action-btn action-dislike" title="لم يعجبني"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg></button>
@@ -2590,7 +2590,7 @@ document.addEventListener('DOMContentLoaded', () => {
       speakBtn.title = 'جاري تحضير الصوت...';
       currentActiveSpeakBtn = speakBtn;
       isTTSPlaying = true;
-      showAudioBar('Leo GPT يجهز صوته للاستماع...', true);
+      showAudioBar('LeoGPT يجهز صوته للاستماع...', true);
 
       try {
         const resp = await fetch('/api/tts', {
@@ -2618,7 +2618,7 @@ document.addEventListener('DOMContentLoaded', () => {
         speakBtn.classList.add('playing-audio');
         speakBtn.innerHTML = speakerPlayingSvg;
         speakBtn.title = 'إيقاف الاستماع';
-        showAudioBar('Leo GPT يشرح بصوته (حمدان)...', true);
+        showAudioBar('LeoGPT يشرح بصوته (حمدان)...', true);
 
         audio.onended = () => {
           stopActiveTTSAudio();
@@ -2878,7 +2878,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function closeProfileModal() {
     if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
-      showToast('يرجى إكمال بياناتك الدراسية للبدء مع Leo GPT');
+      showToast('يرجى إكمال بياناتك الدراسية للبدء مع LeoGPT');
       return;
     }
     if (authFullscreenScreen) authFullscreenScreen.classList.remove('active');
@@ -3113,7 +3113,7 @@ document.addEventListener('DOMContentLoaded', () => {
       settingsAvatarLetterLarge.textContent = '؟';
       drawerProfileStageBadge.textContent = 'اضغط للبدء';
       settingsStudentStagePill.textContent = 'غير مسجل';
-      emptyStudentGreeting.textContent = 'أهلاً بك! يرجى تسجيل الدخول للبدء مع Leo GPT المستشار الأكاديمي.';
+      emptyStudentGreeting.textContent = 'أهلاً بك! يرجى تسجيل الدخول للبدء مع LeoGPT المستشار الأكاديمي.';
       applyAvatar('drawerAvatarImage', 'drawerAvatarLetter', '؟');
       applyAvatar('drawerAccountAvatarImage', 'drawerAccountAvatarLetter', '؟');
       applyAvatar('settingsAvatarImage', 'settingsAvatarLetterLarge', '؟');
@@ -3142,7 +3142,7 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsStudentStagePill.textContent = stageLabel;
 
     const genderWord = studentProfile.gender === 'female' ? '' : '';
-    emptyStudentGreeting.textContent = `مرحباً ${name}! Leo GPT مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
+    emptyStudentGreeting.textContent = `مرحباً ${name}! LeoGPT مستعد لمدارسة كافة مواضيعك في ${grd ? grd.label : stg.name}.`;
     updateProfileScreen();
   }
 
@@ -3269,7 +3269,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   document.getElementById('drawerAccountHelp').onclick = () => {
     closeSidebar();
-    window.location.href = 'mailto:khhjmwmmy@gmail.com?subject=' + encodeURIComponent('طلب مساعدة - Leo GPT');
+    window.location.href = 'mailto:khhjmwmmy@gmail.com?subject=' + encodeURIComponent('طلب مساعدة - LeoGPT');
   };
   document.getElementById('drawerAccountLogout').onclick = () => {
     closeSidebar();
@@ -3587,7 +3587,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (memories.length === 0) {
-      memoryItemsList.innerHTML = '<div class="memory-empty-state">لا توجد تفضيلات محفوظة بعد. سيتذكر Leo GPT تفضيلاتك تلقائياً أو يمكنك إضافتها يدوياً أعلاه.</div>';
+      memoryItemsList.innerHTML = '<div class="memory-empty-state">لا توجد تفضيلات محفوظة بعد. سيتذكر LeoGPT تفضيلاتك تلقائياً أو يمكنك إضافتها يدوياً أعلاه.</div>';
       return;
     }
 
@@ -4087,7 +4087,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modalTitle.textContent = 'الإبلاغ عن مسألة أو اقتراح دراسي';
     modalBody.innerHTML = `
       <div class="modal-field">
-        <label>اكتب ملاحظتك إلى Leo GPT:</label>
+        <label>اكتب ملاحظتك إلى LeoGPT:</label>
         <textarea id="feedbackText" placeholder="اكتب تفاصيل المسألة أو أي ميزة تحتاجها في منهجك الدراسي..."></textarea>
       </div>
       <button class="modal-primary-btn" id="sendFeedbackBtn">إرسال التقرير</button>

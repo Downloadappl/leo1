@@ -1,5 +1,5 @@
 /**
- * صفحة تسجيل الدخول وتخصيص تجربة الطالب — منصة Leo GPT
+ * صفحة تسجيل الدخول وتخصيص تجربة الطالب — منصة LeoGPT
  * Google Sign-In, Email/Password, Theme Toggling (T key), Iraqi Curriculum Onboarding
  */
 
