@@ -1929,28 +1929,128 @@ body.theme-light .mode-toggle-btn[aria-pressed="true"] { color: #2563eb; backgro
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* ========================================================
+   Responsive Leo Brand Logo System
+   ======================================================== */
+.leo-logo-img {
+  display: block;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+.leo-logo-light {
+  display: none !important;
+}
+
+.leo-logo-dark {
+  display: block !important;
+}
+
+html.theme-light .leo-logo-light,
+body.theme-light .leo-logo-light {
+  display: block !important;
+}
+
+html.theme-light .leo-logo-dark,
+body.theme-light .leo-logo-dark {
+  display: none !important;
+}
+
 .drawer-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  cursor: pointer;
 }
 
 .brand-text {
   font-size: 18px;
   font-weight: 600;
   color: #ffffff;
+  transition: color 0.2s ease;
 }
 
-.brand-butterfly-badge {
-  width: 32px;
-  height: 32px;
+.brand-butterfly-badge,
+.drawer-brand .brand-logo-badge {
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: #1c1c20;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.14) 0%, rgba(28, 28, 32, 0.9) 75%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  padding: 3px;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.15);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-brand:hover .brand-butterfly-badge,
+.drawer-brand:hover .brand-logo-badge {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.32);
+}
+
+.drawer-brand:hover .leo-logo-img {
+  transform: rotate(20deg) scale(1.06);
+}
+
+body.theme-light .drawer-brand .brand-text {
+  color: #0f172a;
+}
+
+body.theme-light .drawer-brand .brand-butterfly-badge,
+body.theme-light .drawer-brand .brand-logo-badge {
+  background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.08) 0%, #ffffff 75%);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Empty State / Welcome Hero Brand Mark */
+.empty-state-brand-mark {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 16px;
+  border-radius: 20px;
+  background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.15) 0%, rgba(20, 24, 33, 0.8) 75%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.4), 0 0 28px rgba(16, 185, 129, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: brandGlowPulse 4s ease-in-out infinite alternate;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes brandGlowPulse {
+  0% {
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.14);
+    transform: translateY(0);
+  }
+  100% {
+    box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 0 32px rgba(16, 185, 129, 0.28);
+    transform: translateY(-2px);
+  }
+}
+
+.empty-state-brand-mark:hover {
+  transform: translateY(-4px) scale(1.04);
+}
+
+.empty-state-brand-mark:hover .leo-logo-img {
+  transform: rotate(15deg) scale(1.05);
+}
+
+body.theme-light .empty-state-brand-mark {
+  background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.08) 0%, #ffffff 80%);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.06), 0 0 20px rgba(16, 185, 129, 0.1);
+}
+
+.empty-hero-pill .leo-logo-img {
+  margin-left: 2px;
 }
 
 /* Drawer Actions */

@@ -8,7 +8,8 @@
   
   <meta name="description" content="تسجيل الدخول إلى منصة الأستاذ ليو، المستشار والموجه الأكاديمي لمناهج العراق.">
   <meta name="theme-color" content="#18181b">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 10v6M2 10l10-5 10 5-10 5z'/><path d='M6 12v5c3 3 9 3 12 0v-5'/></svg>">
+  <link rel="icon" type="image/png" href="assets/brand/favicon-64.png">
+  <link rel="apple-touch-icon" href="assets/brand/favicon-64.png">
   
   <!-- Instant Theme Guard to prevent screen flash -->
   <script>
@@ -173,17 +174,76 @@
       letter-spacing: -0.02em;
     }
 
+    /* Responsive Leo Brand Logo System */
+    .leo-logo-img {
+      display: block;
+      object-fit: contain;
+      user-select: none;
+      -webkit-user-drag: none;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    }
+    .leo-logo-light {
+      display: none !important;
+    }
+    .leo-logo-dark {
+      display: block !important;
+    }
+    html.theme-light .leo-logo-light,
+    body.theme-light .leo-logo-light {
+      display: block !important;
+    }
+    html.theme-light .leo-logo-dark,
+    body.theme-light .leo-logo-dark {
+      display: none !important;
+    }
+
     .brand-logo-badge {
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: var(--radius-pill);
-      background: var(--btn-solid-bg);
-      color: var(--btn-solid-text);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      padding: 3px;
       transition: var(--transition-smooth);
+    }
+    .login-brand:hover .brand-logo-badge .leo-logo-img {
+      transform: rotate(20deg) scale(1.08);
+    }
+    html.theme-light .brand-logo-badge,
+    body.theme-light .brand-logo-badge {
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .auth-brand-emblem {
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 16px;
+      border-radius: 22px;
+      background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.15) 0%, rgba(24, 24, 27, 0.7) 75%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.5), 0 0 24px rgba(16, 185, 129, 0.16);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition-smooth);
+      position: relative;
+    }
+    .auth-brand-emblem:hover {
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 14px 32px -4px rgba(0, 0, 0, 0.6), 0 0 32px rgba(16, 185, 129, 0.28);
+    }
+    .auth-brand-emblem:hover .leo-logo-img {
+      transform: rotate(15deg) scale(1.05);
+    }
+    html.theme-light .auth-brand-emblem,
+    body.theme-light .auth-brand-emblem {
+      background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.08) 0%, #ffffff 80%);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 10px 24px -2px rgba(0, 0, 0, 0.06);
     }
 
     .theme-toggle-btn {
@@ -636,10 +696,8 @@
     <header class="login-top-bar">
       <a href="index.html" class="login-brand">
         <div class="brand-logo-badge">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
-          </svg>
+          <img src="assets/brand/leo-logo-dark.png" alt="شعار الأستاذ ليو" class="leo-logo-img leo-logo-dark" width="22" height="22">
+          <img src="assets/brand/leo-logo-light.png" alt="شعار الأستاذ ليو" class="leo-logo-img leo-logo-light" width="22" height="22">
         </div>
         <span>الأستاذ ليو</span>
       </a>
@@ -679,6 +737,10 @@
         <div id="authStep1" class="auth-step-view active">
           
           <div class="auth-header-wrap">
+            <div class="auth-brand-emblem">
+              <img src="assets/brand/leo-logo-dark.png" alt="الأستاذ ليو" class="leo-logo-img leo-logo-dark" width="54" height="54">
+              <img src="assets/brand/leo-logo-light.png" alt="الأستاذ ليو" class="leo-logo-img leo-logo-light" width="54" height="54">
+            </div>
             <h1 class="auth-header-title">
               <span>الأستاذ ليو</span>
               <span class="accent-glow">GPT</span>
