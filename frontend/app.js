@@ -251,6 +251,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const drawerProfileName = document.getElementById('drawerProfileName');
   const drawerProfileStageBadge = document.getElementById('drawerProfileStageBadge');
   const drawerAvatarLetter = document.getElementById('drawerAvatarLetter');
+  const drawerAccountMenu = document.getElementById('drawerAccountMenu');
+  const drawerAccountName = document.getElementById('drawerAccountName');
+  const drawerAccountAvatarLetter = document.getElementById('drawerAccountAvatarLetter');
 
   // Settings Screen
   const settingsScreen = document.getElementById('settingsScreen');
@@ -1172,34 +1175,69 @@ document.addEventListener('DOMContentLoaded', () => {
           ${conv.pinned ? '<span class="chat-pin-icon" title="مثبتة"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17v5M5 17h14v-2l-3-3V4h1V2H7v2h1v8l-3 3v2z"/></svg></span>' : ''}
           <span class="chat-title">${conv.title || 'محادثة دراسية'}</span>
         </div>
-        <div class="chat-actions-group">
-          <!-- Pin -->
-          <button class="chat-act-btn pin" title="${conv.pinned ? 'إلغاء التثبيت' : 'تثبيت في الأعلى'}">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="${conv.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-2l-3-3V4h1V2H7v2h1v8l-3 3v2z"></path></svg>
+        <button class="chat-menu-trigger" type="button" aria-label="خيارات المحادثة" title="خيارات المحادثة">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg>
+        </button>
+        <div class="chat-actions-group" role="menu" aria-label="خيارات المحادثة">
+          <button class="chat-act-btn pin" role="menuitem" title="${conv.pinned ? 'إلغاء التثبيت' : 'تثبيت في الأعلى'}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="${conv.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-2l-3-3V4h1V2H7v2h1v8l-3 3v2z"></path></svg><span>${conv.pinned ? 'إلغاء التثبيت' : 'تثبيت'}</span>
           </button>
-          <!-- Rename -->
-          <button class="chat-act-btn edit" title="إعادة تسمية">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          <button class="chat-act-btn edit" role="menuitem" title="إعادة تسمية">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg><span>إعادة تسمية</span>
           </button>
-          <!-- Archive -->
-          <button class="chat-act-btn archive" title="${conv.archived ? 'إلغاء الأرشفة' : 'أرشفة'}">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+          <button class="chat-act-btn archive" role="menuitem" title="${conv.archived ? 'إلغاء الأرشفة' : 'أرشفة'}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg><span>${conv.archived ? 'إلغاء الأرشفة' : 'أرشفة'}</span>
           </button>
-          <!-- Delete -->
-          <button class="chat-act-btn del" title="حذف">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          <button class="chat-act-btn del" role="menuitem" title="حذف">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg><span>حذف</span>
           </button>
         </div>
       `;
 
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.chat-actions-group')) return;
+        if (e.target.closest('.chat-actions-group, .chat-menu-trigger')) return;
+        if (item.classList.contains('menu-open')) return;
         openConversation(conv.id);
         closeSidebar();
       });
 
+      const menuTrigger = item.querySelector('.chat-menu-trigger');
+      const openContextMenu = () => {
+        recentChatsList.querySelectorAll('.chat-history-item.menu-open').forEach(openItem => {
+          if (openItem !== item) openItem.classList.remove('menu-open', 'menu-up');
+        });
+        const listBounds = recentChatsList.getBoundingClientRect();
+        const itemBounds = item.getBoundingClientRect();
+        item.classList.toggle('menu-up', listBounds.bottom - itemBounds.bottom < 230);
+        item.classList.add('menu-open');
+      };
+      menuTrigger.onclick = (e) => {
+        e.stopPropagation();
+        if (item.classList.contains('menu-open')) item.classList.remove('menu-open', 'menu-up');
+        else openContextMenu();
+      };
+      let holdTimer = null;
+      item.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button') || e.button !== 0) return;
+        holdTimer = setTimeout(() => {
+          openContextMenu();
+          if (navigator.vibrate) navigator.vibrate(24);
+        }, 520);
+      });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(eventName => {
+        item.addEventListener(eventName, () => {
+          if (holdTimer) clearTimeout(holdTimer);
+          holdTimer = null;
+        });
+      });
+      item.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openContextMenu();
+      });
+
       // Actions Bindings
       item.querySelector('.pin').onclick = async (e) => {
+        item.classList.remove('menu-open', 'menu-up');
         e.stopPropagation();
         const newPinned = !conv.pinned;
         conv.pinned = newPinned;
@@ -1216,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       item.querySelector('.edit').onclick = (e) => {
+        item.classList.remove('menu-open', 'menu-up');
         e.stopPropagation();
         const newTitle = prompt('أدخل الاسم الجديد للمحادثة:', conv.title);
         if (newTitle && newTitle.trim()) {
@@ -1240,6 +1279,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       item.querySelector('.archive').onclick = async (e) => {
+        item.classList.remove('menu-open', 'menu-up');
         e.stopPropagation();
         const newArchived = !conv.archived;
         conv.archived = newArchived;
@@ -1256,6 +1296,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       item.querySelector('.del').onclick = (e) => {
+        item.classList.remove('menu-open', 'menu-up');
         e.stopPropagation();
         showCustomConfirm({
           title: 'حذف المحادثة',
@@ -2245,7 +2286,7 @@ document.addEventListener('DOMContentLoaded', () => {
       bubble.textContent = text;
       row.appendChild(bubble);
 
-      // User Message Actions Toolbar (Copy, Edit, Delete)
+      // User Message Actions Toolbar (Copy, Edit)
       const toolbar = document.createElement('div');
       toolbar.className = 'user-actions-toolbar';
       toolbar.innerHTML = `
@@ -2254,9 +2295,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>
         <button class="user-action-btn action-edit-user" title="تعديل الرسالة في محرر النصوص" type="button">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-        </button>
-        <button class="user-action-btn action-del-user" title="حذف" type="button">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
         </button>
       `;
 
@@ -2309,28 +2347,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        showToast('تم فتح الرسالة للتعديل وحذف الردود اللاحقة');
+        showToast('تم فتح الرسالة للتعديل');
       };
 
-      // Delete Action
-      toolbar.querySelector('.action-del-user').onclick = async (e) => {
-        e.stopPropagation();
-        const actualMsgId = msgId || row.dataset.msgId;
-        if (actualMsgId) {
-          try {
-            await fetch(`/api/messages/${actualMsgId}`, { method: 'DELETE' });
-          } catch (err) {}
-        }
-        if (currentConversationId) {
-          const cached = getConversationFromLocalCache(currentConversationId);
-          if (cached && cached.messages) {
-            cached.messages = cached.messages.filter(m => m.id !== actualMsgId);
-            saveConversationToLocalCache(cached);
-          }
-        }
-        row.remove();
-        showToast('تم حذف الرسالة');
-      };
 
       row.appendChild(toolbar);
 
@@ -2598,6 +2617,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.chat-history-item')) return;
+    recentChatsList.querySelectorAll('.chat-history-item.menu-open').forEach(item => item.classList.remove('menu-open', 'menu-up'));
+  });
+
   document.querySelectorAll('.dropdown-item').forEach(item => {
     item.addEventListener('click', () => {
       document.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
@@ -2623,6 +2647,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebarDrawer.classList.remove('active');
     sidebarBackdrop.classList.remove('active');
     drawerSearchBox.style.display = 'none';
+    drawerAccountMenu.hidden = true;
+    drawerProfileCard.setAttribute('aria-expanded', 'false');
+    document.querySelector('.drawer-bottom-bar')?.classList.remove('account-menu-open');
   }
 
   sidebarToggleBtn.addEventListener('click', openSidebar);
@@ -2984,6 +3011,8 @@ document.addEventListener('DOMContentLoaded', () => {
       settingsUsernameText.textContent = 'تسجيل الدخول';
       drawerProfileName.textContent = 'تسجيل الدخول';
       drawerAvatarLetter.textContent = '؟';
+      drawerAccountName.textContent = 'تسجيل الدخول';
+      drawerAccountAvatarLetter.textContent = '؟';
       settingsAvatarLetterLarge.textContent = '؟';
       drawerProfileStageBadge.textContent = 'اضغط للبدء';
       settingsStudentStagePill.textContent = 'غير مسجل';
@@ -2997,6 +3026,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const letter = name.charAt(0);
     drawerAvatarLetter.textContent = letter;
+    drawerAccountName.textContent = name;
+    drawerAccountAvatarLetter.textContent = letter;
     settingsAvatarLetterLarge.textContent = letter;
 
     const stg = IRAQI_STAGES_DATA[studentProfile.stage] || IRAQI_STAGES_DATA.preparatory;
@@ -3011,13 +3042,49 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Profile click handlers
+  drawerProfileCard.setAttribute('role', 'button');
+  drawerProfileCard.setAttribute('aria-haspopup', 'menu');
+  drawerProfileCard.setAttribute('aria-expanded', 'false');
+  drawerProfileCard.setAttribute('tabindex', '0');
   drawerProfileCard.onclick = () => {
-    closeSidebar();
-    if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
-      openProfileModal(true);
-    } else {
-      settingsScreen.classList.add('active');
+    drawerAccountMenu.hidden = !drawerAccountMenu.hidden;
+    drawerProfileCard.setAttribute('aria-expanded', String(!drawerAccountMenu.hidden));
+    document.querySelector('.drawer-bottom-bar')?.classList.toggle('account-menu-open', !drawerAccountMenu.hidden);
+  };
+  drawerProfileCard.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      drawerProfileCard.click();
     }
+  });
+  drawerAccountMenu.addEventListener('click', (event) => event.stopPropagation());
+  drawerAccountMenu.addEventListener('pointerdown', (event) => event.stopPropagation());
+  document.addEventListener('pointerdown', (event) => {
+    if (drawerAccountMenu.hidden || drawerAccountMenu.contains(event.target) || drawerProfileCard.contains(event.target)) return;
+    drawerAccountMenu.hidden = true;
+    drawerProfileCard.setAttribute('aria-expanded', 'false');
+    document.querySelector('.drawer-bottom-bar')?.classList.remove('account-menu-open');
+  });
+  document.getElementById('drawerAccountCustomization').onclick = () => {
+    closeSidebar();
+    customizationRow.click();
+  };
+  document.getElementById('drawerAccountProfile').onclick = () => {
+    closeSidebar();
+    if (!studentProfile?.name || studentProfile.name.trim() === 'الطالب') openProfileModal(true);
+    else studentProfileRow.click();
+  };
+  document.getElementById('drawerAccountSettings').onclick = () => {
+    closeSidebar();
+    settingsScreen.classList.add('active');
+  };
+  document.getElementById('drawerAccountHelp').onclick = () => {
+    closeSidebar();
+    reportBugRow.click();
+  };
+  document.getElementById('drawerAccountLogout').onclick = () => {
+    closeSidebar();
+    triggerLogout();
   };
 
   settingsBackBtn.onclick = () => settingsScreen.classList.remove('active');
