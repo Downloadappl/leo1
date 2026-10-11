@@ -3762,6 +3762,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Firebase is the durable profile store. On Vercel the SQLite API can
+      // be cold/ephemeral, so hydrate the authenticated account before the
+      // profile gate decides to send the user back to login.
+      if (!studentProfile && window.LeoFirebase?.getProfile) {
+        const cloudProfile = await window.LeoFirebase.getProfile();
+        if (cloudProfile?.name && cloudProfile.name.trim() && cloudProfile.name.trim() !== 'الطالب') {
+          studentProfile = normalizeStudentProfile(cloudProfile);
+          localStorage.setItem(accountStorageKey('leo_student_profile'), JSON.stringify(studentProfile));
+          updateProfileUI();
+        }
+      }
+
       // 3. Strict Authentication Check: If no real user data exists, redirect to login page!
       if (!studentProfile || !studentProfile.name || studentProfile.name.trim() === 'الطالب') {
         resolveProfileHydrationWait();
