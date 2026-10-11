@@ -7,7 +7,7 @@ import threading
 
 DEEPSEEK_BASE_URL = "https://chat.deepseek.com"
 POW_SOLVER_URL = os.environ.get("DEEPSEEK_POW_URL", "https://dark.ps/deepseek/pow")
-DEFAULT_TOKEN = os.environ.get("DEEPSEEK_USER_TOKEN", "Vc74DKueJS4DT0qVue7/syTImmddQYyjd8u44KXCpWLQxBQLvlrCI8pZ6wNjFPX4")
+DEFAULT_TOKEN = os.environ.get("DEEPSEEK_USER_TOKEN", "q76YeMOpitDjvQ88l7onE90YThChoX5nCqtrf9VcuyMskR46MAi6dxSJVC/wF5Fi")
 
 class DeepSeekChatClient:
     """Clean, production-ready reverse client for DeepSeek Web API with PoW challenge solving."""
