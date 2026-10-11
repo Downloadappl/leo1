@@ -344,26 +344,11 @@
       <!-- Bottom Floating Glow Input Bar & Attachment Action Panel -->
       <footer class="input-section-container">
         <div class="glowing-input-box" id="glowingInputBox">
-          
-          <!-- Left: Plus Attachment Button -->
-          <button class="input-btn input-plus-btn" id="attachBtn" title="إرفاق صورة أو ملف" aria-label="إرفاق صورة أو ملف">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-          </button>
-
-          <!-- Left: AI Image Studio Button -->
-          <button class="input-btn input-studio-btn" id="imageStudioBtn" title="استوديو إنشاء وتصميم الصور بالذكاء الاصطناعي" aria-label="إنشاء صورة" type="button">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-            </svg>
-          </button>
           <input type="file" id="fileInput" accept="image/*" style="display: none;">
           <input type="file" id="docFileInput" accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12,application/vnd.openxmlformats-officedocument.presentationml.presentation,.pdf,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.html,.htm,.css,.js,.jsx,.mjs,.cjs,.ts,.tsx,.py,.pyw,.java,.c,.h,.cc,.cpp,.hpp,.cs,.go,.rs,.php,.rb,.swift,.kt,.kts,.sh,.bash,.zsh,.sql,.yaml,.yml,.toml,.ini,.cfg,.conf,.log,.diff,.patch,.env,.vue,.svelte,.ipynb,.r,.m,.scala,.pl,.lua,.ps1,.bat,.docx,.xlsx,.xlsm,.pptx,.rtf" style="display: none;">
           <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
 
-          <!-- Middle: Prompt Composer Textarea (RTL text) -->
+          <!-- Prompt area: spacious RTL text field -->
           <div class="input-field-wrapper">
             <span class="image-generation-mode-chip" id="imageGenerationModeChip" hidden dir="rtl">
               <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -383,31 +368,18 @@
             ></textarea>
           </div>
 
-          <!-- Right: Audio & Action Controls -->
-          <div class="input-right-actions">
-
-            <button class="input-btn mode-toggle-btn" id="webSearchBtn" type="button" title="البحث على الإنترنت" aria-label="البحث على الإنترنت" aria-pressed="false">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
-            </button>
-            <button class="input-btn mode-toggle-btn" id="thinkingModeBtn" type="button" title="تفعيل وضع التفكير" aria-label="وضع التفكير" aria-pressed="false">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.5 17a7 7 0 1 0-7 0"></path><path d="M9 10a3 3 0 0 1 6 0c0 1.5-1.5 2-1.5 3.5h-3C10.5 12 9 11.5 9 10Z"></path></svg>
-            </button>
-            
-            <!-- Microphone Button -->
-            <button class="input-btn mic-btn" id="micBtn" title="استماع صوتي" aria-label="ميكروفون">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="23"></line>
-                <line x1="8" y1="23" x2="16" y2="23"></line>
-              </svg>
-            </button>
-
-            <!-- Subtle Vertical Separator -->
-            <div class="input-divider"></div>
-
-            <!-- Waveform / Send / Stop Button -->
-            <button class="waveform-pill-btn" id="actionPillBtn" title="إرسال" aria-label="إرسال">
+          <div class="input-bottom-row">
+            <div class="input-left-actions">
+              <button class="input-btn input-plus-btn" id="attachBtn" type="button" title="إرفاق صورة أو ملف" aria-label="إرفاق صورة أو ملف">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+              <button class="input-btn input-studio-btn" id="imageStudioBtn" type="button" title="استوديو إنشاء وتصميم الصور بالذكاء الاصطناعي" aria-label="إنشاء صورة">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L2 9.27l6.91-1.01L12 2z"></path></svg>
+              </button>
+              <button class="input-btn mic-btn" id="micBtn" type="button" title="استماع صوتي" aria-label="ميكروفون">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+              </button>
+              <button class="waveform-pill-btn" id="actionPillBtn" type="button" title="إرسال" aria-label="إرسال">
               <!-- Default Audio Waveform Bars (5 bars) -->
               <span class="waveform-icon" id="waveformIcon">
                 <span class="wave-bar bar-1"></span>
@@ -427,8 +399,19 @@
               <svg class="stop-icon" id="stopIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="5" y="5" width="14" height="14" rx="2.5"></rect>
               </svg>
-            </button>
+              </button>
+            </div>
 
+            <div class="input-right-actions">
+              <button class="input-btn mode-toggle-btn" id="webSearchBtn" type="button" title="البحث على الإنترنت" aria-label="البحث على الإنترنت" aria-pressed="false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path></svg>
+                <span>بحث</span>
+              </button>
+              <button class="input-btn mode-toggle-btn" id="thinkingModeBtn" type="button" title="تفعيل وضع التفكير" aria-label="وضع التفكير" aria-pressed="false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="4"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(60 12 12)"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(120 12 12)"></ellipse><circle cx="12" cy="12" r="1.5"></circle></svg>
+                <span>تفكير</span>
+              </button>
+            </div>
           </div>
 
         </div>

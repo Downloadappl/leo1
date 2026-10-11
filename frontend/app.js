@@ -644,9 +644,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Auto-Resize Textarea & Enter Key Handling ---
   function autoResizeTextarea() {
     chatTextInput.style.height = 'auto';
-    const newHeight = Math.min(Math.max(chatTextInput.scrollHeight, 36), 130);
+    const newHeight = Math.min(Math.max(chatTextInput.scrollHeight, 72), 160);
     chatTextInput.style.height = newHeight + 'px';
-    chatTextInput.style.overflowY = chatTextInput.scrollHeight > 130 ? 'auto' : 'hidden';
+    chatTextInput.style.overflowY = chatTextInput.scrollHeight > 160 ? 'auto' : 'hidden';
   }
 
   chatTextInput.addEventListener('input', () => {
