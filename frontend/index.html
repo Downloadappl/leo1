@@ -199,65 +199,9 @@
               <span>الأستاذ ليو — الموجه الأكاديمي</span>
             </div>
             <h1 class="empty-state-title" id="emptyStateTitle">
-              <span id="typewriterText">هل أنت مستعد؟</span><span class="typewriter-cursor">|</span>
+              <span id="typewriterText">اسأل، اكتشف، أنجز.</span><span class="typewriter-cursor">|</span>
             </h1>
             <div class="empty-state-subtitle" id="emptyStudentGreeting">الأستاذ ليو جاهز لمساعدتك في دروسك ومسائلك خطوة بخطوة.</div>
-          </div>
-
-          <!-- Quick Interactive Study Suggestions (ChatGPT & DeepSeek Style) -->
-          <div class="study-suggestions-grid" id="studySuggestionsGrid">
-            <button class="suggestion-card" type="button" data-prompt="اشرح لي مسألة فيزياء أو كيمياء مع ذكر القوانين وخطوات التعويض والناتج النموذجي">
-              <div class="suggestion-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="12 2 2 22 22 22 12 2"/>
-                  <line x1="12" y1="8" x2="12" y2="18"/>
-                </svg>
-              </div>
-              <div class="suggestion-card-info">
-                <div class="suggestion-card-title">حل مسألة علمية نموذجية</div>
-                <div class="suggestion-card-desc">مع القوانين والتعويض والوحدات بالتفصيل</div>
-              </div>
-            </button>
-            <button class="suggestion-card" type="button" data-prompt="اشرح لي قاعدة في اللغة العربية مع أمثلة إعرابية تطبيقية من المنهج العراقي">
-              <div class="suggestion-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                </svg>
-              </div>
-              <div class="suggestion-card-info">
-                <div class="suggestion-card-title">شرح قواعد وإعراب</div>
-                <div class="suggestion-card-desc">أمثلة تطبيقية وشواهد وزارية معربة</div>
-              </div>
-            </button>
-            <button class="suggestion-card" type="button" data-prompt="ما هي أهم الأسئلة والتمارين الوزارية المكررة لهذا الموضوع وكيفية الإجابة عنها؟">
-              <div class="suggestion-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
-                </svg>
-              </div>
-              <div class="suggestion-card-info">
-                <div class="suggestion-card-title">أسئلة وزارية مكررة</div>
-                <div class="suggestion-card-desc">أجوبة نموذجية تطابق مركز الفحص</div>
-              </div>
-            </button>
-            <button class="suggestion-card" type="button" data-prompt="لخص لي هذا الفصل الدراسي في نقاط مكثفة وجداول مقارنة للمراجعة السريعة">
-              <div class="suggestion-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="9" y1="18" x2="15" y2="18"/>
-                  <line x1="10" y1="22" x2="14" y2="22"/>
-                  <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
-                </svg>
-              </div>
-              <div class="suggestion-card-info">
-                <div class="suggestion-card-title">تلخيص ذكي للاختبار</div>
-                <div class="suggestion-card-desc">مفاهيم جوهرية وجداول مقارنة سريعة</div>
-              </div>
-            </button>
           </div>
         </div>
 
@@ -401,84 +345,42 @@
               </svg>
               </button>
             </div>
-
-            <div class="input-right-actions">
-              <button class="input-btn mode-toggle-btn" id="webSearchBtn" type="button" title="البحث على الإنترنت" aria-label="البحث على الإنترنت" aria-pressed="false">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path></svg>
-                <span>بحث</span>
-              </button>
-              <button class="input-btn mode-toggle-btn" id="thinkingModeBtn" type="button" title="تفعيل وضع التفكير" aria-label="وضع التفكير" aria-pressed="false">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="4"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(60 12 12)"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(120 12 12)"></ellipse><circle cx="12" cy="12" r="1.5"></circle></svg>
-                <span>تفكير</span>
-              </button>
-            </div>
           </div>
 
         </div>
 
-        <!-- Attachment Action Sheet (Matches user screenshot: Thumbnails Row + 3 Action Buttons) -->
+        <!-- Attachment and chat-mode menu -->
         <div class="attachment-action-panel" id="attachmentActionPanel" style="display: none;">
-          <!-- Row 1: Horizontal scroll of sample gallery thumbnails with round checkmarks -->
-          <div class="gallery-thumbs-row" id="galleryThumbsRow">
-            <div class="gallery-thumb-card" data-title="مسألة فيزياء - دوائر التيار المتناوب">
-              <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-1">فيزياء</div>
-            </div>
-            <div class="gallery-thumb-card" data-title="مخطط الكيمياء - الاتزان الأيوني">
-              <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-2">كيمياء</div>
-            </div>
-            <div class="gallery-thumb-card" data-title="تمارين الرياضيات - مبرهنة رول والقيمة المتوسطة">
-              <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-3">رياضيات</div>
-            </div>
-            <div class="gallery-thumb-card" data-title="قواعد اللغة العربية - أسلوب الاستفهام">
-              <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-4">قواعد</div>
-            </div>
-            <div class="gallery-thumb-card" data-title="أسئلة وزارية مكررة في الأحياء">
-              <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-5">وزاريات</div>
-            </div>
-            <div class="gallery-thumb-card" data-title="قواعد اللغة الإنكليزية - قطعه الاستيعاب">
-              <div class="thumb-check-dot"></div>
-              <div class="thumb-placeholder-art art-6">إنكليزي</div>
-            </div>
-          </div>
-
-          <!-- Composer actions: files, camera, image creation, and image editing -->
-          <div class="attachment-actions-trio">
-            <button class="sheet-action-tile" id="sheetFileBtn" type="button">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-              </svg>
-              <span>ملف</span>
+          <div class="attachment-menu-group">
+            <button class="sheet-action-tile" id="sheetCameraBtn" type="button">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              <span>الكاميرا</span>
             </button>
             <button class="sheet-action-tile" id="sheetAlbumBtn" type="button">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-              <span>الألبوم</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg>
+              <span>الصور</span>
             </button>
-            <button class="sheet-action-tile" id="sheetCameraBtn" type="button">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
-              </svg>
-              <span>كاميرا</span>
+            <button class="sheet-action-tile" id="sheetFileBtn" type="button">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 8.49 8.49l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+              <span>الملفات</span>
+            </button>
+          </div>
+          <div class="attachment-menu-divider"></div>
+          <div class="attachment-menu-group attachment-mode-group">
+            <button class="sheet-action-tile mode-toggle-btn" id="thinkingModeBtn" type="button" title="تفعيل وضع التفكير" aria-label="وضع التفكير" aria-pressed="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="4"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(60 12 12)"></ellipse><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(120 12 12)"></ellipse><circle cx="12" cy="12" r="1.5"></circle></svg>
+              <span>فكر أطول</span>
+            </button>
+            <button class="sheet-action-tile mode-toggle-btn" id="webSearchBtn" type="button" title="البحث على الإنترنت" aria-label="البحث على الإنترنت" aria-pressed="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0-18"></path></svg>
+              <span>بحث</span>
             </button>
             <button class="sheet-action-tile" id="sheetGenerateImgBtn" type="button">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L2 9.27l6.91-1.01L12 2z"></path></svg>
               <span>إنشاء صور</span>
             </button>
             <button class="sheet-action-tile" id="sheetEditImgBtn" type="button">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"></path><path d="M15 5l4 4"></path>
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"></path><path d="m15 5 4 4"></path></svg>
               <span>تعديل صورة</span>
             </button>
           </div>

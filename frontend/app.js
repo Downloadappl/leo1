@@ -26,6 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // when the layout viewport (and 100vh) does not.
   const appViewport = document.querySelector('.app-viewport');
   const mainChatScreen = document.getElementById('mainChatScreen');
+  const syncComposerPosition = () => {
+    const emptyVisible = emptyStateContainer && getComputedStyle(emptyStateContainer).display !== 'none';
+    const hasDraft = Boolean(chatTextInput?.value.trim() || pendingAttachments?.length);
+    mainChatScreen?.classList.toggle('composer-raised', Boolean(emptyVisible && !hasDraft));
+  };
   const visualViewport = window.visualViewport;
   let viewportSyncFrame = 0;
   const syncVisibleViewport = () => {
@@ -214,9 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sheetCameraBtn = document.getElementById('sheetCameraBtn');
   const docFileInput = document.getElementById('docFileInput');
   const cameraInput = document.getElementById('cameraInput');
-  const galleryThumbsRow = document.getElementById('galleryThumbsRow');
   const typewriterText = document.getElementById('typewriterText');
-  const studySuggestionsGrid = document.getElementById('studySuggestionsGrid');
 
   // ChatGPT Audio Bar Elements
   const chatgptAudioBar = document.getElementById('chatgptAudioBar');
@@ -651,6 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   chatTextInput.addEventListener('input', () => {
     autoResizeTextarea();
+    syncComposerPosition();
     const val = chatTextInput.value.trim();
     if (val.length > 0 || pendingAttachments.length > 0) {
       actionPillBtn.classList.add('send-mode');
@@ -716,6 +720,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  [webSearchBtn, thinkingModeBtn].forEach((button) => {
+    button?.addEventListener('click', () => {
+      if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
+      glowingInputBox?.classList.remove('elevated');
+    });
+  });
+
   // Enable an explicit image-creation mode from the existing plus menu.
   // The selected chip stays in the composer while the prompt is typed.
   const selectImageCreationMode = () => {
@@ -756,37 +767,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (sheetCameraBtn) {
     sheetCameraBtn.addEventListener('click', () => {
       if (cameraInput) cameraInput.click();
-    });
-  }
-
-  // Gallery Thumbnails Selection
-  if (galleryThumbsRow) {
-    galleryThumbsRow.querySelectorAll('.gallery-thumb-card').forEach(thumb => {
-      thumb.addEventListener('click', () => {
-        const title = thumb.dataset.title || 'مسألة دراسية';
-        thumb.classList.toggle('selected');
-        chatTextInput.value = `أستاذ ليو، أرجو توضيح وشرح الحل النموذجي لهذه الجزئية بالتفصيل: ${title}`;
-        autoResizeTextarea();
-        actionPillBtn.classList.add('send-mode');
-        if (attachmentActionPanel) attachmentActionPanel.style.display = 'none';
-        if (glowingInputBox) glowingInputBox.classList.remove('elevated');
-        showToast(`تم اختيار موضوع: ${title}`);
-      });
-    });
-  }
-
-  // Study Suggestions Grid Click Handlers (ChatGPT / DeepSeek Style)
-  if (studySuggestionsGrid) {
-    studySuggestionsGrid.querySelectorAll('.suggestion-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const prompt = card.dataset.prompt;
-        if (prompt) {
-          chatTextInput.value = prompt;
-          autoResizeTextarea();
-          actionPillBtn.classList.add('send-mode');
-          handleSendPrompt();
-        }
-      });
     });
   }
 
@@ -862,6 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     });
+    syncComposerPosition();
   }
 
   // --- Web Audio Synthesized Chime ---
@@ -1071,6 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     emptyStateContainer.style.display = 'none';
+    mainChatScreen?.classList.remove('composer-raised');
     messages.forEach(msg => {
       if (msg.role === 'user') {
         appendUserMessage(msg.content, msg.attachments, msg.id);
@@ -1375,9 +1357,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function showEmptyState() {
     messagesStreamList.innerHTML = '';
     emptyStateContainer.style.display = 'flex';
-    const name = (studentProfile && studentProfile.name) ? studentProfile.name.trim() : '';
-    const phrase = name ? `هل أنت مستعد، ${name}؟` : 'هل أنت مستعد؟';
-    runTypewriterEffect(phrase);
+    runTypewriterEffect('اسأل، اكتشف، أنجز.');
+    syncComposerPosition();
   }
 
   // --- Safe Markdown Parser for Streaming (handles unclosed code blocks gracefully) ---
@@ -1929,6 +1910,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setImageGenerationMode(false);
     }
     emptyStateContainer.style.display = 'none';
+    mainChatScreen?.classList.remove('composer-raised');
 
     // Unique stable message IDs
     const userMsgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
@@ -2563,12 +2545,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- New Chat Handlers ---
   function createNewChat() {
     persistActiveConversationId(null);
-    showEmptyState();
     closeSidebar();
     chatTextInput.value = '';
     autoResizeTextarea();
     pendingAttachments = [];
     renderAttachmentChips();
+    showEmptyState();
     actionPillBtn.classList.remove('send-mode');
     document.querySelectorAll('.chat-history-item').forEach(i => i.classList.remove('active'));
     showToast('بدأت محادثة دراسية جديدة');
