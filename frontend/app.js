@@ -1476,6 +1476,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function createAnswerSummaryDetails(answer) {
+    const template = document.createElement('template');
+    template.innerHTML = safeParseMarkdown(answer);
+    template.content.querySelectorAll('img, .leo-sources, .chat-generated-image-card, .chat-image-error-card').forEach(node => node.remove());
+    const answerText = (template.content.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!answerText) return null;
+
+    const sentences = answerText.match(/[^.!?؟]+[.!?؟]?/gu) || [answerText];
+    const summaryText = sentences.slice(0, 2).join(' ').trim().slice(0, 300);
+    if (!summaryText) return null;
+
+    const details = document.createElement('details');
+    details.className = 'chat-answer-summary';
+    const summary = document.createElement('summary');
+    summary.textContent = 'ملخص الإجابة';
+    const content = document.createElement('div');
+    content.className = 'chat-answer-summary-content';
+    content.textContent = summaryText;
+    details.append(summary, content);
+    return details;
+  }
+
   // --- Silky-Smooth Progressive Streaming Engine (ChatGPT & Claude Style) ---
   class SmoothTextStreamer {
     constructor({ textElem, cursorElem, onDone }) {
@@ -1932,6 +1954,10 @@ document.addEventListener('DOMContentLoaded', () => {
       thinkingRequest,
       requestId,
       onDone: (finalContent) => {
+        if (thinkingRequest && !imageGenerationRequest && !textElem.querySelector('.chat-answer-summary')) {
+          const answerSummary = createAnswerSummaryDetails(finalContent);
+          if (answerSummary) textElem.appendChild(answerSummary);
+        }
         actionsElem.style.display = 'flex';
         setupMessageToolbar(actionsElem, finalContent, messageRow, assistantMsgId);
 

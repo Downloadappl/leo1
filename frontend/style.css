@@ -1119,6 +1119,27 @@ body.theme-light .chat-response-waiting-icon {
 }
 body.theme-light .chat-response-waiting-dots i { background: #6366f1; }
 
+.chat-answer-summary {
+  width: min(100%, 720px);
+  margin-top: 14px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(148, 163, 184, .18);
+  color: #aeb8ca;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.chat-answer-summary summary {
+  width: fit-content;
+  color: #a5b4fc;
+  cursor: pointer;
+  user-select: none;
+}
+.chat-answer-summary summary:hover { color: #c7d2fe; }
+.chat-answer-summary-content { padding: 7px 2px 2px; }
+body.theme-light .chat-answer-summary { color: #64748b; border-top-color: rgba(100, 116, 139, .2); }
+body.theme-light .chat-answer-summary summary { color: #4f46e5; }
+body.theme-light .chat-answer-summary summary:hover { color: #3730a3; }
+
 @media (prefers-reduced-motion: reduce) {
   .chat-response-waiting,
   .chat-response-waiting-icon svg,
