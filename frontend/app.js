@@ -593,10 +593,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // Keep the active conversation usable when browser storage is unavailable.
     }
   }
-  let selectedModel = localStorage.getItem(accountStorageKey('leo_selected_model'));
+  let selectedModel = localStorage.getItem('leo_selected_model');
   if (!selectedModel || selectedModel === 'leo-4o-mini' || selectedModel === 'deepseek-flash') {
-    selectedModel = 'deepseek-flash';
-    localStorage.setItem(accountStorageKey('leo_selected_model'), selectedModel);
+    selectedModel = 'leo-academic';
+    localStorage.setItem('leo_selected_model', 'leo-academic');
   }
   let isGenerating = false;
   let pendingAttachments = [];
@@ -1544,16 +1544,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       card = document.createElement('div');
       card.className = 'chat-image-generating-placeholder';
-      card.innerHTML = '<div class="gen-placeholder-glow"></div><div class="gen-placeholder-body"><div class="gen-placeholder-visual"><div class="gen-placeholder-pulse-ring"></div></div><div class="gen-placeholder-status">جاري إنشاء الصورة...</div><div class="gen-placeholder-meta">محرك الذكاء الاصطناعي فائق الدقة</div><div class="gen-placeholder-bar"><div class="gen-placeholder-bar-fill"></div></div></div>';
+      card.innerHTML = '<div class="gen-placeholder-glow"></div><div class="gen-placeholder-body"><div class="gen-placeholder-visual"><div class="gen-placeholder-pulse-ring"></div></div><div class="gen-placeholder-bar"><div class="gen-placeholder-bar-fill"></div></div></div>';
     }
     if (reqId) {
       card.id = `placeholder_${reqId}`;
       card.dataset.requestId = reqId;
     }
-    const status = card.querySelector('.gen-placeholder-status');
-    if (status && editing) status.textContent = 'جاري تعديل الصورة...';
-    const meta = card.querySelector('.gen-placeholder-meta');
-    if (meta && editing) meta.textContent = 'نطبّق التغييرات على صورتك';
     card.setAttribute('role', 'status');
     card.setAttribute('aria-live', 'polite');
     return card;

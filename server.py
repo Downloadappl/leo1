@@ -782,6 +782,118 @@ class RewindClient:
         except Exception as err:
             raise ChatGenerationError(str(err))
 
+    def _stream_gpt_ocr(self, messages, abort_event=None):
+        """Stream via dark.ps ChatGPT OCR API with automatic multimodal media upload."""
+        import requests, json, base64, image_service
+        
+        system_prompt = ""
+        user_turns = []
+        file_urls = []
+        
+        for m in messages:
+            role = m.get('role')
+            content = m.get('content')
+            attachments = m.get('attachments', [])
+            
+            if isinstance(attachments, list):
+                for att in attachments:
+                    if not isinstance(att, dict):
+                        continue
+                    data_url = att.get('data') or ''
+                    if data_url.startswith('data:image/'):
+                        try:
+                            header, encoded = data_url.split(',', 1)
+                            mime = header.split(';')[0].replace('data:', '')
+                            raw_bytes = base64.b64decode(encoded)
+                            uploaded_url = image_service.upload_image(raw_bytes, mime_type=mime)
+                            if uploaded_url and len(file_urls) < 10:
+                                file_urls.append(uploaded_url)
+                        except Exception as up_err:
+                            print(f"[GPT-OCR UPLOAD NOTICE] {up_err}")
+                    elif data_url.startswith('http://') or data_url.startswith('https://'):
+                        if len(file_urls) < 10:
+                            file_urls.append(data_url)
+                    elif att.get('url') and (att['url'].startswith('http://') or att['url'].startswith('https://')):
+                        if len(file_urls) < 10:
+                            file_urls.append(att['url'])
+
+            if isinstance(content, list):
+                text_parts = []
+                for p in content:
+                    if isinstance(p, dict):
+                        if p.get('type') == 'text':
+                            text_parts.append(p.get('text', ''))
+                        elif p.get('type') == 'image_url':
+                            img_u = p.get('image_url') or p.get('imageUrl')
+                            if isinstance(img_u, dict):
+                                img_u = img_u.get('url')
+                            if isinstance(img_u, str) and (img_u.startswith('http://') or img_u.startswith('https://')):
+                                if len(file_urls) < 10:
+                                    file_urls.append(img_u)
+                            elif isinstance(img_u, str) and img_u.startswith('data:image/'):
+                                try:
+                                    hdr, enc = img_u.split(',', 1)
+                                    mime = hdr.split(';')[0].replace('data:', '')
+                                    raw_b = base64.b64decode(enc)
+                                    up_url = image_service.upload_image(raw_b, mime_type=mime)
+                                    if up_url and len(file_urls) < 10:
+                                        file_urls.append(up_url)
+                                except Exception:
+                                    pass
+                content_str = ' '.join(text_parts)
+            else:
+                content_str = str(content or '')
+                
+            if role == 'system':
+                system_prompt = content_str
+            elif role == 'user':
+                user_turns.append(f"الطالب: {content_str}")
+            elif role == 'assistant':
+                user_turns.append(f"الأستاذ ليو: {content_str}")
+                
+        if len(user_turns) == 1 and user_turns[0].startswith("الطالب: "):
+            prompt = user_turns[0][len("الطالب: "):]
+        else:
+            prompt = "\n\n".join(user_turns) if user_turns else "مرحبا"
+
+        found_urls = re.findall(r'https?://[^\s<>"]+\.(?:png|jpg|jpeg|webp|pdf|gif)', prompt, re.IGNORECASE)
+        for fu in found_urls:
+            if fu not in file_urls and len(file_urls) < 10:
+                file_urls.append(fu)
+
+        payload = {
+            'prompt': prompt,
+            'system_prompt': system_prompt or "أنت الأستاذ ليو، المرشد الأكاديمي والذكي المساعد للطلاب في كافة المراحل الدراسية.",
+            'file_urls': file_urls[:10]
+        }
+        
+        resp = requests.post('https://dark.ps/v2/gpt-ocr/completions', json=payload, stream=True, timeout=(15, 90))
+        if resp.status_code != 200:
+            raise ChatGenerationError(f"مزود ChatGPT OCR غير متاح حالياً (رمز {resp.status_code}).")
+            
+        has_content = False
+        for line in resp.iter_lines(decode_unicode=True):
+            if abort_event and abort_event.is_set():
+                return
+            if not line or not line.startswith('data:'):
+                continue
+            raw_data = line[5:].strip()
+            if raw_data == '[DONE]':
+                break
+            try:
+                ev = json.loads(raw_data)
+                if ev.get('done'):
+                    break
+                txt = ev.get('text', '')
+                if txt:
+                    has_content = True
+                    yield txt
+            except Exception:
+                continue
+                
+        if not has_content:
+            raise ChatGenerationError("لم يصل رد من نموذج ChatGPT OCR، أعد المحاولة.")
+
     def authenticate(self):
         with self.lock:
             email = f"{self._rnd(6)}@gmail.com"
@@ -812,7 +924,14 @@ class RewindClient:
                 print(f"[AUTH ERROR] {e}")
             return False
 
-    def stream_chat(self, messages, model_name="deepseek-flash", has_images=False, temperature=0.7, relevant_memories=None, abort_event=None, user_id=None, thinking_enabled=False):
+    def stream_chat(self, messages, model_name="leo-academic", has_images=False, temperature=0.7, relevant_memories=None, abort_event=None, user_id=None, thinking_enabled=False):
+        if abort_event and abort_event.is_set():
+            return
+
+        # Leo Academic OCR / Multimodal: primary flagship model
+        if model_name in ('leo-academic', 'leo-ocr') or has_images or model_name == 'leo-vision':
+            yield from self._stream_gpt_ocr(messages, abort_event=abort_event)
+            return
         if abort_event and abort_event.is_set():
             return
 
@@ -839,7 +958,9 @@ class RewindClient:
 
         if not self.access_token:
             if not self.authenticate():
-                raise ChatGenerationError("تعذر الاتصال بخدمة الذكاء الاصطناعي حالياً. حاول مجدداً بعد قليل.")
+                print("[AUTH FALLBACK] Rewind auth failed, falling back to GPT-OCR")
+                yield from self._stream_gpt_ocr(messages, abort_event=abort_event)
+                return
 
         # Auto-switch to vision model if image is present
         if has_images and model_name not in VISION_MODELS:
@@ -1207,9 +1328,9 @@ class AppHandler(SimpleHTTPRequestHandler):
                 },
                 {
                     "id": "leo-academic",
-                    "name": "Leo Academic Max",
-                    "desc": "أكاديمي متخصص في التلخيص المنهجي والمقارنات العلمية والأبحاث الموسعة",
-                    "badge": "أكاديمي",
+                    "name": "Leo Academic OCR",
+                    "desc": "النموذج الأكاديمي الشامل لقراءة وتحليل الصور والمستندات والـ PDF وحل المسائل بدقة فائقة",
+                    "badge": "أكاديمي OCR",
                     "vision": True
                 },
                 {
@@ -1275,7 +1396,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         # Create conversation
         if path == '/api/conversations':
             title = body.get('title', 'محادثة جديدة')
-            model = body.get('model', 'deepseek-flash')
+            model = body.get('model', 'leo-academic')
             conv = database.create_conversation(title=title, model=model, user_id=uid)
             self._send_json(conv, 201)
             return
@@ -1360,7 +1481,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         # AI Image Generation Service (RIVAL-Suite-Bot engine)
         if path == '/api/image/generate':
             prompt = body.get('prompt', '').strip()
-            model = body.get('model', 'gpt-image-2')
+            model = body.get('model', 'leo-academic')
             aspect_ratio = body.get('aspect_ratio', 'square_hd')
             image_url = body.get('image_url')
             if not prompt and model not in ('rembg', 'bria-rmbg'):
@@ -1419,7 +1540,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                         client_update['_index'] = attachment_index
                         attachment_updates.append(client_update)
             cloud_memories = body.get('long_term_memories', [])
-            model = body.get('model', 'deepseek-flash')
+            model = body.get('model', 'leo-academic')
             temperature = float(body.get('temperature', 0.7))
             study_mode = body.get('study_mode', 'standard')
             personalization = body.get('personalization') if isinstance(body.get('personalization'), dict) else {}

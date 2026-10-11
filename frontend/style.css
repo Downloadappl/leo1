@@ -6028,3 +6028,12 @@ body.theme-light .settings-screen .logout-row .danger-icon {
   #modelDropdownMenu .item-info-col { min-width: 0; }
   #modelDropdownMenu .item-title, #modelDropdownMenu .item-desc { overflow-wrap: anywhere; word-break: break-word; }
 }
+
+
+/* Hide text over image generating placeholder graphic */
+.gen-placeholder-status,
+.gen-placeholder-meta,
+.chat-image-generating-placeholder .gen-placeholder-status,
+.chat-image-generating-placeholder .gen-placeholder-meta {
+  display: none !important;
+}
