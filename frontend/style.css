@@ -1907,8 +1907,11 @@ body.theme-light .mode-toggle-btn[aria-pressed="true"] { color: #2563eb; backgro
 .drawer-header {
   direction: ltr;
   display: flex;
+  flex: 0 0 auto;
+  min-height: 46px;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 20px;
 }
 
@@ -1960,22 +1963,26 @@ body.theme-light .leo-logo-dark {
 
 .drawer-brand {
   display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
   gap: 10px;
   cursor: pointer;
 }
 
 .brand-text {
-  font-size: 18px;
+  font-size: clamp(16px, 4.4vw, 18px);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
+  white-space: nowrap;
   transition: color 0.2s ease;
 }
 
 .brand-butterfly-badge,
 .drawer-brand .brand-logo-badge {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.14) 0%, rgba(28, 28, 32, 0.9) 75%);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1985,6 +1992,11 @@ body.theme-light .leo-logo-dark {
   padding: 3px;
   box-shadow: 0 0 14px rgba(16, 185, 129, 0.15);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-brand .brand-butterfly-badge .leo-logo-img {
+  width: 28px;
+  height: 28px;
 }
 
 .drawer-brand:hover .brand-butterfly-badge,
@@ -1997,7 +2009,8 @@ body.theme-light .leo-logo-dark {
   transform: rotate(20deg) scale(1.06);
 }
 
-body.theme-light .drawer-brand .brand-text {
+body.theme-light .drawer-brand .brand-text,
+html.theme-light .drawer-brand .brand-text {
   color: #0f172a;
 }
 
@@ -2297,7 +2310,8 @@ body.theme-light .empty-state-brand-mark {
 
 .drawer-bottom-profile {
   direction: ltr;
-  flex: 1;
+  flex: 0 0 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2315,6 +2329,8 @@ body.theme-light .empty-state-brand-mark {
 
 .profile-meta-text {
   display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
@@ -2325,6 +2341,10 @@ body.theme-light .empty-state-brand-mark {
   font-weight: 600;
   color: #ffffff;
   direction: rtl;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-stage-badge {
