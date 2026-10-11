@@ -1433,8 +1433,33 @@ class AppHandler(SimpleHTTPRequestHandler):
                 conv = database.create_conversation(title=auto_t, model=model, user_id=uid)
                 conv_id = conv['id']
             elif not database.get_conversation(conv_id, user_id=uid):
-                self._send_json({'error': 'المحادثة غير موجودة أو لا تملك صلاحية الوصول إليها.'}, 404)
-                return
+                # Vercel's /tmp SQLite database is instance-local. Restore this
+                # account's cached conversation when a request lands on a fresh
+                # function instance, while sync_conversations refuses IDs owned
+                # by another account.
+                raw_history = body.get('conversation_history', [])
+                safe_history = []
+                if isinstance(raw_history, list):
+                    for item in raw_history[-30:]:
+                        if not isinstance(item, dict) or item.get('role') not in ('user', 'assistant'):
+                            continue
+                        content = item.get('content')
+                        if not isinstance(content, str) or not content:
+                            continue
+                        safe_history.append({
+                            'id': str(item.get('id') or f"msg_{uuid.uuid4().hex[:12]}")[:160],
+                            'role': item['role'],
+                            'content': content[-16000:]
+                        })
+                database.sync_conversations(user_id=uid, conversations_data=[{
+                    'id': str(conv_id),
+                    'title': database.generate_smart_title(user_text) or 'محادثة دراسية',
+                    'model': model,
+                    'messages': safe_history
+                }])
+                if not database.get_conversation(conv_id, user_id=uid):
+                    self._send_json({'error': 'المحادثة غير موجودة أو لا تملك صلاحية الوصول إليها.'}, 404)
+                    return
 
             generation_key = f"{conv_id}:{req_id}"
 

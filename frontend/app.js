@@ -1793,6 +1793,59 @@ document.addEventListener('DOMContentLoaded', () => {
       this.showFailure(markup, selector, onRetry);
     }
 
+    failText(message, onRetry) {
+      if (this.state === 'cancelled' || this.state === 'complete') return;
+      this.clearImagePreload(true);
+      this.setState('failed');
+      if (this.streamer.rafId) cancelAnimationFrame(this.streamer.rafId);
+      this.streamer.rafId = null;
+      this.streamer.isAborted = true;
+      stopDalleProgress();
+      if (this.cursorElem?.parentNode) this.cursorElem.remove();
+
+      const card = document.createElement('div');
+      card.className = 'stream-error-card';
+      const content = document.createElement('div');
+      content.className = 'stream-error-content';
+      const errorIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      errorIcon.setAttribute('width', '16');
+      errorIcon.setAttribute('height', '16');
+      errorIcon.setAttribute('viewBox', '0 0 24 24');
+      errorIcon.setAttribute('fill', 'none');
+      errorIcon.setAttribute('stroke', '#ef4444');
+      errorIcon.setAttribute('stroke-width', '2');
+      errorIcon.setAttribute('stroke-linecap', 'round');
+      errorIcon.setAttribute('stroke-linejoin', 'round');
+      const errorCircle = document.createElementNS(errorIcon.namespaceURI, 'circle');
+      errorCircle.setAttribute('cx', '12');
+      errorCircle.setAttribute('cy', '12');
+      errorCircle.setAttribute('r', '10');
+      const errorLine = document.createElementNS(errorIcon.namespaceURI, 'line');
+      errorLine.setAttribute('x1', '12');
+      errorLine.setAttribute('y1', '8');
+      errorLine.setAttribute('x2', '12');
+      errorLine.setAttribute('y2', '12');
+      const errorDot = document.createElementNS(errorIcon.namespaceURI, 'line');
+      errorDot.setAttribute('x1', '12');
+      errorDot.setAttribute('y1', '16');
+      errorDot.setAttribute('x2', '12.01');
+      errorDot.setAttribute('y2', '16');
+      errorIcon.append(errorCircle, errorLine, errorDot);
+      content.appendChild(errorIcon);
+      const errorText = document.createElement('span');
+      errorText.textContent = message;
+      content.appendChild(errorText);
+      const retryButton = document.createElement('button');
+      retryButton.className = 'stream-retry-btn';
+      retryButton.type = 'button';
+      const retryLabel = document.createElement('span');
+      retryLabel.textContent = 'إعادة المحاولة';
+      retryButton.appendChild(retryLabel);
+      if (typeof onRetry === 'function') retryButton.addEventListener('click', onRetry, { once: true });
+      card.append(content, retryButton);
+      this.textElem.replaceChildren(card);
+    }
+
     showFailure(markup, selector, onRetry) {
       this.clearImagePreload(true);
       this.setState('failed');
@@ -1937,6 +1990,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = {
         request_id: requestId,
         conversation_id: responseConversationId,
+        conversation_history: responseConversationId
+          ? (getConversationFromLocalCache(responseConversationId)?.messages || [])
+              .filter(message => message && (message.role === 'user' || message.role === 'assistant') && typeof message.content === 'string')
+              .slice(-30)
+              .map(message => ({
+                id: message.id,
+                role: message.role,
+                content: message.content.slice(-16000),
+                created_at: message.created_at
+              }))
+          : [],
         message_id: userMsgId,
         assistant_message_id: assistantMsgId,
         content: text,
@@ -1959,7 +2023,23 @@ document.addEventListener('DOMContentLoaded', () => {
         signal: requestAbortController.signal
       });
 
-      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+      if (!resp.ok) {
+        let serverMessage = '';
+        try {
+          const errorBody = await resp.json();
+          if (typeof errorBody?.error === 'string') serverMessage = errorBody.error.trim();
+        } catch (_) {}
+
+        const requestError = new Error(serverMessage || (
+          resp.status === 404
+            ? 'تعذر العثور على المحادثة أو خدمة الرد. حدّث الصفحة ثم أعد المحاولة.'
+            : resp.status >= 500
+              ? 'الخادم مشغول مؤقتاً. أعد المحاولة بعد قليل.'
+              : 'تعذر إرسال الرسالة. أعد المحاولة.'
+        ));
+        requestError.isServerError = true;
+        throw requestError;
+      }
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder('utf-8');
@@ -2085,20 +2165,8 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMsg = `تعذر استلام الرد (${err.message || 'خطأ في الاتصال'}).`;
       }
 
-      // Keep user message intact and display real inline retry card
-      const safeErrorMessage = errorMsg.replace(/[&<>"']/g, ch => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      })[ch]);
-      const errorMarkup = `
-        <div class="stream-error-card">
-          <div class="stream-error-content">
-            <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
-            <span>${safeErrorMessage}</span>
-          </div>
-          <button class="stream-retry-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>إعادة المحاولة</span></button>
-        </div>
-      `;
-      requestLifecycle.fail(errorMarkup, '.stream-retry-btn', () => {
+      // Keep the user message intact and render error text as text, never as HTML/Markdown.
+      requestLifecycle.failText(errorMsg, () => {
         messageRow.remove();
         handleSendPrompt(text, attachmentsToSend, imageGenerationRequest, imageEditingRequest, webSearchRequest, thinkingRequest);
       });
